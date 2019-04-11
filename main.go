@@ -28,7 +28,7 @@ var (
 
 // webhook responds to webhook events.
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Respond to the request right away, since it doesn't actuall matter what we send back.
+	// Respond to the request right away, since it doesn't actually matter what we send back.
 	w.WriteHeader(200)
 
 	// Validate the payload with our webhook secret.
