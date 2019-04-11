@@ -1,3 +1,4 @@
-*.pem
+/.serverless/
+/bin/
 *.env
-/tag-bot
+*.pem

@@ -1,0 +1,21 @@
+service: tag-bot
+provider:
+  name: aws
+  runtime: go1.x
+  environment:
+    GITHUB_APP_ID: ${env:GITHUB_APP_ID}
+    GITHUB_INSTALLATION_ID: ${env:GITHUB_INSTALLATION_ID}
+    GITHUB_PEM_FILE: ${env:GITHUB_PEM_FILE}
+    GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
+    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
+    REGISTRY_BRANCH: ${env:REGISTRY_BRANCH}
+package:
+ exclude: [./**]
+ include: [./bin/**]
+functions:
+  github:
+    handler: bin/github
+    events:
+      - http:
+          path: /webhook/github
+          method: post
