@@ -41,7 +41,7 @@ type LambdaRequest struct {
 
 // Lambda2HTTP converts a Lambda request to an HTTP request.
 func Lambda2HTTP(lr LambdaRequest) (*http.Request, error) {
-	r, err := http.NewRequest(lr.Method, "https://example.com", bytes.NewBufferString(lr.Body))
+	r, err := http.NewRequest(lr.Method, "", bytes.NewBufferString(lr.Body))
 	if err != nil {
 		return nil, err
 	}
