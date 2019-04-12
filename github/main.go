@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/google/go-github/github"
@@ -39,8 +41,81 @@ type LambdaRequest struct {
 	Body    string            `json:"body`
 }
 
+type Response events.APIGatewayProxyResponse
+
+func init() {
+	appID, err := strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
+	if err != nil {
+		log.Println("App ID:", err)
+		return
+	}
+
+	installationID, err := strconv.Atoi(os.Getenv("GITHUB_INSTALLATION_ID"))
+	if err != nil {
+		log.Println("Installation ID:", err)
+		return
+	}
+
+	pemFile := "bin/" + os.Getenv("GITHUB_PEM_FILE")
+	tr, err := NewKeyFromFile(http.DefaultTransport, appID, installationID, pemFile)
+	if err != nil {
+		log.Println("Transport:", err)
+		return
+	}
+
+	client = github.NewClient(&http.Client{Transport: tr})
+}
+
+func main() {
+	if client == nil {
+		log.Println("Client is not available")
+		return
+	}
+
+	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
+		// It doesn't matter what we return to the webhook.
+		response = Response{StatusCode: 204}
+
+		// Convert the request to an HTTP request.
+		r, err := lambdaToHttp(lr)
+		if err != nil {
+			log.Println("Converting request:", err)
+			return
+		}
+
+		// Validate the payload.
+		payload, err := github.ValidatePayload(r, webhookSecret)
+		if err != nil {
+			log.Println("Validating payload:", err)
+			return
+		}
+
+		// Parse the event.
+		event, err := github.ParseWebHook(github.WebHookType(r), payload)
+		if err != nil {
+			log.Println("Parsing payload:", err)
+			return
+		}
+
+		// Check the event type.
+		pre, ok := event.(*github.PullRequestEvent)
+		if !ok {
+			log.Println("Unknown event type:", github.WebHookType(r))
+			return
+		}
+
+		// Handle the pull request event.
+		if err = handlePullRequestEvent(pre); err != nil {
+			log.Println("Event handling:", err)
+			return
+		}
+
+		return
+	})
+}
+
 // Lambda2HTTP converts a Lambda request to an HTTP request.
-func Lambda2HTTP(lr LambdaRequest) (*http.Request, error) {
+func lambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 	r, err := http.NewRequest(lr.Method, "", bytes.NewBufferString(lr.Body))
 	if err != nil {
 		return nil, err
@@ -51,63 +126,31 @@ func Lambda2HTTP(lr LambdaRequest) (*http.Request, error) {
 	return r, nil
 }
 
-func Handler(lr LambdaRequest) {
-	r, err := Lambda2HTTP(lr)
-	if err != nil {
-		log.Println("Converting request:", err)
-		return
-	}
-
-	payload, err := github.ValidatePayload(r, webhookSecret)
-	if err != nil {
-		log.Println("Payload validation:", err)
-		return
-	}
-
-	// Parse the event.
-	event, err := github.ParseWebHook(github.WebHookType(r), payload)
-	if err != nil {
-		log.Println("Payload parsing:", err)
-		return
-	}
-
-	pre, ok := event.(*github.PullRequestEvent)
-	if !ok {
-		log.Println("Unknown event type")
-		return
-	}
-
-	HandlePullRequestEvent(pre)
-}
-
-func HandlePullRequestEvent(pre *github.PullRequestEvent) {
+// handlePullRequest creates a release from a merged pull request.
+func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 	pr := pre.GetPullRequest()
 	u := pr.GetUser()
 	body := pr.GetBody()
 
 	// Check that the event is a PR merge.
 	if pre.GetAction() != "closed" || !pr.GetMerged() {
-		log.Println("Not a merge event")
-		return
+		return errors.New("Not a merge event")
 	}
 
 	// Check that the PR creator is Registrator.
 	if u.GetLogin() != registratorUsername {
-		log.Println("PR not created by Registrator")
-		return
+		return errors.New("PR not created by Registrator")
 	}
 
 	// Check that the base branch is the default.
 	if pr.GetBase().GetRef() != registryBranch {
-		log.Println("Base branch is not the default")
-		return
+		return errors.New("Base branch is not the default")
 	}
 
 	// Get the repository URL.
 	match := repoRegex.FindStringSubmatch(body)
 	if match == nil {
-		log.Println("No repo regex match")
-		return
+		return errors.New("No repo regex match")
 	}
 	repoURL := match[1]
 	log.Println("Extracted repo URL:", repoURL)
@@ -115,8 +158,7 @@ func HandlePullRequestEvent(pre *github.PullRequestEvent) {
 	// Get the repository owner and name.
 	match = repoPiecesRegex.FindStringSubmatch(repoURL)
 	if match == nil {
-		log.Println("No repo pieces regex match")
-		return
+		return errors.New("No repo pieces regex match")
 	}
 	owner, name := match[1], match[2]
 	log.Println("Extracted repo owner:", owner)
@@ -125,8 +167,7 @@ func HandlePullRequestEvent(pre *github.PullRequestEvent) {
 	// Get the package version.
 	match = versionRegex.FindStringSubmatch(body)
 	if match == nil {
-		log.Println("No version regex match")
-		return
+		return errors.New("No version regex match")
 	}
 	version := match[1]
 	log.Println("Extracted package version:", version)
@@ -134,44 +175,19 @@ func HandlePullRequestEvent(pre *github.PullRequestEvent) {
 	// Get the release commit SHA.
 	match = commitSHARegex.FindStringSubmatch(body)
 	if match == nil {
-		log.Println("No commit SHA regex match")
-		return
+		return errors.New("No commit SHA regex match")
 	}
 	sha := match[1]
 	log.Println("Extracted commit SHA:", sha)
 
-	// Create the release
+	// Create the release.
 	release := &github.RepositoryRelease{TagName: &version, TargetCommitish: &sha}
 	if _, _, err := client.Repositories.CreateRelease(ctx, owner, name, release); err != nil {
-		log.Println("Creating release failed:", err)
-		return
+		return err
 	}
 
 	log.Printf("Created release %s for %s/%s at %s\n", version, owner, name, sha)
-}
-
-func init() {
-	appID, err := strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
-	if err != nil {
-		log.Fatal("App ID:", err)
-	}
-
-	installationID, err := strconv.Atoi(os.Getenv("GITHUB_INSTALLATION_ID"))
-	if err != nil {
-		log.Fatal("Installation ID:", err)
-	}
-
-	pemFile := os.Getenv("GITHUB_PEM_FILE")
-	tr, err := NewKeyFromFile(http.DefaultTransport, appID, installationID, pemFile)
-	if err != nil {
-		log.Fatal("Transport:", err)
-	}
-
-	client = github.NewClient(&http.Client{Transport: tr})
-}
-
-func main() {
-	lambda.Start(Handler)
+	return nil
 }
 
 // The code below is not mine.
