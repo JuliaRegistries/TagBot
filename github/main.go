@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,7 +131,7 @@ func lambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 	pr := pre.GetPullRequest()
 	u := pr.GetUser()
-	body := pr.GetBody()
+	body := strings.TrimSpace(pr.GetBody())
 
 	// Check that the event is a PR merge.
 	if pre.GetAction() != "closed" || !pr.GetMerged() {
