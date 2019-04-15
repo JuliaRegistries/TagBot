@@ -27,10 +27,10 @@ var (
 	registratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	registryBranch      = os.Getenv("REGISTRY_BRANCH")
 	webhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
-	repoRegex           = regexp.MustCompile("Repository: (.*)")
-	repoPiecesRegex     = regexp.MustCompile("https://github.com/(.*)/(.*)")
-	versionRegex        = regexp.MustCompile("Version: (v.*)")
-	commitSHARegex      = regexp.MustCompile("Commit SHA: (.*)")
+	repoRegex           = regexp.MustCompile(`Repository:\s+(.*)`)
+	repoPiecesRegex     = regexp.MustCompile(`github.com/(.*)/(.*)`)
+	versionRegex        = regexp.MustCompile(`Version:\s+(v.*)`)
+	commitRegex         = regexp.MustCompile(`Commit:\s+(.*)`)
 	ctx                 = context.Background()
 	client              *github.Client
 )
@@ -173,13 +173,13 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 	version := match[1]
 	log.Println("Extracted package version:", version)
 
-	// Get the release commit SHA.
-	match = commitSHARegex.FindStringSubmatch(body)
+	// Get the release commit hash.
+	match = commitRegex.FindStringSubmatch(body)
 	if match == nil {
-		return errors.New("No commit SHA regex match")
+		return errors.New("No commit regex match")
 	}
 	sha := match[1]
-	log.Println("Extracted commit SHA:", sha)
+	log.Println("Extracted commit:", sha)
 
 	// Create the release.
 	release := &github.RepositoryRelease{TagName: &version, TargetCommitish: &sha}
