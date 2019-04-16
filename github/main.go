@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -41,20 +41,20 @@ type Response events.APIGatewayProxyResponse
 func init() {
 	appID, err := strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
 	if err != nil {
-		log.Println("App ID:", err)
+		fmt.Println("App ID:", err)
 		return
 	}
 
 	installationID, err := strconv.Atoi(os.Getenv("GITHUB_INSTALLATION_ID"))
 	if err != nil {
-		log.Println("Installation ID:", err)
+		fmt.Println("Installation ID:", err)
 		return
 	}
 
 	pemFile := "bin/" + os.Getenv("GITHUB_PEM_FILE")
 	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appID, installationID, pemFile)
 	if err != nil {
-		log.Println("Transport:", err)
+		fmt.Println("Transport:", err)
 		return
 	}
 
@@ -63,7 +63,7 @@ func init() {
 
 func main() {
 	if client == nil {
-		log.Println("Client is not available")
+		fmt.Println("Client is not available")
 		return
 	}
 
@@ -74,34 +74,34 @@ func main() {
 		// Convert the request to an HTTP request.
 		r, err := lambdaToHttp(lr)
 		if err != nil {
-			log.Println("Converting request:", err)
+			fmt.Println("Converting request:", err)
 			return
 		}
 
 		// Validate the payload.
 		payload, err := github.ValidatePayload(r, webhookSecret)
 		if err != nil {
-			log.Println("Validating payload:", err)
+			fmt.Println("Validating payload:", err)
 			return
 		}
 
 		// Parse the event.
 		event, err := github.ParseWebHook(github.WebHookType(r), payload)
 		if err != nil {
-			log.Println("Parsing payload:", err)
+			fmt.Println("Parsing payload:", err)
 			return
 		}
 
 		// Check the event type.
 		pre, ok := event.(*github.PullRequestEvent)
 		if !ok {
-			log.Println("Unknown event type:", github.WebHookType(r))
+			fmt.Println("Unknown event type:", github.WebHookType(r))
 			return
 		}
 
 		// Handle the pull request event.
 		if err = handlePullRequestEvent(pre); err != nil {
-			log.Println("Event handling:", err)
+			fmt.Println("Event handling:", err)
 			return
 		}
 
@@ -127,6 +127,31 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 	u := pr.GetUser()
 	body := strings.TrimSpace(pr.GetBody())
 
+	info := `
+=== Info ===
+Registrator: %s
+Registry branch: %s
+PR Action: %s
+PR Merged: %t
+PR Creator: %s
+PR Base: %s
+PR Body:
+-----
+%s
+-----
+============
+`
+	fmt.Printf(
+		info,
+		registratorUsername,
+		registryBranch,
+		pre.GetAction(),
+		pr.GetMerged(),
+		u.GetLogin(),
+		pr.GetBase().GetRef(),
+		body,
+	)
+
 	// Check that the event is a PR merge.
 	if pre.GetAction() != "closed" || !pr.GetMerged() {
 		return errors.New("Not a merge event")
@@ -148,7 +173,7 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 		return errors.New("No repo regex match")
 	}
 	repoURL := match[1]
-	log.Println("Extracted repo URL:", repoURL)
+	fmt.Println("Extracted repo URL:", repoURL)
 
 	// Get the repository owner and name.
 	match = repoPiecesRegex.FindStringSubmatch(repoURL)
@@ -156,8 +181,8 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 		return errors.New("No repo pieces regex match")
 	}
 	owner, name := match[1], match[2]
-	log.Println("Extracted repo owner:", owner)
-	log.Println("Extracted repo name:", name)
+	fmt.Println("Extracted repo owner:", owner)
+	fmt.Println("Extracted repo name:", name)
 
 	// Get the package version.
 	match = versionRegex.FindStringSubmatch(body)
@@ -165,7 +190,7 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 		return errors.New("No version regex match")
 	}
 	version := match[1]
-	log.Println("Extracted package version:", version)
+	fmt.Println("Extracted package version:", version)
 
 	// Get the release commit hash.
 	match = commitRegex.FindStringSubmatch(body)
@@ -173,14 +198,14 @@ func handlePullRequestEvent(pre *github.PullRequestEvent) error {
 		return errors.New("No commit regex match")
 	}
 	sha := match[1]
-	log.Println("Extracted commit:", sha)
+	fmt.Println("Extracted commit:", sha)
 
 	// Create the release.
 	release := &github.RepositoryRelease{TagName: &version, TargetCommitish: &sha}
 	if _, _, err := client.Repositories.CreateRelease(ctx, owner, name, release); err != nil {
-		return err
+		return errors.New("Creating release: " + err.Error())
 	}
 
-	log.Printf("Created release %s for %s/%s at %s\n", version, owner, name, sha)
+	fmt.Printf("Created release %s for %s/%s at %s\n", version, owner, name, sha)
 	return nil
 }
