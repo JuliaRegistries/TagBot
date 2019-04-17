@@ -4,7 +4,6 @@
 [![travis-img]][travis-link]
 
 TagBot creates tags and releases for your Julia packages when they're registered, so that your tags/releases on GitHub are kept in sync with releases you have made on the Julia package registry.
-So your releases/tags on GitHub are kept in sync with what releases you have on julia package registry.
 
 To install the app, click the badge above (enabling for all repositories is recommended).
 Afterwards, releases for all of your packages registered with [Registrator] will be handled automatically.
