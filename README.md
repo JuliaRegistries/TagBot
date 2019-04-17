@@ -8,7 +8,7 @@ So your releases/tags on GitHub are kept in sync with what releases you have on 
 
 To install the app, click the badge above (enabling for all repositories is recommended).
 Afterwards, releases for all of your packages registered with [Registrator] will be handled automatically.
-TagBot does not handle manual registrations
+TagBot does not handle manual registrations.
 
 ### Usage:
 
