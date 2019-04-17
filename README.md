@@ -10,12 +10,11 @@ To install the app, click the badge above (enabling for all repositories is reco
 Afterwards, releases for all of your packages registered with [Registrator] will be handled automatically.
 TagBot does not handle manual registrations.
 
-### Usage:
+### Usage
 
- 1. Install Tagbot and enable it for your package (if not already done before)
- 2. Make a package release using [Registrator]
- 3. TagBot will automatically tag a GitHub release, that matches the package release you just made.
-
+ 1. Install TagBot and enable it for your package if not already done.
+ 2. Make a package release using [Registrator].
+ 3. TagBot will automatically tag a GitHub release that matches the package release you just made.
 
 For more information on what TagBot is and isn't, please see the [announcement].
 
