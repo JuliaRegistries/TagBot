@@ -32,8 +32,8 @@ var (
 // LambdaRequest is what we get from AWS Lambda.
 type LambdaRequest struct {
 	Method  string            `json:"httpMethod"`
-	Headers map[string]string `json:"headers`
-	Body    string            `json:"body`
+	Headers map[string]string `json:"headers"`
+	Body    string            `json:"body"`
 }
 
 type Response events.APIGatewayProxyResponse
@@ -109,7 +109,7 @@ func main() {
 	})
 }
 
-// Lambda2HTTP converts a Lambda request to an HTTP request.
+// lambdaToHttp converts a Lambda request to an HTTP request.
 func lambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 	r, err := http.NewRequest(lr.Method, "", bytes.NewBufferString(lr.Body))
 	if err != nil {
@@ -135,6 +135,7 @@ PR Action: %s
 PR Merged: %t
 PR Creator: %s
 PR Base: %s
+PR Title: %s
 PR Body:
 -----
 %s
@@ -149,6 +150,7 @@ PR Body:
 		pr.GetMerged(),
 		u.GetLogin(),
 		pr.GetBase().GetRef(),
+		pr.GetTitle(),
 		body,
 	)
 
@@ -197,15 +199,15 @@ PR Body:
 	if match == nil {
 		return errors.New("No commit regex match")
 	}
-	sha := match[1]
-	fmt.Println("Extracted commit:", sha)
+	commit := match[1]
+	fmt.Println("Extracted commit:", commit)
 
 	// Create the release.
-	release := &github.RepositoryRelease{TagName: &version, TargetCommitish: &sha}
+	release := &github.RepositoryRelease{TagName: &version, TargetCommitish: &commit}
 	if _, _, err := client.Repositories.CreateRelease(ctx, owner, name, release); err != nil {
 		return errors.New("Creating release: " + err.Error())
 	}
 
-	fmt.Printf("Created release %s for %s/%s at %s\n", version, owner, name, sha)
+	fmt.Printf("Created release %s for %s/%s at %s\n", version, owner, name, commit)
 	return nil
 }
