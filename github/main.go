@@ -20,12 +20,14 @@ import (
 var (
 	registratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	registryBranch      = os.Getenv("REGISTRY_BRANCH")
+	pemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
 	webhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 	repoRegex           = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	versionRegex        = regexp.MustCompile(`Version:\s*(v.*)`)
 	commitRegex         = regexp.MustCompile(`Commit:\s*(.*)`)
 	ctx                 = context.Background()
-	client              *github.Client
+	appID               int
+	appClient           *github.Client
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -54,31 +56,25 @@ type ReleaseInfo struct {
 }
 
 func init() {
-	appID, err := strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
+	var err error
+	appID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
 	if err != nil {
 		fmt.Println("App ID:", err)
 		return
 	}
 
-	installationID, err := strconv.Atoi(os.Getenv("GITHUB_INSTALLATION_ID"))
-	if err != nil {
-		fmt.Println("Installation ID:", err)
-		return
-	}
-
-	pemFile := "bin/" + os.Getenv("GITHUB_PEM_FILE")
-	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appID, installationID, pemFile)
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, appID, pemFile)
 	if err != nil {
 		fmt.Println("Transport:", err)
 		return
 	}
 
-	client = github.NewClient(&http.Client{Transport: tr})
+	appClient = github.NewClient(&http.Client{Transport: tr})
 }
 
 func main() {
-	if client == nil {
-		fmt.Println("Client is not available")
+	if appClient == nil {
+		fmt.Println("App client is not available")
 		return
 	}
 
@@ -124,7 +120,14 @@ func main() {
 		}
 
 		ri := ParseBody(PreprocessBody(pre.GetPullRequest().GetBody()))
-		if err := ri.DoRelease(); err != nil {
+
+		client, err := GetInstallationClient(ri.Owner)
+		if err != nil {
+			response.Body = "Installation client: " + err.Error()
+			return
+		}
+
+		if err := ri.DoRelease(client); err != nil {
 			response.Body = "Creating release: " + err.Error()
 			return
 		}
@@ -237,10 +240,24 @@ func ParseBody(body string) ReleaseInfo {
 	}
 }
 
-// DoRelease creates the GitHub release.
-func (ri ReleaseInfo) DoRelease() error {
-	r := github.RepositoryRelease{TagName: &ri.Version, TargetCommitish: &ri.Commit}
+// GetInstallationClient returns a client that can be used to interact with an installation.
+func GetInstallationClient(user string) (*github.Client, error) {
+	i, _, err := appClient.Apps.FindUserInstallation(ctx, user)
+	if err != nil {
+		return nil, err
+	}
 
+	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appID, int(i.GetID()), pemFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return github.NewClient(&http.Client{Transport: tr}), nil
+}
+
+// DoRelease creates the GitHub release.
+func (ri ReleaseInfo) DoRelease(client *github.Client) error {
+	r := github.RepositoryRelease{TagName: &ri.Version, TargetCommitish: &ri.Commit}
 	if _, _, err := client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, &r); err != nil {
 		return errors.New("Creating release: " + err.Error())
 	}
