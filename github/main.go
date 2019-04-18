@@ -21,6 +21,7 @@ var (
 	registratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	registryBranch      = os.Getenv("REGISTRY_BRANCH")
 	pemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
+	contactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	webhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 	repoRegex           = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	versionRegex        = regexp.MustCompile(`Version:\s*(v.*)`)
@@ -127,7 +128,7 @@ func main() {
 			return
 		}
 
-		if err := ri.DoRelease(client); err != nil {
+		if err := ri.DoRelease(client, pre.GetPullRequest()); err != nil {
 			response.Body = "Creating release: " + err.Error()
 			return
 		}
@@ -256,12 +257,54 @@ func GetInstallationClient(user string) (*github.Client, error) {
 }
 
 // DoRelease creates the GitHub release.
-func (ri ReleaseInfo) DoRelease(client *github.Client) error {
-	r := github.RepositoryRelease{TagName: &ri.Version, TargetCommitish: &ri.Commit}
-	if _, _, err := client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, &r); err != nil {
+func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest) error {
+	var err error
+	r := &github.RepositoryRelease{TagName: &ri.Version, TargetCommitish: &ri.Commit}
+
+	r, _, err = client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, r)
+	if err != nil {
+		MakeErrorComment(pr, err)
 		return errors.New("Creating release: " + err.Error())
 	}
 
+	MakeSuccessComment(pr, r)
 	fmt.Printf("Created release %s for %s/%s at %s\n", ri.Version, ri.Owner, ri.Name, ri.Commit)
 	return nil
+}
+
+// MakeSuccessComment adds a comment to the PR indicating success.
+func MakeSuccessComment(pr *github.PullRequest, r *github.RepositoryRelease) {
+	body := fmt.Sprintf(
+		"I've created release `%s`, [here](%s) it is.",
+		r.GetTagName(), r.GetHTMLURL(),
+	)
+	SendComment(pr, body)
+}
+
+// MakeErrorComment adds a comment to the PR indicating failure.
+func MakeErrorComment(pr *github.PullRequest, err error) {
+	body := fmt.Sprintf(
+		"I tried to create a release but ran into this error:\n```\n%v\n```\ncc: @%s",
+		err, contactUser,
+	)
+	SendComment(pr, body)
+}
+
+// SendComment adds a comment to a PR.
+func SendComment(pr *github.PullRequest, body string) {
+	repo := pr.GetBase().GetRepo()
+	owner := repo.GetOwner().GetLogin()
+	name := repo.GetName()
+	num := pr.GetNumber()
+
+	client, err := GetInstallationClient(owner)
+	if err != nil {
+		fmt.Println("Creating comment:", err)
+		return
+	}
+
+	c := github.IssueComment{Body: &body}
+	if _, _, err := client.Issues.CreateComment(ctx, owner, name, num, &c); err != nil {
+		fmt.Println("Creating comment:", err)
+	}
 }
