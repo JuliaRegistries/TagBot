@@ -259,7 +259,11 @@ func GetInstallationClient(user string) (*github.Client, error) {
 // DoRelease creates the GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest) error {
 	var err error
-	r := &github.RepositoryRelease{TagName: &ri.Version, TargetCommitish: &ri.Commit}
+	r := &github.RepositoryRelease{
+		TagName: &ri.Version,
+		Name: &ri.Version,
+		TargetCommitish: &ri.Commit,
+	}
 
 	r, _, err = client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, r)
 	if err != nil {
