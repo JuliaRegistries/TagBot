@@ -11,8 +11,8 @@ provider:
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
     REGISTRY_BRANCH: ${env:REGISTRY_BRANCH}
 package:
- exclude: [./**]
- include: [./bin/**]
+  exclude: [./**]
+  include: [./bin/**]
 functions:
   github:
     handler: bin/github

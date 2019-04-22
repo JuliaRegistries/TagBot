@@ -20,9 +20,9 @@ import (
 var (
 	registratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	registryBranch      = os.Getenv("REGISTRY_BRANCH")
-	pemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
 	contactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	webhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
+	pemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
 	repoRegex           = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	versionRegex        = regexp.MustCompile(`Version:\s*(v.*)`)
 	commitRegex         = regexp.MustCompile(`Commit:\s*(.*)`)
@@ -82,10 +82,10 @@ func main() {
 	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
 		response = Response{StatusCode: 200}
 		defer func(r *Response) {
-			if r.Body != "" {
-				fmt.Println(r.Body)
-			} else {
+			if r.Body == "" {
 				fmt.Println("No error")
+			} else {
+				fmt.Println(r.Body)
 			}
 		}(&response)
 
@@ -152,9 +152,6 @@ func LambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 // PrintInfo prints out some logging information.
 func PrintInfo(pre *github.PullRequestEvent) {
 	pr := pre.GetPullRequest()
-	u := pr.GetUser()
-	body := strings.TrimSpace(pr.GetBody())
-
 	info := `
 === Info ===
 Registrator: %s
@@ -176,10 +173,10 @@ PR Body:
 		registryBranch,
 		pre.GetAction(),
 		pr.GetMerged(),
-		u.GetLogin(),
+		pr.GetUser().GetLogin(),
 		pr.GetBase().GetRef(),
 		pr.GetTitle(),
-		body,
+		PreprocessBody(pr.GetBody()),
 	)
 }
 
