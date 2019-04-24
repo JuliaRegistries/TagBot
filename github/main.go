@@ -82,11 +82,7 @@ func main() {
 	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
 		response = Response{StatusCode: 200}
 		defer func(r *Response) {
-			if r.Body == "" {
-				fmt.Println("No error")
-			} else {
-				fmt.Println(r.Body)
-			}
+			fmt.Println(r.Body)
 		}(&response)
 
 		r, err := LambdaToHttp(lr)
@@ -113,7 +109,8 @@ func main() {
 			return
 		}
 
-		PrintInfo(pre)
+		id := github.DeliveryID(r)
+		PrintInfo(pre, id)
 
 		if err = ShouldRelease(pre); err != nil {
 			response.Body = "Validation: " + err.Error()
@@ -128,11 +125,12 @@ func main() {
 			return
 		}
 
-		if err := ri.DoRelease(client, pre.GetPullRequest()); err != nil {
+		if err := ri.DoRelease(client, pre.GetPullRequest(), id); err != nil {
 			response.Body = "Creating release: " + err.Error()
 			return
 		}
 
+		response.Body = "No error, created release"
 		return
 	})
 }
@@ -150,10 +148,11 @@ func LambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 }
 
 // PrintInfo prints out some logging information.
-func PrintInfo(pre *github.PullRequestEvent) {
+func PrintInfo(pre *github.PullRequestEvent, id string) {
 	pr := pre.GetPullRequest()
 	info := `
 === Info ===
+Delivery ID: %s
 Registrator: %s
 Registry branch: %s
 PR Action: %s
@@ -169,6 +168,7 @@ PR Body:
 `
 	fmt.Printf(
 		info,
+		id,
 		registratorUsername,
 		registryBranch,
 		pre.GetAction(),
@@ -254,7 +254,7 @@ func GetInstallationClient(user string) (*github.Client, error) {
 }
 
 // DoRelease creates the GitHub release.
-func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest) error {
+func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
 	r := &github.RepositoryRelease{
 		TagName: &ri.Version,
@@ -264,35 +264,35 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest) e
 
 	r, _, err = client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, r)
 	if err != nil {
-		MakeErrorComment(pr, err)
+		MakeErrorComment(pr, id, err)
 		return errors.New("Creating release: " + err.Error())
 	}
 
-	MakeSuccessComment(pr, r)
+	MakeSuccessComment(pr, id, r)
 	fmt.Printf("Created release %s for %s/%s at %s\n", ri.Version, ri.Owner, ri.Name, ri.Commit)
 	return nil
 }
 
 // MakeSuccessComment adds a comment to the PR indicating success.
-func MakeSuccessComment(pr *github.PullRequest, r *github.RepositoryRelease) {
+func MakeSuccessComment(pr *github.PullRequest, id string, r *github.RepositoryRelease) {
 	body := fmt.Sprintf(
 		"I've created release `%s`, [here](%s) it is.",
 		r.GetTagName(), r.GetHTMLURL(),
 	)
-	SendComment(pr, body)
+	SendComment(pr, id, body)
 }
 
 // MakeErrorComment adds a comment to the PR indicating failure.
-func MakeErrorComment(pr *github.PullRequest, err error) {
+func MakeErrorComment(pr *github.PullRequest, id string, err error) {
 	body := fmt.Sprintf(
 		"I tried to create a release but ran into this error:\n```\n%v\n```\ncc: @%s",
 		err, contactUser,
 	)
-	SendComment(pr, body)
+	SendComment(pr, id, body)
 }
 
 // SendComment adds a comment to a PR.
-func SendComment(pr *github.PullRequest, body string) {
+func SendComment(pr *github.PullRequest, id, body string) {
 	repo := pr.GetBase().GetRepo()
 	owner := repo.GetOwner().GetLogin()
 	name := repo.GetName()
@@ -304,6 +304,7 @@ func SendComment(pr *github.PullRequest, body string) {
 		return
 	}
 
+	body += fmt.Sprintf("\n<!-- %s -->", id)
 	c := github.IssueComment{Body: &body}
 	if _, _, err := client.Issues.CreateComment(ctx, owner, name, num, &c); err != nil {
 		fmt.Println("Creating comment:", err)
