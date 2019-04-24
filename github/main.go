@@ -36,6 +36,7 @@ var (
 	ErrRepoMatch      = errors.New("No repo regex match")
 	ErrVersionMatch   = errors.New("No version regex match")
 	ErrCommitMatch    = errors.New("No commit regex match")
+	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
 
 // LambdaRequest is what we get from AWS Lambda.
@@ -109,7 +110,9 @@ func main() {
 			return
 		}
 
+		pr := pre.GetPullRequest()
 		id := github.DeliveryID(r)
+
 		PrintInfo(pre, id)
 
 		if err = ShouldRelease(pre); err != nil {
@@ -117,15 +120,18 @@ func main() {
 			return
 		}
 
-		ri := ParseBody(PreprocessBody(pre.GetPullRequest().GetBody()))
+		ri := ParseBody(PreprocessBody(pr.GetBody()))
 
-		client, err := GetInstallationClient(ri.Owner)
+		client, err := GetInstallationClient(ri.Owner, ri.Name)
 		if err != nil {
+			if err == ErrRepoNotEnabled {
+				MakeErrorComment(pr, id, err)
+			}
 			response.Body = "Installation client: " + err.Error()
 			return
 		}
 
-		if err := ri.DoRelease(client, pre.GetPullRequest(), id); err != nil {
+		if err := ri.DoRelease(client, pr, id); err != nil {
 			response.Body = "Creating release: " + err.Error()
 			return
 		}
@@ -239,9 +245,14 @@ func ParseBody(body string) ReleaseInfo {
 }
 
 // GetInstallationClient returns a client that can be used to interact with an installation.
-func GetInstallationClient(user string) (*github.Client, error) {
-	i, _, err := appClient.Apps.FindUserInstallation(ctx, user)
+func GetInstallationClient(owner, name string) (*github.Client, error) {
+	i, resp, err := appClient.Apps.FindRepositoryInstallation(ctx, owner, name)
 	if err != nil {
+		if resp.StatusCode == 404 {
+			if _, _, err = appClient.Apps.FindUserInstallation(ctx, owner); err == nil {
+				return nil, ErrRepoNotEnabled
+			}
+		}
 		return nil, err
 	}
 
@@ -257,8 +268,8 @@ func GetInstallationClient(user string) (*github.Client, error) {
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
 	r := &github.RepositoryRelease{
-		TagName: &ri.Version,
-		Name: &ri.Version,
+		TagName:         &ri.Version,
+		Name:            &ri.Version,
 		TargetCommitish: &ri.Commit,
 	}
 
@@ -298,7 +309,7 @@ func SendComment(pr *github.PullRequest, id, body string) {
 	name := repo.GetName()
 	num := pr.GetNumber()
 
-	client, err := GetInstallationClient(owner)
+	client, err := GetInstallationClient(owner, name)
 	if err != nil {
 		fmt.Println("Creating comment:", err)
 		return
