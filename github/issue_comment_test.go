@@ -29,7 +29,8 @@ func TestIsTriggerComment(t *testing.T) {
 		{makeICE(ActionCreated, false, "", ""), ErrNotPullRequest},
 		{makeICE(ActionCreated, true, TypeBot, ""), ErrCommentByBot},
 		{makeICE(ActionCreated, true, "", ""), ErrNoTrigger},
-		{makeICE(ActionCreated, true, "", "foo TagBot tag bar"), nil},
+		{makeICE(ActionCreated, true, "", "foo "+CommandTag+" bar "+CommandIgnore), ErrIgnored},
+		{makeICE(ActionCreated, true, "", "foo "+CommandTag+" bar"), nil},
 	}
 
 	for i, tt := range cases {

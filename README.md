@@ -19,7 +19,9 @@ TagBot does not handle manual registrations.
 
 If you register a package before enabling TagBot, you can still have a release created retroactively.
 To trigger the release, add a comment to your merged registry PR containing the text `TagBot tag`.
-This is also useful when TagBot reports an error.
+This is also useful when TagBot reports an error.  
+To include the tag command in a comment without actually triggering a release, include `TagBot ignore` in your comment.
+This should be useful for registry maintainers who want to make recommendations without modifying another repository.
 
 For more information on what TagBot is and isn't, please see the [announcement].
 

@@ -8,12 +8,16 @@ import (
 	"github.com/google/go-github/github"
 )
 
-const TypeBot = "Bot"
+const (
+	CommandIgnore = CommandPrefix + "ignore"
+	TypeBot       = "Bot"
+)
 
 var (
 	ErrNotNewComment  = errors.New("Not a comment creation event")
 	ErrNotPullRequest = errors.New("Comment not on a pull request")
 	ErrCommentByBot   = errors.New("Comment is made by a bot")
+	ErrIgnored        = errors.New("Comment contained ignore command")
 	ErrNoTrigger      = errors.New("Comment doesn't contain trigger phrase")
 )
 
@@ -79,7 +83,13 @@ func IsTriggerComment(ice *github.IssueCommentEvent) error {
 		return ErrCommentByBot
 	}
 
-	if !strings.Contains(ice.GetComment().GetBody(), TriggerPhrase) {
+	body := ice.GetComment().GetBody()
+
+	if strings.Contains(body, CommandIgnore) {
+		return ErrIgnored
+	}
+
+	if !strings.Contains(ice.GetComment().GetBody(), CommandTag) {
 		return ErrNoTrigger
 	}
 

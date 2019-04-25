@@ -20,7 +20,8 @@ import (
 const (
 	ActionClosed  = "closed"
 	ActionCreated = "created"
-	TriggerPhrase = "TagBot tag"
+	CommandPrefix = "TagBot "
+	CommandTag    = CommandPrefix + "tag"
 )
 
 var (

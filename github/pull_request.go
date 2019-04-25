@@ -162,7 +162,7 @@ func MakeErrorComment(pr *github.PullRequest, id string, err error) {
 		"To retry, comment on this PR with the phrase `%s`.",
 		"cc: @%s",
 	}
-	body := fmt.Sprintf(strings.Join(lines, "\n"), err, TriggerPhrase, ContactUser)
+	body := fmt.Sprintf(strings.Join(lines, "\n"), err, CommandTag, ContactUser)
 	SendComment(pr, id, body)
 }
 
