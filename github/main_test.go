@@ -3,10 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"strconv"
-	"strings"
 	"testing"
-
-	"github.com/google/go-github/github"
 )
 
 func TestLambdaToHttp(t *testing.T) {
@@ -31,61 +28,9 @@ func TestLambdaToHttp(t *testing.T) {
 	}
 
 	if b, err := ioutil.ReadAll(r.Body); err != nil {
-		t.Errorf("Expected err = nil, got %v", err)
+		t.Errorf("Expected err = nil, got '%v'", err)
 	} else if string(b) != "abc" {
 		t.Errorf("Expected body = 'abc', got %s", b)
-	}
-}
-
-func makePRE(action string, merged bool, user, branch, body string) *github.PullRequestEvent {
-	return &github.PullRequestEvent{
-		Action: &action,
-		PullRequest: &github.PullRequest{
-			Merged: &merged,
-			User: &github.User{Login: &user},
-			Base: &github.PullRequestBranch{Ref: &branch},
-			Body: &body,
-		},
-	}
-}
-
-func makeBody(repository, version, commit string) string {
-	ss := []string{}
-	if repository != "" {
-		ss = append(ss, "Repository: "+repository)
-	}
-	if version != "" {
-		ss = append(ss, "Version: "+version)
-	}
-	if commit != "" {
-		ss = append(ss, "Commit: "+commit)
-	}
-	return strings.TrimSpace(strings.Join(ss, "\n"))
-}
-
-func TestShouldRelease(t *testing.T) {
-	registratorUsername = "R"
-	r := registratorUsername
-	registryBranch = "b"
-	b := registryBranch
-	cases := []struct {
-		in  *github.PullRequestEvent
-		out error
-	}{
-		{makePRE("opened", true, "", "", ""), ErrNotMergeEvent},
-		{makePRE("closed", false, "", "", ""), ErrNotMergeEvent},
-		{makePRE("closed", true, "foo", "", ""), ErrNotRegistrator},
-		{makePRE("closed", true, r, "foo", ""), ErrBaseBranch},
-		{makePRE("closed", true, r, b, makeBody("", "", "")), ErrRepoMatch},
-		{makePRE("closed", true, r, b, makeBody("github.com/foo/bar", "", "")), ErrVersionMatch},
-		{makePRE("closed", true, r, b, makeBody("github.com/foo/bar", "v0.1.0", "")), ErrCommitMatch},
-		{makePRE("closed", true, r, b, makeBody("github.com/foo/bar", "v0.1.0", "sha")), nil},
-	}
-
-	for i, tt := range cases {
-		if out := ShouldRelease(tt.in); out != tt.out {
-			t.Errorf("Case %d: Expected %v, got %v", i, tt.out, out)
-		}
 	}
 }
 
@@ -101,33 +46,6 @@ func TestPreprocessBody(t *testing.T) {
 	for i, in := range cases {
 		if out := PreprocessBody(in); out != expected {
 			t.Errorf("Case %d: Expected %s, got %s", i, strconv.Quote(expected), strconv.Quote(out))
-		}
-	}
-}
-
-func TestParseBody(t *testing.T) {
-	cases := []struct {
-		in  string
-		out ReleaseInfo
-	}{
-		{makeBody("github.com/foo/bar", "v0.1.0", "sha"), ReleaseInfo{"foo", "bar", "v0.1.0", "sha"}},
-		{makeBody("https://github.com/foo/bar", "v0.1.0", "sha"), ReleaseInfo{"foo", "bar", "v0.1.0", "sha"}},
-		{makeBody("http://github.com/foo/bar", "v0.1.0", "sha"), ReleaseInfo{"foo", "bar", "v0.1.0", "sha"}},
-	}
-
-	for i, tt := range cases {
-		ri := ParseBody(tt.in)
-		if ri.Owner != tt.out.Owner {
-			t.Errorf("Case %d: Expected owner = %s, got %s", i, tt.out.Owner, ri.Owner)
-		}
-		if ri.Name != tt.out.Name {
-			t.Errorf("Case %d: Expected name = %s, got %s", i, tt.out.Name, ri.Name)
-		}
-		if ri.Version != tt.out.Version {
-			t.Errorf("Case %d: Expected version = %s, got %s", i, tt.out.Version, ri.Version)
-		}
-		if ri.Commit != tt.out.Commit {
-			t.Errorf("Case %d: Expected commit = %s, got %s", i, tt.out.Commit, ri.Commit)
 		}
 	}
 }

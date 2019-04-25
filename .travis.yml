@@ -1,6 +1,3 @@
 language: go
 go: 1.12
 notifications: {email: false}
-script:
-  - go get ./...
-  - go test ./...

@@ -3,17 +3,23 @@
 [![app-img]][app-link]
 [![travis-img]][travis-link]
 
-TagBot creates tags and releases for your Julia packages when they're registered, so that your tags/releases on GitHub are kept in sync with releases you have made on the Julia package registry.
+TagBot creates tags and releases for your Julia packages when they're registered, so that your Git tags and GitHub releases are kept in sync with releases you have made on the Julia package registry.
 
 To install the app, click the badge above (enabling for all repositories is recommended).
 Afterwards, releases for all of your packages registered with [Registrator] will be handled automatically.
 TagBot does not handle manual registrations.
 
-### Usage
+## Usage
 
- 1. Install TagBot and enable it for your package if not already done.
- 2. Make a package release using [Registrator].
- 3. TagBot will automatically tag a GitHub release that matches the package release you just made.
+1. Install TagBot and enable it for your package if not already done.
+2. Make a package release using [Registrator].
+3. TagBot will automatically tag a GitHub release that matches the package release you just made.
+ 
+### Manually Triggering a Release
+
+If you register a package before enabling TagBot, you can still have a release created retroactively.
+To trigger the release, add a comment to your merged registry PR containing the text `TagBot tag`.
+This is also useful when TagBot reports an error.
 
 For more information on what TagBot is and isn't, please see the [announcement].
 

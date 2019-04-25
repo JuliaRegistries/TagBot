@@ -17,25 +17,28 @@ import (
 	"github.com/google/go-github/github"
 )
 
-var (
-	registratorUsername = os.Getenv("REGISTRATOR_USERNAME")
-	registryBranch      = os.Getenv("REGISTRY_BRANCH")
-	contactUser         = os.Getenv("GITHUB_CONTACT_USER")
-	webhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
-	pemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
-	repoRegex           = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
-	versionRegex        = regexp.MustCompile(`Version:\s*(v.*)`)
-	commitRegex         = regexp.MustCompile(`Commit:\s*(.*)`)
-	ctx                 = context.Background()
-	appID               int
-	appClient           *github.Client
+const (
+	ActionClosed  = "closed"
+	ActionCreated = "created"
+	TriggerPhrase = "TagBot tag"
+)
 
-	ErrNotMergeEvent  = errors.New("Not a merge event")
-	ErrNotRegistrator = errors.New("PR not created by Registrator")
-	ErrBaseBranch     = errors.New("Base branch is not the default")
-	ErrRepoMatch      = errors.New("No repo regex match")
-	ErrVersionMatch   = errors.New("No version regex match")
-	ErrCommitMatch    = errors.New("No commit regex match")
+var (
+	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
+	RegistryBranch      = os.Getenv("REGISTRY_BRANCH")
+	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
+	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
+	PemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
+
+	RepoRegex    = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
+	VersionRegex = regexp.MustCompile(`Version:\s*(v.*)`)
+	CommitRegex  = regexp.MustCompile(`Commit:\s*(.*)`)
+
+	Ctx = context.Background()
+
+	AppID     int
+	AppClient *github.Client
+
 	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
 
@@ -49,33 +52,25 @@ type LambdaRequest struct {
 // Reponse is what we return from the handler.
 type Response events.APIGatewayProxyResponse
 
-// ReleaseInfo contains the information needed to create a GitHub release.
-type ReleaseInfo struct {
-	Owner   string
-	Name    string
-	Version string
-	Commit  string
-}
-
 func init() {
 	var err error
-	appID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
+	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
 	if err != nil {
 		fmt.Println("App ID:", err)
 		return
 	}
 
-	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, appID, pemFile)
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, PemFile)
 	if err != nil {
 		fmt.Println("Transport:", err)
 		return
 	}
 
-	appClient = github.NewClient(&http.Client{Transport: tr})
+	AppClient = github.NewClient(&http.Client{Transport: tr})
 }
 
 func main() {
-	if appClient == nil {
+	if AppClient == nil {
 		fmt.Println("App client is not available")
 		return
 	}
@@ -92,7 +87,7 @@ func main() {
 			return
 		}
 
-		payload, err := github.ValidatePayload(r, webhookSecret)
+		payload, err := github.ValidatePayload(r, WebhookSecret)
 		if err != nil {
 			response.Body = "Validating payload: " + err.Error()
 			return
@@ -104,39 +99,24 @@ func main() {
 			return
 		}
 
-		pre, ok := event.(*github.PullRequestEvent)
-		if !ok {
-			response.Body = "Unknown event type: " + github.WebHookType(r)
-			return
-		}
-
-		pr := pre.GetPullRequest()
 		id := github.DeliveryID(r)
+		info := `
+Delivery ID: %s
+Registrator: %s
+Registry branch: %s
+Contact user: %s
+`
+		fmt.Printf(info, id, RegistratorUsername, RegistryBranch, ContactUser)
 
-		PrintInfo(pre, id)
-
-		if err = ShouldRelease(pre); err != nil {
-			response.Body = "Validation: " + err.Error()
-			return
+		switch event.(type) {
+		case *github.PullRequestEvent:
+			response.Body = HandlePullRequest(event.(*github.PullRequestEvent), id)
+		case *github.IssueCommentEvent:
+			response.Body = HandleIssueComment(event.(*github.IssueCommentEvent), id)
+		default:
+			response.Body = "Unknown event type: " + github.WebHookType(r)
 		}
 
-		ri := ParseBody(PreprocessBody(pr.GetBody()))
-
-		client, err := GetInstallationClient(ri.Owner, ri.Name)
-		if err != nil {
-			if err == ErrRepoNotEnabled {
-				MakeErrorComment(pr, id, err)
-			}
-			response.Body = "Installation client: " + err.Error()
-			return
-		}
-
-		if err := ri.DoRelease(client, pr, id); err != nil {
-			response.Body = "Creating release: " + err.Error()
-			return
-		}
-
-		response.Body = "No error, created release"
 		return
 	})
 }
@@ -153,110 +133,19 @@ func LambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 	return r, nil
 }
 
-// PrintInfo prints out some logging information.
-func PrintInfo(pre *github.PullRequestEvent, id string) {
-	pr := pre.GetPullRequest()
-	info := `
-=== Info ===
-Delivery ID: %s
-Registrator: %s
-Registry branch: %s
-PR Action: %s
-PR Merged: %t
-PR Creator: %s
-PR Base: %s
-PR Title: %s
-PR Body:
------
-%s
------
-============
-`
-	fmt.Printf(
-		info,
-		id,
-		registratorUsername,
-		registryBranch,
-		pre.GetAction(),
-		pr.GetMerged(),
-		pr.GetUser().GetLogin(),
-		pr.GetBase().GetRef(),
-		pr.GetTitle(),
-		PreprocessBody(pr.GetBody()),
-	)
-}
-
-// PreprocessBody preprocesses the PR body.
-func PreprocessBody(body string) string {
-	return strings.TrimSpace(strings.Replace(body, "\r\n", "\n", -1))
-}
-
-// ShouldRelease determines whether the PR indicates a release.
-func ShouldRelease(pre *github.PullRequestEvent) error {
-	pr := pre.GetPullRequest()
-	u := pr.GetUser()
-	body := pr.GetBody()
-
-	if pre.GetAction() != "closed" || !pr.GetMerged() {
-		return ErrNotMergeEvent
-	}
-
-	if u.GetLogin() != registratorUsername {
-		return ErrNotRegistrator
-	}
-
-	if pr.GetBase().GetRef() != registryBranch {
-		return ErrBaseBranch
-	}
-
-	if !repoRegex.MatchString(body) {
-		return ErrRepoMatch
-	}
-
-	if !versionRegex.MatchString(body) {
-		return ErrVersionMatch
-	}
-
-	if !commitRegex.MatchString(body) {
-		return ErrCommitMatch
-	}
-
-	return nil
-}
-
-// ParseBody parses the PR body and returns a ReleaseInfo.
-// The assumption is that the PR body is valid.
-func ParseBody(body string) ReleaseInfo {
-	match := repoRegex.FindStringSubmatch(body)
-	owner, name := match[1], match[2]
-
-	match = versionRegex.FindStringSubmatch(body)
-	version := match[1]
-
-	match = commitRegex.FindStringSubmatch(body)
-	commit := match[1]
-
-	return ReleaseInfo{
-		Owner:   owner,
-		Name:    name,
-		Version: version,
-		Commit:  commit,
-	}
-}
-
 // GetInstallationClient returns a client that can be used to interact with an installation.
 func GetInstallationClient(owner, name string) (*github.Client, error) {
-	i, resp, err := appClient.Apps.FindRepositoryInstallation(ctx, owner, name)
+	i, resp, err := AppClient.Apps.FindRepositoryInstallation(Ctx, owner, name)
 	if err != nil {
 		if resp.StatusCode == 404 {
-			if _, _, err = appClient.Apps.FindUserInstallation(ctx, owner); err == nil {
+			if _, _, err = AppClient.Apps.FindUserInstallation(Ctx, owner); err == nil {
 				return nil, ErrRepoNotEnabled
 			}
 		}
 		return nil, err
 	}
 
-	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appID, int(i.GetID()), pemFile)
+	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), PemFile)
 	if err != nil {
 		return nil, err
 	}
@@ -264,60 +153,7 @@ func GetInstallationClient(owner, name string) (*github.Client, error) {
 	return github.NewClient(&http.Client{Transport: tr}), nil
 }
 
-// DoRelease creates the GitHub release.
-func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
-	var err error
-	r := &github.RepositoryRelease{
-		TagName:         &ri.Version,
-		Name:            &ri.Version,
-		TargetCommitish: &ri.Commit,
-	}
-
-	r, _, err = client.Repositories.CreateRelease(ctx, ri.Owner, ri.Name, r)
-	if err != nil {
-		MakeErrorComment(pr, id, err)
-		return errors.New("Creating release: " + err.Error())
-	}
-
-	MakeSuccessComment(pr, id, r)
-	fmt.Printf("Created release %s for %s/%s at %s\n", ri.Version, ri.Owner, ri.Name, ri.Commit)
-	return nil
-}
-
-// MakeSuccessComment adds a comment to the PR indicating success.
-func MakeSuccessComment(pr *github.PullRequest, id string, r *github.RepositoryRelease) {
-	body := fmt.Sprintf(
-		"I've created release `%s`, [here](%s) it is.",
-		r.GetTagName(), r.GetHTMLURL(),
-	)
-	SendComment(pr, id, body)
-}
-
-// MakeErrorComment adds a comment to the PR indicating failure.
-func MakeErrorComment(pr *github.PullRequest, id string, err error) {
-	body := fmt.Sprintf(
-		"I tried to create a release but ran into this error:\n```\n%v\n```\ncc: @%s",
-		err, contactUser,
-	)
-	SendComment(pr, id, body)
-}
-
-// SendComment adds a comment to a PR.
-func SendComment(pr *github.PullRequest, id, body string) {
-	repo := pr.GetBase().GetRepo()
-	owner := repo.GetOwner().GetLogin()
-	name := repo.GetName()
-	num := pr.GetNumber()
-
-	client, err := GetInstallationClient(owner, name)
-	if err != nil {
-		fmt.Println("Creating comment:", err)
-		return
-	}
-
-	body += fmt.Sprintf("\n<!-- %s -->", id)
-	c := github.IssueComment{Body: &body}
-	if _, _, err := client.Issues.CreateComment(ctx, owner, name, num, &c); err != nil {
-		fmt.Println("Creating comment:", err)
-	}
+// PreprocessBody preprocesses the PR body.
+func PreprocessBody(body string) string {
+	return strings.TrimSpace(strings.Replace(body, "\r\n", "\n", -1))
 }
