@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/christopher-dG/tag-bot/master/logo.png" width="60"> Julia TagBot
+# <img src="logo.png" width="60"> Julia TagBot
 
 [![app-img]][app-link]
 [![travis-img]][travis-link]
@@ -14,7 +14,7 @@ TagBot does not handle manual registrations.
 1. Install TagBot and enable it for your package if not already done.
 2. Make a package release using [Registrator].
 3. TagBot will automatically tag a GitHub release that matches the package release you just made.
- 
+
 ### Manually Triggering a Release
 
 If you register a package before enabling TagBot, you can still have a release created retroactively.
