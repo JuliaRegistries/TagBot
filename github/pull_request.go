@@ -148,7 +148,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		SHA:  github.String(ri.Commit),
 	}
 
-	// First, create the tag.
+	// First, create the Git tag.
 	// FYI: Something, probably on GitHub's end, prevents the message from being applied to the tag.
 	// However, whenever it's fixed it should just start to work properly without any intervention.
 	tag := &github.Tag{
@@ -172,7 +172,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		return err
 	}
 
-	// Finally, create a GitHub release.
+	// Finally, create a GitHub release associated with the tag.
 	rel := &github.RepositoryRelease{
 		TagName:         github.String(ri.Version),
 		Name:            github.String(ri.Version),
