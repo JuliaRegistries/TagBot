@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v25/github"
 )
 
 func makeICE(action string, isPR bool, senderType, body string) *github.IssueCommentEvent {

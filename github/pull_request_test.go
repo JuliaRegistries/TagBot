@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v25/github"
 )
 
 func makePRE(action string, merged bool, user, branch, body string) *github.PullRequestEvent {
