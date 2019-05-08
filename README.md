@@ -27,7 +27,7 @@ For more information on what TagBot is and isn't, please see the [announcement].
 
 [app-img]: https://img.shields.io/badge/GitHub%20App-install-blue.svg
 [app-link]: https://github.com/apps/julia-tagbot
-[travis-img]: https://travis-ci.com/christopher-dG/tag-bot.svg?branch=master
-[travis-link]: https://travis-ci.com/christopher-dG/tag-bot
+[travis-img]: https://travis-ci.com/JuliaRegistries/TagBot.svg?branch=master
+[travis-link]: https://travis-ci.com/JuliaRegistries/TagBot
 [registrator]: https://juliaregistrator.github.io
 [announcement]: https://discourse.julialang.org/t/ann-tagbot-creates-tags-and-releases-for-your-julia-packages-when-theyre-registered/23084
