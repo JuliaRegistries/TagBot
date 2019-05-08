@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/go-github/v25/github"
@@ -15,14 +16,20 @@ var (
 	ErrRepoMatch      = errors.New("No repo regex match")
 	ErrVersionMatch   = errors.New("No version regex match")
 	ErrCommitMatch    = errors.New("No commit regex match")
+
+	RepoRegex       = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
+	VersionRegex    = regexp.MustCompile(`Version:\s*(v.*)`)
+	CommitRegex     = regexp.MustCompile(`Commit:\s*(.*)`)
+	PatchNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN PATCH NOTES -->(.*)<!-- END PATCH NOTES -->`)
 )
 
 // ReleaseInfo contains the information needed to create a GitHub release.
 type ReleaseInfo struct {
-	Owner   string
-	Name    string
-	Version string
-	Commit  string
+	Owner      string
+	Name       string
+	Version    string
+	Commit     string
+	PatchNotes string
 }
 
 // HandlePullRequest handles a pull request event.
@@ -117,30 +124,67 @@ func ParseBody(body string) ReleaseInfo {
 	match = CommitRegex.FindStringSubmatch(body)
 	commit := match[1]
 
+	// This one is optional, and just defaults to no notes.
+	match = PatchNotesRegex.FindStringSubmatch(body)
+	var notes string
+	if match != nil {
+		notes = strings.TrimSpace(match[1])
+	}
+
 	return ReleaseInfo{
-		Owner:   owner,
-		Name:    name,
-		Version: version,
-		Commit:  commit,
+		Owner:      owner,
+		Name:       name,
+		Version:    version,
+		Commit:     commit,
+		PatchNotes: notes,
 	}
 }
 
 // DoRelease creates the GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
-	r := &github.RepositoryRelease{
-		TagName:         github.String(ri.Version),
-		Name:            github.String(ri.Version),
-		TargetCommitish: github.String(ri.Commit),
+	obj := &github.GitObject{
+		Type: github.String("commit"),
+		SHA:  github.String(ri.Commit),
 	}
 
-	r, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, r)
-	if err != nil {
+	// First, create the Git tag.
+	// FYI: Something, probably on GitHub's end, prevents the message from being applied to the tag.
+	// However, whenever it's fixed it should just start to work properly without any intervention.
+	tag := &github.Tag{
+		Tag:     github.String(ri.Version),
+		SHA:     github.String(ri.Commit),
+		Message: github.String(ri.PatchNotes),
+		Object:  obj,
+	}
+	if _, _, err = client.Git.CreateTag(Ctx, ri.Owner, ri.Name, tag); err != nil {
 		MakeErrorComment(pr, id, err)
 		return err
 	}
 
-	MakeSuccessComment(pr, id, r)
+	// Then, create a reference to the tag.
+	ref := &github.Reference{
+		Ref:    github.String("refs/tags/" + ri.Version),
+		Object: obj,
+	}
+	if _, _, err = client.Git.CreateRef(Ctx, ri.Owner, ri.Name, ref); err != nil {
+		MakeErrorComment(pr, id, err)
+		return err
+	}
+
+	// Finally, create a GitHub release associated with the tag.
+	rel := &github.RepositoryRelease{
+		TagName:         github.String(ri.Version),
+		Name:            github.String(ri.Version),
+		TargetCommitish: github.String(ri.Commit),
+		Body:            github.String(ri.PatchNotes),
+	}
+	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
+		MakeErrorComment(pr, id, err)
+		return err
+	}
+
+	MakeSuccessComment(pr, id, rel)
 	fmt.Printf("Created release %s for %s/%s at %s\n", ri.Version, ri.Owner, ri.Name, ri.Commit)
 	return nil
 }

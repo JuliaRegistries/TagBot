@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,10 +29,6 @@ var (
 	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 	PemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
-
-	RepoRegex    = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
-	VersionRegex = regexp.MustCompile(`Version:\s*(v.*)`)
-	CommitRegex  = regexp.MustCompile(`Commit:\s*(.*)`)
 
 	Ctx = context.Background()
 
