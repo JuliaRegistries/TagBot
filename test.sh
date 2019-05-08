@@ -3,6 +3,8 @@
 FNS=("github")
 
 for fn in "${FNS[@]}"; do
-  cd "$fn"
-  go test -v
+  (
+    cd "$fn"
+    go test -v
+  )
 done
