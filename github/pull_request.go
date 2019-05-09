@@ -143,21 +143,17 @@ func ParseBody(body string) ReleaseInfo {
 // DoRelease creates the GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
-	obj := &github.GitObject{
-		Type: github.String("commit"),
-		SHA:  github.String(ri.Commit),
-	}
 
 	// First, create the Git tag.
-	// FYI: Something, probably on GitHub's end, prevents the message from being applied to the tag.
-	// However, whenever it's fixed it should just start to work properly without any intervention.
 	tag := &github.Tag{
 		Tag:     github.String(ri.Version),
-		SHA:     github.String(ri.Commit),
 		Message: github.String(ri.PatchNotes),
-		Object:  obj,
+		Object: &github.GitObject{
+			Type: github.String("commit"),
+			SHA:  github.String(ri.Commit),
+		},
 	}
-	if _, _, err = client.Git.CreateTag(Ctx, ri.Owner, ri.Name, tag); err != nil {
+	if tag, _, err = client.Git.CreateTag(Ctx, ri.Owner, ri.Name, tag); err != nil {
 		MakeErrorComment(pr, id, err)
 		return err
 	}
@@ -165,7 +161,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// Then, create a reference to the tag.
 	ref := &github.Reference{
 		Ref:    github.String("refs/tags/" + ri.Version),
-		Object: obj,
+		Object: &github.GitObject{SHA: github.String(tag.GetSHA())},
 	}
 	if _, _, err = client.Git.CreateRef(Ctx, ri.Owner, ri.Name, ref); err != nil {
 		MakeErrorComment(pr, id, err)
