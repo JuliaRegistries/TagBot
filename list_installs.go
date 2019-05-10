@@ -54,17 +54,12 @@ func main() {
 
 		if i.All {
 			fmt.Println(" All")
-			continue
-		}
-
-		if len(i.Repos) == 0 {
+		} else if len(i.Repos) == 0 {
 			fmt.Println(" None")
-			continue
-		}
-
-		fmt.Println()
-		for _, r := range i.Repos {
-			fmt.Println("  -", r)
+		} else {
+			for _, r := range i.Repos {
+				fmt.Println("  -", r)
+			}
 		}
 	}
 
