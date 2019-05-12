@@ -164,7 +164,6 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	}
 
 	// Configure Git.
-	// TODO: We'll probably need to gpg.program as well.
 	if err = exec.Command("git", "-C", dir, "config", "user.name", TaggerName).Run(); err != nil {
 		return err
 	}

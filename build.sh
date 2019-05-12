@@ -6,6 +6,7 @@ rm -rf bin
 mkdir bin
 cp *.pem bin
 chmod 644 bin/*.pem
+cp -r gnupg bin
 
 for fn in "${FNS[@]}"; do
   (
