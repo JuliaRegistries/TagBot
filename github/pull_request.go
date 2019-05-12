@@ -3,6 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 
@@ -16,6 +19,7 @@ var (
 	ErrRepoMatch      = errors.New("No repo regex match")
 	ErrVersionMatch   = errors.New("No version regex match")
 	ErrCommitMatch    = errors.New("No commit regex match")
+	ErrNoAuthHeader   = errors.New("Authentication header was not set")
 
 	RepoRegex       = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex    = regexp.MustCompile(`Version:\s*(v.*)`)
@@ -140,30 +144,49 @@ func ParseBody(body string) ReleaseInfo {
 	}
 }
 
+// CreateTag creates and pushes a Git tag.
+// We use the Git CLI instead of the GitHub API so that we can use GPG signing.
+func (ri ReleaseInfo) CreateTag(auth string) error {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	url := fmt.Sprintf("https://oauth2:%s@github.com/%s/%s", auth, ri.Owner, ri.Name)
+	cmd := exec.Command("git", "clone", url, dir)
+	if err = cmd.Run(); err != nil {
+		return err
+	}
+
+	// TODO: GPG stuff (add -s to Git command when ready).
+	cmd = exec.Command("git", "-C", dir, "tag", ri.Version, "-m", ri.PatchNotes)
+	if err = cmd.Run(); err != nil {
+		return err
+	}
+
+	cmd = exec.Command("git", "-C", dir, "push", "origin", "--tags")
+	if err = cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // DoRelease creates the GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
 
-	// First, create the Git tag.
-	tag := &github.Tag{
-		Tag:     github.String(ri.Version),
-		Message: github.String(ri.PatchNotes),
-		Object: &github.GitObject{
-			Type: github.String("commit"),
-			SHA:  github.String(ri.Commit),
-		},
+	// TODO: There is probably a better way to get a token.
+	_, resp, _ := client.Users.Get(Ctx, "")
+	header := resp.Request.Header.Get("Authorization")
+	if header == "" {
+		MakeErrorComment(pr, id, ErrNoAuthHeader)
+		return ErrNoAuthHeader
 	}
-	if tag, _, err = client.Git.CreateTag(Ctx, ri.Owner, ri.Name, tag); err != nil {
-		MakeErrorComment(pr, id, err)
-		return err
-	}
-
-	// Then, create a reference to the tag.
-	ref := &github.Reference{
-		Ref:    github.String("refs/tags/" + ri.Version),
-		Object: &github.GitObject{SHA: github.String(tag.GetSHA())},
-	}
-	if _, _, err = client.Git.CreateRef(Ctx, ri.Owner, ri.Name, ref); err != nil {
+	tokens := strings.Split(header, " ")
+	auth := tokens[len(tokens)-1]
+	if err = ri.CreateTag(auth); err != nil {
 		MakeErrorComment(pr, id, err)
 		return err
 	}
