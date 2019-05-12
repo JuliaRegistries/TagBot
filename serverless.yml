@@ -9,6 +9,8 @@ provider:
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
     REGISTRY_BRANCH: ${env:REGISTRY_BRANCH}
+    GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+    GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
 package:
   exclude: [./**]
   include: [./bin/**]

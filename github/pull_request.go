@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -13,6 +14,9 @@ import (
 )
 
 var (
+	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
+	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
+
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
 	ErrBaseBranch     = errors.New("Base branch is not the default")
@@ -153,20 +157,33 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	}
 	defer os.RemoveAll(dir)
 
+	// Clone the repo with the authenticated remote URL.
 	url := fmt.Sprintf("https://oauth2:%s@github.com/%s/%s", auth, ri.Owner, ri.Name)
-	cmd := exec.Command("git", "clone", url, dir)
-	if err = cmd.Run(); err != nil {
+	if err = exec.Command("git", "clone", url, dir).Run(); err != nil {
 		return err
 	}
 
-	// TODO: GPG stuff (add -s to Git command when ready).
-	cmd = exec.Command("git", "-C", dir, "tag", ri.Version, "-m", ri.PatchNotes)
-	if err = cmd.Run(); err != nil {
+	// Configure Git.
+	// TODO: We'll probably need to gpg.program as well.
+	if err = exec.Command("git", "-C", dir, "config", "user.name", TaggerName).Run(); err != nil {
+		return err
+	}
+	if err := exec.Command("git", "-C", dir, "config", "user.email", TaggerEmail).Run(); err != nil {
 		return err
 	}
 
-	cmd = exec.Command("git", "-C", dir, "push", "origin", "--tags")
-	if err = cmd.Run(); err != nil {
+	// Set the GPG home directory to the one that contains our key.
+	path, err := filepath.Abs("gnupg")
+	if err != nil {
+		return err
+	}
+	os.Setenv("GNUPGHOME", path)
+
+	// Create and push the tag.
+	if err = exec.Command("git", "-C", dir, "tag", ri.Version, "-s", "-m", ri.PatchNotes).Run(); err != nil {
+		return err
+	}
+	if err = exec.Command("git", "-C", dir, "push", "origin", "--tags").Run(); err != nil {
 		return err
 	}
 
