@@ -17,6 +17,7 @@ fi
 rm -rf bin
 mkdir bin
 chmod 644 "$PEM"
+rm -f "$GPG/S.gpg-agent"
 find "$GPG" -type d -exec chmod 700 {} \;
 find "$GPG" -type f -exec chmod 600 {} \;
 tar -cf "$RESOURCES" "$GPG" "$PEM"
