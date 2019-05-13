@@ -27,7 +27,7 @@ Assuming that you have the TagBot repository cloned at `$ROOT`, save the private
 
 TagBot uses GPG to sign the tags it creates.
 
-Before generating the key, you need to decide whether to use our own GitHub account for signing or a dedicated account.
+Before generating the key, you need to decide whether to use our own GitHub account for tagging, or a dedicated account.
 If you want to use a dedicated account, create it now.
 
 AWS Lambda runs a very old version of GnuPG, so we need to create our keyring with an equally old version.
@@ -51,8 +51,8 @@ $ gpg --gen-key
 
 Follow the prompts, accepting the default values when you can.
 
-- For "Real name", enter the name of your tag signer (althugh the value doesn't matter much).
-- For "Email address", enter the email address of your tag signer.
+- For "Real name", enter the name of your tagger account.
+- For "Email address", enter the email address of your tagger.
 - Leave "Comment" blank.
 - Proceed without a password (yes, this is not ideal).
 
@@ -103,8 +103,6 @@ Use the following command:
 $ serverless deploy --stage prod
 ```
 
-Note that your AWS credentials must be configured beforehand.
-
 You'll see a URL that ends with `/webhook/github`, this is your webhook endpoint.
 
 ## Setting Up the Webhook
@@ -115,3 +113,8 @@ Be sure to enter your webhook secret as well.
 Finally, when selecting events, choose "Issue comments" and "Pull requests".
 
 After all this is done, TagBot should be running on the target registry!
+To view API logs, use this command:
+
+```sh
+$ serverless logs --function github --stage prod
+```
