@@ -198,11 +198,16 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	tokens := strings.Split(header, " ")
 	auth := tokens[len(tokens)-1]
 
-	// Create a Git tag.
-	if err = ri.CreateTag(auth); err != nil {
-		err = errors.Wrap(err, "Creating tag")
-		MakeErrorComment(pr, id, err)
-		return err
+	// Create a Git tag, only if one doesn't already exist.
+	// If a tag already exists, then there's a pretty good chance that a GitHub release also exists.
+	// However, failing there provides a much more useful error message for users.
+	ref := "tags/" + ri.Version
+	if _, resp, _ := client.Git.GetRef(Ctx, ri.Owner, ri.Name, ref); resp.StatusCode == 404 {
+		if err = ri.CreateTag(auth); err != nil {
+			err = errors.Wrap(err, "Creating tag")
+			MakeErrorComment(pr, id, err)
+			return err
+		}
 	}
 
 	// Create a GitHub release associated with the tag.
