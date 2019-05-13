@@ -56,7 +56,7 @@ Follow the prompts, accepting the default values when you can.
 - Leave "Comment" blank.
 - Proceed without a password (yes, this is not ideal).
 
-Once the key is created, export it with the following command:
+Once the key is created, export the public key with the following command:
 
 ```sh
 $ gpg --export --armor
