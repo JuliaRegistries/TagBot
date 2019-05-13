@@ -68,10 +68,6 @@ PR Body:
 		return errors.Wrap(err, "Validation")
 	}
 
-	if err := Setup(); err != nil {
-		return errors.Wrap(err, "Setup")
-	}
-
 	ri := ParseBody(PreprocessBody(pr.GetBody()))
 
 	client, err := GetInstallationClient(ri.Owner, ri.Name)

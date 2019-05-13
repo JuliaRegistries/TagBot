@@ -54,10 +54,6 @@ Comment body:
 	owner := repo.GetOwner().GetLogin()
 	name := repo.GetName()
 
-	if err := Setup(); err != nil {
-		return errors.Wrap(err, "Setup")
-	}
-
 	client, err := GetInstallationClient(owner, name)
 	if err != nil {
 		return errors.Wrap(err, "Installation client")

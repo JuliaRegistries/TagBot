@@ -37,14 +37,12 @@ var (
 
 	Ctx          = context.Background()
 	ResourcesTar = filepath.Join("bin", "resources.tar")
-	MissingEnv   = ""
 	IsSetup      = false
 
 	ResourcesDir string
 	AppID        int
 	AppClient    *github.Client
 
-	ErrAppIDNotSet    = errors.New("App ID environment variable is not set")
 	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
 
@@ -59,21 +57,47 @@ type LambdaRequest struct {
 type Response events.APIGatewayProxyResponse
 
 func init() {
-	for _, k := range []string{
-		"GITHUB_APP_ID",
-		"GITHUB_WEBHOOK_SECRET",
-		"GITHUB_CONTACT_USER",
-		"REGISTRATOR_USERNAME",
-		"REGISTRY_BRANCH",
-		"GIT_TAGGER_NAME",
-		"GIT_TAGGER_EMAIL",
-		"S3_BUCKET",
-	} {
-		if os.Getenv(k) == "" {
-			MissingEnv = k
-			return
-		}
+	if IsSetup {
+		return
 	}
+
+	var err error
+
+	// Load the app ID from the environment.
+	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
+	if err != nil {
+		fmt.Println("App ID:", err)
+		return
+	}
+
+	// Get a directory that we can write to.
+	ResourcesDir, err = ioutil.TempDir("", "")
+	if err != nil {
+		fmt.Println("Temp dir:", err)
+		return
+	}
+
+	// Extract the resources into the temp directory.
+	// The reason that we have to do the extraction in the first place is that
+	// the default bundling doesn't preserve file permissions, which fudges GNUPG.
+	if err := DoCmd("tar", "-xf", ResourcesTar, "-C", ResourcesDir); err != nil {
+		fmt.Println("tar:", err)
+		return
+	}
+
+	// Make GNUPG use our key.
+	os.Setenv("GNUPGHOME", filepath.Join(ResourcesDir, GPGDir))
+
+	// Load the private GitHub key for our app.
+	pemFile := filepath.Join(ResourcesDir, PemName)
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, pemFile)
+	if err != nil {
+		fmt.Println("Transport:", err)
+		return
+	}
+	AppClient = github.NewClient(&http.Client{Transport: tr})
+
+	IsSetup = true
 }
 
 func main() {
@@ -82,10 +106,6 @@ func main() {
 		defer func(r *Response) {
 			fmt.Println(r.Body)
 		}(&response)
-
-		if MissingEnv != "" {
-			response.Body = "Missing environment variable " + MissingEnv
-		}
 
 		r, err := LambdaToHttp(lr)
 		if err != nil {
@@ -180,46 +200,4 @@ func DoCmd(name string, args ...string) error {
 		fmt.Println(s)
 	}
 	return err
-}
-
-// Setup does mandatory preparation and configuration.
-func Setup() error {
-	if IsSetup {
-		return nil
-	}
-
-	var err error
-
-	// Load the app ID from the environment.
-	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
-	if err != nil {
-		return errors.Wrap(err, "App ID")
-	}
-
-	// Get a directory that we can write to.
-	ResourcesDir, err = ioutil.TempDir("", "")
-	if err != nil {
-		return errors.Wrap(err, "Temp dir")
-	}
-
-	// Extract the resources into the temp directory.
-	// The reason that we have to do the extraction in the first place is that
-	// the default bundling doesn't preserve file permissions which fudges GNUPG.
-	if err := DoCmd("tar", "-xf", ResourcesTar, "-C", ResourcesDir); err != nil {
-		return errors.Wrap(err, "tar")
-	}
-
-	// Make GNUPG use our key.
-	os.Setenv("GNUPGHOME", filepath.Join(ResourcesDir, GPGDir))
-
-	// Load the private GitHub key for our app.
-	pemFile := filepath.Join(ResourcesDir, PemName)
-	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, pemFile)
-	if err != nil {
-		return errors.Wrap(err, "Transport")
-	}
-	AppClient = github.NewClient(&http.Client{Transport: tr})
-
-	IsSetup = true
-	return nil
 }

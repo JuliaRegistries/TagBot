@@ -10,15 +10,6 @@ provider:
     REGISTRY_BRANCH: ${env:REGISTRY_BRANCH}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
-    S3_BUCKET: ${env:S3_BUCKET}
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - s3:ListBucket
-        - s3:GetObject
-      Resource:
-        - arn:aws:s3:::${env:S3_BUCKET}
-        - arn:aws:s3:::${env:S3_BUCKET}/*
 package:
   exclude:
     - ./**
