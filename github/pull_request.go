@@ -212,18 +212,20 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// GitHub doesn't display the nice "n commits to <branch> since this release"
 	// when we use a commit SHA as a release target.
 	// If the commit being released is the head commit, we can use the branch name instead.
-	commitish := ri.Commit
-	branchName := pr.GetBase().GetRepo().GetDefaultBranch()
-	branch, _, err := client.Repositories.GetBranch(Ctx, ri.Owner, ri.Name, branchName)
-	if err == nil && branch.GetCommit().GetSHA() == commitish {
-		commitish = branchName
+	target := ri.Commit
+	repo, _, err := client.Repositories.Get(Ctx, ri.Owner, ri.Name)
+	if err == nil {
+		branch, _, err := client.Repositories.GetBranch(Ctx, ri.Owner, ri.Name, repo.GetDefaultBranch())
+		if err == nil && branch.GetCommit().GetSHA() == target {
+			target = branch.GetName()
+		}
 	}
 
 	// Create a GitHub release associated with the tag.
 	rel := &github.RepositoryRelease{
 		TagName:         github.String(ri.Version),
 		Name:            github.String(ri.Version),
-		TargetCommitish: github.String(commitish),
+		TargetCommitish: github.String(target),
 		Body:            github.String(ri.PatchNotes),
 	}
 	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
