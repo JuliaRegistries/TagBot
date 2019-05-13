@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/v25/github"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -27,14 +30,18 @@ var (
 	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	RegistryBranch      = os.Getenv("REGISTRY_BRANCH")
 	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
+	S3Bucket            = os.Getenv("S3_BUCKET")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
-	PemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
 
-	Ctx = context.Background()
+	Ctx     = context.Background()
+	IsSetup = false
 
-	AppID     int
-	AppClient *github.Client
+	ResourcesDir string
+	PemFile      string
+	AppID        int
+	AppClient    *github.Client
 
+	ErrAppIDNotSet    = errors.New("App ID environment variable is not set")
 	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
 
@@ -48,29 +55,7 @@ type LambdaRequest struct {
 // Reponse is what we return from the handler.
 type Response events.APIGatewayProxyResponse
 
-func init() {
-	var err error
-	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
-	if err != nil {
-		fmt.Println("App ID:", err)
-		return
-	}
-
-	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, PemFile)
-	if err != nil {
-		fmt.Println("Transport:", err)
-		return
-	}
-
-	AppClient = github.NewClient(&http.Client{Transport: tr})
-}
-
 func main() {
-	if AppClient == nil {
-		fmt.Println("App client is not available")
-		return
-	}
-
 	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
 		response = Response{StatusCode: 200}
 		defer func(r *Response) {
@@ -106,11 +91,17 @@ Contact user: %s
 
 		switch event.(type) {
 		case *github.PullRequestEvent:
-			response.Body = HandlePullRequest(event.(*github.PullRequestEvent), id)
+			err = HandlePullRequest(event.(*github.PullRequestEvent), id)
 		case *github.IssueCommentEvent:
-			response.Body = HandleIssueComment(event.(*github.IssueCommentEvent), id)
+			err = HandleIssueComment(event.(*github.IssueCommentEvent), id)
 		default:
-			response.Body = "Unknown event type: " + github.WebHookType(r)
+			err = errors.New("Unknown event type: " + github.WebHookType(r))
+		}
+
+		if err == nil {
+			response.Body = "No error"
+		} else {
+			response.Body = err.Error()
 		}
 
 		return
@@ -152,4 +143,58 @@ func GetInstallationClient(owner, name string) (*github.Client, error) {
 // PreprocessBody preprocesses the PR body.
 func PreprocessBody(body string) string {
 	return strings.TrimSpace(strings.Replace(body, "\r\n", "\n", -1))
+}
+
+// DoCmd runs a shell command and prints any output.
+func DoCmd(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	b, err := cmd.CombinedOutput()
+	s := strings.TrimSpace(string(b))
+	if len(s) > 0 {
+		fmt.Println(s)
+	}
+	return err
+}
+
+// Setup does mandatory preparation and configuration.
+func Setup() error {
+	if IsSetup {
+		return nil
+	}
+
+	var err error
+	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
+	if err != nil {
+		return errors.Wrap(err, "App ID")
+	}
+
+	ResourcesDir, err = ioutil.TempDir("", "")
+	if err != nil {
+		return errors.Wrap(err, "Temp dir")
+	}
+
+	if err := DoCmd("aws", "s3", "sync", "s3://"+S3Bucket, ResourcesDir); err != nil {
+		return errors.Wrap(err, "S3 sync")
+	}
+
+	PemFile = filepath.Join(ResourcesDir, "tag-bot.pem")
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, PemFile)
+	if err != nil {
+		return errors.Wrap(err, "Transport")
+	}
+
+	AppClient = github.NewClient(&http.Client{Transport: tr})
+
+	gpg := filepath.Join(ResourcesDir, "gnupg")
+	os.Setenv("GNUPGHOME", gpg)
+
+	if err = DoCmd("find", gpg, "-type", "d", "-exec", "chmod", "700", "{}", ";"); err != nil {
+		return errors.Wrap(err, "chmod")
+	}
+	if err = DoCmd("find", gpg, "-type", "f", "-exec", "chmod", "600", "{}", ";"); err != nil {
+		return errors.Wrap(err, "chmod")
+	}
+
+	IsSetup = true
+	return nil
 }

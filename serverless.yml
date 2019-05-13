@@ -4,21 +4,32 @@ provider:
   runtime: go1.x
   environment:
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
-    GITHUB_PEM_FILE: ${env:GITHUB_PEM_FILE}
     GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
     REGISTRY_BRANCH: ${env:REGISTRY_BRANCH}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
+    S3_BUCKET: ${env:S3_BUCKET}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:ListBucket
+        - s3:GetObject
+      Resource:
+        - arn:aws:s3:::${env:S3_BUCKET}
+        - arn:aws:s3:::${env:S3_BUCKET}/*
 package:
-  exclude: [./**]
-  include: [./bin/**]
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
 functions:
   github:
     handler: bin/github
+    timeout: 30
     layers:
-      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
+      - arn:aws:lambda:us-east-1:744348701589:layer:bash:5
     events:
       - http:
           path: /webhook/github

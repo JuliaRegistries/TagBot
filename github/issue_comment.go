@@ -1,11 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/go-github/v25/github"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -21,7 +21,7 @@ var (
 	ErrNoTrigger      = errors.New("Comment doesn't contain trigger phrase")
 )
 
-func HandleIssueComment(ice *github.IssueCommentEvent, id string) string {
+func HandleIssueComment(ice *github.IssueCommentEvent, id string) error {
 	i := ice.GetIssue()
 	c := ice.GetComment()
 
@@ -47,21 +47,25 @@ Comment body:
 	)
 
 	if err := IsTriggerComment(ice); err != nil {
-		return "Validation: " + err.Error()
+		return errors.Wrap(err, "Validation")
 	}
 
 	repo := ice.GetRepo()
 	owner := repo.GetOwner().GetLogin()
 	name := repo.GetName()
 
+	if err := Setup(); err != nil {
+		return errors.Wrap(err, "Setup")
+	}
+
 	client, err := GetInstallationClient(owner, name)
 	if err != nil {
-		return "Installation client: " + err.Error()
+		return errors.Wrap(err, "Installation client")
 	}
 
 	pr, _, err := client.PullRequests.Get(Ctx, owner, name, i.GetNumber())
 	if err != nil {
-		return "Getting PR: " + err.Error()
+		return errors.Wrap(err, "Getting PR")
 	}
 
 	fmt.Println("Processing fake PullRequestEvent")
