@@ -1,4 +1,5 @@
 /.serverless/
 /bin/
+/gnupg/
 *.env
 *.pem

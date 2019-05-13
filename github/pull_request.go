@@ -1,21 +1,27 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/google/go-github/v25/github"
+	"github.com/pkg/errors"
 )
 
 var (
+	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
+	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
+
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
 	ErrBaseBranch     = errors.New("Base branch is not the default")
 	ErrRepoMatch      = errors.New("No repo regex match")
 	ErrVersionMatch   = errors.New("No version regex match")
 	ErrCommitMatch    = errors.New("No commit regex match")
+	ErrNoAuthHeader   = errors.New("Authentication header was not set")
 
 	RepoRegex       = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex    = regexp.MustCompile(`Version:\s*(v.*)`)
@@ -33,7 +39,7 @@ type ReleaseInfo struct {
 }
 
 // HandlePullRequest handles a pull request event.
-func HandlePullRequest(pre *github.PullRequestEvent, id string) string {
+func HandlePullRequest(pre *github.PullRequestEvent, id string) error {
 	pr := pre.GetPullRequest()
 
 	info := `
@@ -59,7 +65,7 @@ PR Body:
 	)
 
 	if err := ShouldRelease(pre); err != nil {
-		return "Validation: " + err.Error()
+		return errors.Wrap(err, "Validation")
 	}
 
 	ri := ParseBody(PreprocessBody(pr.GetBody()))
@@ -69,14 +75,14 @@ PR Body:
 		if err == ErrRepoNotEnabled {
 			MakeErrorComment(pr, id, err)
 		}
-		return "Installation client: " + err.Error()
+		return errors.Wrap(err, "Installation client")
 	}
 
 	if err := ri.DoRelease(client, pr, id); err != nil {
-		return "Creating release: " + err.Error()
+		return errors.Wrap(err, "Creating release")
 	}
 
-	return "No error, created release"
+	return nil
 }
 
 // ShouldRelease determines whether the PR indicates a release.
@@ -140,35 +146,70 @@ func ParseBody(body string) ReleaseInfo {
 	}
 }
 
-// DoRelease creates the GitHub release.
+// CreateTag creates and pushes a Git tag.
+// We use the Git CLI instead of the GitHub API so that we can use GPG signing.
+func (ri ReleaseInfo) CreateTag(auth string) error {
+	// Clone the repo to a temp directory that we can write to, using an authenticated URL.
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return errors.Wrap(err, "Temp dir")
+	}
+	url := fmt.Sprintf("https://oauth2:%s@github.com/%s/%s", auth, ri.Owner, ri.Name)
+	if err = DoCmd("git", "clone", url, dir); err != nil {
+		return errors.Wrap(err, "git clone")
+	}
+	defer os.RemoveAll(dir)
+
+	// Configure Git.
+	if err = DoCmd("git", "-C", dir, "config", "user.name", TaggerName); err != nil {
+		return errors.Wrap(err, "git config")
+	}
+	if err := DoCmd("git", "-C", dir, "config", "user.email", TaggerEmail); err != nil {
+		return errors.Wrap(err, "git config")
+	}
+
+	// Create and push the tag.
+	if err = DoCmd("git", "-C", dir, "tag", ri.Version, "-s", "-m", ri.PatchNotes); err != nil {
+		return errors.Wrap(err, "git tag")
+	}
+	if err = DoCmd("git", "-C", dir, "push", "origin", "--tags"); err != nil {
+		return errors.Wrap(err, "git push")
+	}
+
+	return nil
+}
+
+// DoRelease creates the Git tag and GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
 	var err error
 
-	// First, create the Git tag.
-	tag := &github.Tag{
-		Tag:     github.String(ri.Version),
-		Message: github.String(ri.PatchNotes),
-		Object: &github.GitObject{
-			Type: github.String("commit"),
-			SHA:  github.String(ri.Commit),
-		},
+	// Get an OAuth token to use for the Git remote.
+	// TODO: There is probably a better way to get a token.
+	_, resp, _ := client.Users.Get(Ctx, "")
+	header := resp.Request.Header.Get("Authorization")
+	if header == "" {
+		MakeErrorComment(pr, id, ErrNoAuthHeader)
+		return ErrNoAuthHeader
 	}
-	if tag, _, err = client.Git.CreateTag(Ctx, ri.Owner, ri.Name, tag); err != nil {
-		MakeErrorComment(pr, id, err)
-		return err
+	tokens := strings.Split(header, " ")
+	auth := tokens[len(tokens)-1]
+
+	// Create a Git tag, only if one doesn't already exist.
+	// If a tag already exists, then there's a pretty good chance that a GitHub release also exists.
+	// However, failing there provides a much more useful error message for users.
+	// Also, we only check for 404, not any other request errors.
+	// If the request didn't go through for some reason,
+	// we can still safely skip tag creation and GitHub will tag for us when we create the release.
+	ref := "tags/" + ri.Version
+	if _, resp, _ := client.Git.GetRef(Ctx, ri.Owner, ri.Name, ref); resp.StatusCode == 404 {
+		if err = ri.CreateTag(auth); err != nil {
+			err = errors.Wrap(err, "Creating tag")
+			MakeErrorComment(pr, id, err)
+			return err
+		}
 	}
 
-	// Then, create a reference to the tag.
-	ref := &github.Reference{
-		Ref:    github.String("refs/tags/" + ri.Version),
-		Object: &github.GitObject{SHA: github.String(tag.GetSHA())},
-	}
-	if _, _, err = client.Git.CreateRef(Ctx, ri.Owner, ri.Name, ref); err != nil {
-		MakeErrorComment(pr, id, err)
-		return err
-	}
-
-	// Finally, create a GitHub release associated with the tag.
+	// Create a GitHub release associated with the tag.
 	rel := &github.RepositoryRelease{
 		TagName:         github.String(ri.Version),
 		Name:            github.String(ri.Version),
@@ -176,6 +217,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		Body:            github.String(ri.PatchNotes),
 	}
 	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
+		err = errors.Wrap(err, "Creating release")
 		MakeErrorComment(pr, id, err)
 		return err
 	}

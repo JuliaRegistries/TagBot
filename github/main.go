@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -14,11 +16,14 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/v25/github"
+	"github.com/pkg/errors"
 )
 
 const (
 	ActionClosed  = "closed"
 	ActionCreated = "created"
+	PemName       = "tag-bot.pem"
+	GPGDir        = "gnupg"
 	CommandPrefix = "TagBot "
 	CommandTag    = CommandPrefix + "tag"
 )
@@ -28,12 +33,14 @@ var (
 	RegistryBranch      = os.Getenv("REGISTRY_BRANCH")
 	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
-	PemFile             = "bin/" + os.Getenv("GITHUB_PEM_FILE")
 
-	Ctx = context.Background()
+	Ctx          = context.Background()
+	ResourcesTar = filepath.Join("bin", "resources.tar")
+	IsSetup      = false
 
-	AppID     int
-	AppClient *github.Client
+	ResourcesDir string
+	AppID        int
+	AppClient    *github.Client
 
 	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
@@ -49,53 +56,75 @@ type LambdaRequest struct {
 type Response events.APIGatewayProxyResponse
 
 func init() {
+	if IsSetup {
+		return
+	}
+
 	var err error
+
+	// Load the app ID from the environment.
 	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
 	if err != nil {
 		fmt.Println("App ID:", err)
 		return
 	}
 
-	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, PemFile)
+	// Get a directory that we can write to.
+	ResourcesDir, err = ioutil.TempDir("", "")
+	if err != nil {
+		fmt.Println("Temp dir:", err)
+		return
+	}
+
+	// Extract the resources into the temp directory.
+	// The reason that we have to do the extraction in the first place is that
+	// the default bundling doesn't preserve file permissions, which fudges GnuPG.
+	if err := DoCmd("tar", "-xf", ResourcesTar, "-C", ResourcesDir); err != nil {
+		fmt.Println("tar:", err)
+		return
+	}
+
+	// Make GnuPG use our key.
+	os.Setenv("GNUPGHOME", filepath.Join(ResourcesDir, GPGDir))
+
+	// Load the private GitHub key for our app.
+	pemFile := filepath.Join(ResourcesDir, PemName)
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, pemFile)
 	if err != nil {
 		fmt.Println("Transport:", err)
 		return
 	}
-
 	AppClient = github.NewClient(&http.Client{Transport: tr})
+
+	IsSetup = true
 }
 
 func main() {
-	if AppClient == nil {
-		fmt.Println("App client is not available")
-		return
-	}
-
-	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
-		response = Response{StatusCode: 200}
+	lambda.Start(func(lr LambdaRequest) (resp Response, nilErr error) {
+		resp = Response{StatusCode: 200}
 		defer func(r *Response) {
 			fmt.Println(r.Body)
-		}(&response)
+		}(&resp)
 
-		r, err := LambdaToHttp(lr)
+		req, err := LambdaToHttp(lr)
 		if err != nil {
-			response.Body = "Converting request: " + err.Error()
+			resp.Body = "Converting request: " + err.Error()
 			return
 		}
 
-		payload, err := github.ValidatePayload(r, WebhookSecret)
+		payload, err := github.ValidatePayload(req, WebhookSecret)
 		if err != nil {
-			response.Body = "Validating payload: " + err.Error()
+			resp.Body = "Validating payload: " + err.Error()
 			return
 		}
 
-		event, err := github.ParseWebHook(github.WebHookType(r), payload)
+		event, err := github.ParseWebHook(github.WebHookType(req), payload)
 		if err != nil {
-			response.Body = "Parsing payload: " + err.Error()
+			resp.Body = "Parsing payload: " + err.Error()
 			return
 		}
 
-		id := github.DeliveryID(r)
+		id := github.DeliveryID(req)
 		info := `
 Delivery ID: %s
 Registrator: %s
@@ -106,11 +135,17 @@ Contact user: %s
 
 		switch event.(type) {
 		case *github.PullRequestEvent:
-			response.Body = HandlePullRequest(event.(*github.PullRequestEvent), id)
+			err = HandlePullRequest(event.(*github.PullRequestEvent), id)
 		case *github.IssueCommentEvent:
-			response.Body = HandleIssueComment(event.(*github.IssueCommentEvent), id)
+			err = HandleIssueComment(event.(*github.IssueCommentEvent), id)
 		default:
-			response.Body = "Unknown event type: " + github.WebHookType(r)
+			err = errors.New("Unknown event type: " + github.WebHookType(req))
+		}
+
+		if err == nil {
+			resp.Body = "No error"
+		} else {
+			resp.Body = err.Error()
 		}
 
 		return
@@ -141,7 +176,8 @@ func GetInstallationClient(owner, name string) (*github.Client, error) {
 		return nil, err
 	}
 
-	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), PemFile)
+	pemFile := filepath.Join(ResourcesDir, PemName)
+	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), pemFile)
 	if err != nil {
 		return nil, err
 	}
@@ -152,4 +188,15 @@ func GetInstallationClient(owner, name string) (*github.Client, error) {
 // PreprocessBody preprocesses the PR body.
 func PreprocessBody(body string) string {
 	return strings.TrimSpace(strings.Replace(body, "\r\n", "\n", -1))
+}
+
+// DoCmd runs a shell command and prints any output.
+func DoCmd(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	b, err := cmd.CombinedOutput()
+	s := strings.TrimSpace(string(b))
+	if len(s) > 0 {
+		fmt.Println(s)
+	}
+	return err
 }
