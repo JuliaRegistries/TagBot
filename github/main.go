@@ -32,7 +32,6 @@ var (
 	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 	RegistryBranch      = os.Getenv("REGISTRY_BRANCH")
 	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
-	S3Bucket            = os.Getenv("S3_BUCKET")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
 	Ctx          = context.Background()

@@ -197,6 +197,9 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// Create a Git tag, only if one doesn't already exist.
 	// If a tag already exists, then there's a pretty good chance that a GitHub release also exists.
 	// However, failing there provides a much more useful error message for users.
+	// Also, we only check for 404, not any other request errors.
+	// If the request didn't go through for some reason,
+	// we can still safely skip tag creation and GitHub will tag for us when we create the release.
 	ref := "tags/" + ri.Version
 	if _, resp, _ := client.Git.GetRef(Ctx, ri.Owner, ri.Name, ref); resp.StatusCode == 404 {
 		if err = ri.CreateTag(auth); err != nil {
