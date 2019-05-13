@@ -79,13 +79,13 @@ func init() {
 
 	// Extract the resources into the temp directory.
 	// The reason that we have to do the extraction in the first place is that
-	// the default bundling doesn't preserve file permissions, which fudges GNUPG.
+	// the default bundling doesn't preserve file permissions, which fudges GnuPG.
 	if err := DoCmd("tar", "-xf", ResourcesTar, "-C", ResourcesDir); err != nil {
 		fmt.Println("tar:", err)
 		return
 	}
 
-	// Make GNUPG use our key.
+	// Make GnuPG use our key.
 	os.Setenv("GNUPGHOME", filepath.Join(ResourcesDir, GPGDir))
 
 	// Load the private GitHub key for our app.
