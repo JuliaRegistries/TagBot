@@ -33,8 +33,9 @@ var (
 	S3Bucket            = os.Getenv("S3_BUCKET")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
-	Ctx     = context.Background()
-	IsSetup = false
+	Ctx        = context.Background()
+	MissingEnv = ""
+	IsSetup    = false
 
 	ResourcesDir string
 	PemFile      string
@@ -55,12 +56,34 @@ type LambdaRequest struct {
 // Reponse is what we return from the handler.
 type Response events.APIGatewayProxyResponse
 
+func init() {
+	for _, k := range []string{
+		"GITHUB_APP_ID",
+		"GITHUB_WEBHOOK_SECRET",
+		"GITHUB_CONTACT_USER",
+		"REGISTRATOR_USERNAME",
+		"REGISTRY_BRANCH",
+		"GIT_TAGGER_NAME",
+		"GIT_TAGGER_EMAIL",
+		"S3_BUCKET",
+	} {
+		if os.Getenv(k) == "" {
+			MissingEnv = k
+			return
+		}
+	}
+}
+
 func main() {
 	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
 		response = Response{StatusCode: 200}
 		defer func(r *Response) {
 			fmt.Println(r.Body)
 		}(&response)
+
+		if MissingEnv != "" {
+			response.Body = "Missing environment variable " + MissingEnv
+		}
 
 		r, err := LambdaToHttp(lr)
 		if err != nil {
