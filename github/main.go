@@ -22,6 +22,8 @@ import (
 const (
 	ActionClosed  = "closed"
 	ActionCreated = "created"
+	PemName       = "tag-bot.pem"
+	GPGDir        = "gnupg"
 	CommandPrefix = "TagBot "
 	CommandTag    = CommandPrefix + "tag"
 )
@@ -33,12 +35,12 @@ var (
 	S3Bucket            = os.Getenv("S3_BUCKET")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
-	Ctx        = context.Background()
-	MissingEnv = ""
-	IsSetup    = false
+	Ctx          = context.Background()
+	ResourcesTar = filepath.Join("bin", "resources.tar")
+	MissingEnv   = ""
+	IsSetup      = false
 
 	ResourcesDir string
-	PemFile      string
 	AppID        int
 	AppClient    *github.Client
 
@@ -155,7 +157,8 @@ func GetInstallationClient(owner, name string) (*github.Client, error) {
 		return nil, err
 	}
 
-	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), PemFile)
+	pemFile := filepath.Join(ResourcesDir, PemName)
+	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), pemFile)
 	if err != nil {
 		return nil, err
 	}
@@ -186,37 +189,36 @@ func Setup() error {
 	}
 
 	var err error
+
+	// Load the app ID from the environment.
 	AppID, err = strconv.Atoi(os.Getenv("GITHUB_APP_ID"))
 	if err != nil {
 		return errors.Wrap(err, "App ID")
 	}
 
+	// Get a directory that we can write to.
 	ResourcesDir, err = ioutil.TempDir("", "")
 	if err != nil {
 		return errors.Wrap(err, "Temp dir")
 	}
 
-	if err := DoCmd("aws", "s3", "sync", "s3://"+S3Bucket, ResourcesDir); err != nil {
-		return errors.Wrap(err, "S3 sync")
+	// Extract the resources into the temp directory.
+	// The reason that we have to do the extraction in the first place is that
+	// the default bundling doesn't preserve file permissions which fudges GNUPG.
+	if err := DoCmd("tar", "-xf", ResourcesTar, "-C", ResourcesDir); err != nil {
+		return errors.Wrap(err, "tar")
 	}
 
-	PemFile = filepath.Join(ResourcesDir, "tag-bot.pem")
-	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, PemFile)
+	// Make GNUPG use our key.
+	os.Setenv("GNUPGHOME", filepath.Join(ResourcesDir, GPGDir))
+
+	// Load the private GitHub key for our app.
+	pemFile := filepath.Join(ResourcesDir, PemName)
+	tr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, AppID, pemFile)
 	if err != nil {
 		return errors.Wrap(err, "Transport")
 	}
-
 	AppClient = github.NewClient(&http.Client{Transport: tr})
-
-	gpg := filepath.Join(ResourcesDir, "gnupg")
-	os.Setenv("GNUPGHOME", gpg)
-
-	if err = DoCmd("find", gpg, "-type", "d", "-exec", "chmod", "700", "{}", ";"); err != nil {
-		return errors.Wrap(err, "chmod")
-	}
-	if err = DoCmd("find", gpg, "-type", "f", "-exec", "chmod", "600", "{}", ";"); err != nil {
-		return errors.Wrap(err, "chmod")
-	}
 
 	IsSetup = true
 	return nil
