@@ -101,31 +101,31 @@ func init() {
 }
 
 func main() {
-	lambda.Start(func(lr LambdaRequest) (response Response, nilErr error) {
-		response = Response{StatusCode: 200}
+	lambda.Start(func(lr LambdaRequest) (resp Response, nilErr error) {
+		resp = Response{StatusCode: 200}
 		defer func(r *Response) {
 			fmt.Println(r.Body)
-		}(&response)
+		}(&resp)
 
-		r, err := LambdaToHttp(lr)
+		req, err := LambdaToHttp(lr)
 		if err != nil {
-			response.Body = "Converting request: " + err.Error()
+			resp.Body = "Converting request: " + err.Error()
 			return
 		}
 
-		payload, err := github.ValidatePayload(r, WebhookSecret)
+		payload, err := github.ValidatePayload(req, WebhookSecret)
 		if err != nil {
-			response.Body = "Validating payload: " + err.Error()
+			resp.Body = "Validating payload: " + err.Error()
 			return
 		}
 
-		event, err := github.ParseWebHook(github.WebHookType(r), payload)
+		event, err := github.ParseWebHook(github.WebHookType(req), payload)
 		if err != nil {
-			response.Body = "Parsing payload: " + err.Error()
+			resp.Body = "Parsing payload: " + err.Error()
 			return
 		}
 
-		id := github.DeliveryID(r)
+		id := github.DeliveryID(req)
 		info := `
 Delivery ID: %s
 Registrator: %s
@@ -140,13 +140,13 @@ Contact user: %s
 		case *github.IssueCommentEvent:
 			err = HandleIssueComment(event.(*github.IssueCommentEvent), id)
 		default:
-			err = errors.New("Unknown event type: " + github.WebHookType(r))
+			err = errors.New("Unknown event type: " + github.WebHookType(req))
 		}
 
 		if err == nil {
-			response.Body = "No error"
+			resp.Body = "No error"
 		} else {
-			response.Body = err.Error()
+			resp.Body = err.Error()
 		}
 
 		return
