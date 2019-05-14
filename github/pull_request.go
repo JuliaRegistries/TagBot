@@ -169,7 +169,11 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	}
 
 	// Create and push the tag.
-	if err = DoCmd("git", "-C", dir, "tag", ri.Version, "-s", "-m", ri.PatchNotes); err != nil {
+	args := []string{"-C", dir, "tag", ri.Version, "-s"}
+	if ri.PatchNotes != "" {
+		args = append(args, "-m", ri.PatchNotes)
+	}
+	if err = DoCmd("git", args...); err != nil {
 		return errors.Wrap(err, "git tag")
 	}
 	if err = DoCmd("git", "-C", dir, "push", "origin", "--tags"); err != nil {
@@ -222,11 +226,15 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	}
 
 	// Create a GitHub release associated with the tag.
+	var body *string
+	if ri.PatchNotes != "" {
+		body = github.String(ri.PatchNotes)
+	}
 	rel := &github.RepositoryRelease{
 		TagName:         github.String(ri.Version),
 		Name:            github.String(ri.Version),
 		TargetCommitish: github.String(target),
-		Body:            github.String(ri.PatchNotes),
+		Body:            body,
 	}
 	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
 		err = errors.Wrap(err, "Creating release")
