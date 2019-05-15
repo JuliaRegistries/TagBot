@@ -140,6 +140,13 @@ func ParseBody(body string) ReleaseInfo {
 	var notes string
 	if match != nil {
 		notes = strings.TrimSpace(match[1])
+		lines := strings.Split(notes, "\n")
+		if strings.HasPrefix(lines[0], "> ") {
+			for i, l := range lines {
+				lines[i] = strings.TrimSpace(l[1:])
+			}
+			notes = strings.Join(lines, "\n")
+		}
 	}
 
 	return ReleaseInfo{
