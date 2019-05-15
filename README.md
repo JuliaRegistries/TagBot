@@ -23,6 +23,13 @@ This is also useful when TagBot reports an error.
 To include the tag command in a comment without actually triggering a release, include `TagBot ignore` in your comment.
 This should be useful for registry maintainers who want to make recommendations without modifying another repository.
 
+### Patch Notes
+
+TagBot allows you to write your patch notes in the same place that you trigger Registrator, but you don't have to if you're feeling lazy.
+When patch notes are provided, they are copied into both the Git tag message and the GitHub release.
+If you do not write any notes, a changelog is automatically generated from your repository's commit log.
+This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
+
 For more information on what TagBot is and isn't, please see the [announcement].
 
 [app-img]: https://img.shields.io/badge/GitHub%20App-install-blue.svg
