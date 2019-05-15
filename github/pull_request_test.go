@@ -68,8 +68,9 @@ func TestParseBody(t *testing.T) {
 		out ReleaseInfo
 	}{
 		{makeBody("github.com/a/b", "v0.1.0", "sha", ""), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("https://github.com/a/b", "v0.1.0", "sha", " "), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "> notes"), ReleaseInfo{"a", "b", "v0.1.0", "sha", "notes"}},
+		{makeBody("https://github.com/a/b", "v0.1.0", "sha", ""), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha", " "), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "notes"), ReleaseInfo{"a", "b", "v0.1.0", "sha", "notes"}},
 		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "> foo\n> bar"), ReleaseInfo{"a", "b", "v0.1.0", "sha", "foo\nbar"}},
 	}
 
