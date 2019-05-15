@@ -240,15 +240,14 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		TargetCommitish: github.String(target),
 	}
 	if ri.PatchNotes == "" {
-		rel.Body = github.String(ri.PatchNotes)
-	} else {
 		body, err := ri.Changelog(client)
 		if err == nil {
 			rel.Body = github.String(body)
 		} else {
 			fmt.Println("Changelog:", err)
 		}
-
+	} else {
+		rel.Body = github.String(ri.PatchNotes)
 	}
 	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
 		err = errors.Wrap(err, "Creating release")
@@ -327,7 +326,7 @@ outer:
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].GetCommit().GetMessage() < commits[j].GetCommit().GetMessage()
 	})
-	body := "**Changelog**\n\n"
+	body := "**Commits**\n\n"
 	prs := []string{}
 	for _, c := range commits {
 		lines := strings.Split(c.GetCommit().GetMessage(), "\n")
