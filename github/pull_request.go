@@ -344,7 +344,7 @@ outer:
 			body += pr
 		}
 	}
-	body += "\nThis changelog was automatically generated and might contain inaccuracies."
+	body += "\nThis changelog was automatically generated, and might contain inaccuracies."
 
 	return body, nil
 }
