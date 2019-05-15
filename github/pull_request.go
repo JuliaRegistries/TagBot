@@ -327,7 +327,7 @@ outer:
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].GetCommit().GetMessage() < commits[j].GetCommit().GetMessage()
 	})
-	body := "Changelog:\n\n"
+	body := "**Changelog**\n\n"
 	prs := []string{}
 	for _, c := range commits {
 		lines := strings.Split(c.GetCommit().GetMessage(), "\n")
@@ -340,7 +340,7 @@ outer:
 		}
 	}
 	if len(prs) > 0 {
-		body += "\nMerged PRs:\n\n"
+		body += "\n**Merged PRs**\n\n"
 		for _, pr := range prs {
 			body += pr
 		}
