@@ -30,6 +30,8 @@ When patch notes are provided, they are copied into both the Git tag message and
 If you do not write any notes, a changelog is automatically generated from your repository's commit log.
 This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
 
+---
+
 For more information on what TagBot is and isn't, please see the [announcement].
 
 [app-img]: https://img.shields.io/badge/GitHub%20App-install-blue.svg
