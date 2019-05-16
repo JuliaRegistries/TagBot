@@ -27,19 +27,19 @@ var (
 	ErrNotEnoughTags  = errors.New("Not enough tags were found")
 	ErrNoVersion      = errors.New("Version was not found in Project.toml")
 
-	RepoRegex       = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
-	VersionRegex    = regexp.MustCompile(`Version:\s*(v.*)`)
-	CommitRegex     = regexp.MustCompile(`Commit:\s*(.*)`)
+	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
+	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
+	CommitRegex       = regexp.MustCompile(`Commit:\s*(.*)`)
 	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN PATCH NOTES -->(.*)<!-- END PATCH NOTES -->`)
-	MergedPRRegex   = regexp.MustCompile(`Merge pull request #(\d+)`)
+	MergedPRRegex     = regexp.MustCompile(`Merge pull request #(\d+)`)
 )
 
 // ReleaseInfo contains the information needed to create a GitHub release.
 type ReleaseInfo struct {
-	Owner      string
-	Name       string
-	Version    string
-	Commit     string
+	Owner        string
+	Name         string
+	Version      string
+	Commit       string
 	ReleaseNotes string
 }
 
@@ -150,10 +150,10 @@ func ParseBody(body string) ReleaseInfo {
 	}
 
 	return ReleaseInfo{
-		Owner:      owner,
-		Name:       name,
-		Version:    version,
-		Commit:     commit,
+		Owner:        owner,
+		Name:         name,
+		Version:      version,
+		Commit:       commit,
 		ReleaseNotes: notes,
 	}
 }
