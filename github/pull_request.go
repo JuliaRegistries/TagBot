@@ -30,7 +30,7 @@ var (
 	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
 	CommitRegex       = regexp.MustCompile(`Commit:\s*(.*)`)
-	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN PATCH NOTES -->(.*)<!-- END PATCH NOTES -->`)
+	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN (?:PATCH|RELEASE) NOTES -->(.*)<!-- END (?:PATCH|RELEASE) NOTES -->`)
 	MergedPRRegex     = regexp.MustCompile(`Merge pull request #(\d+)`)
 )
 

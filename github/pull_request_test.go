@@ -31,7 +31,7 @@ func makeBody(repository, version, commit, notes string) string {
 		ss = append(ss, "Commit: "+commit)
 	}
 	if notes != "" {
-		ss = append(ss, "Release notes:", "<!-- BEGIN PATCH NOTES -->", notes, "<!-- END PATCH NOTES -->")
+		ss = append(ss, "Release notes:", "<!-- BEGIN RELEASE NOTES -->", notes, "<!-- END RELEASE NOTES -->")
 	}
 	return strings.TrimSpace(strings.Join(ss, "\n"))
 }
