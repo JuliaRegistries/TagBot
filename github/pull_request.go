@@ -30,7 +30,7 @@ var (
 	RepoRegex       = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex    = regexp.MustCompile(`Version:\s*(v.*)`)
 	CommitRegex     = regexp.MustCompile(`Commit:\s*(.*)`)
-	PatchNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN PATCH NOTES -->(.*)<!-- END PATCH NOTES -->`)
+	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN PATCH NOTES -->(.*)<!-- END PATCH NOTES -->`)
 	MergedPRRegex   = regexp.MustCompile(`Merge pull request #(\d+)`)
 )
 
@@ -40,7 +40,7 @@ type ReleaseInfo struct {
 	Name       string
 	Version    string
 	Commit     string
-	PatchNotes string
+	ReleaseNotes string
 }
 
 // HandlePullRequest handles a pull request event.
@@ -136,7 +136,7 @@ func ParseBody(body string) ReleaseInfo {
 	commit := match[1]
 
 	// This one is optional, and just defaults to no notes.
-	match = PatchNotesRegex.FindStringSubmatch(body)
+	match = ReleaseNotesRegex.FindStringSubmatch(body)
 	var notes string
 	if match != nil {
 		notes = strings.TrimSpace(match[1])
@@ -154,7 +154,7 @@ func ParseBody(body string) ReleaseInfo {
 		Name:       name,
 		Version:    version,
 		Commit:     commit,
-		PatchNotes: notes,
+		ReleaseNotes: notes,
 	}
 }
 
@@ -181,10 +181,10 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	}
 
 	// Create and push the tag.
-	msg := ri.PatchNotes
+	msg := ri.ReleaseNotes
 	if msg == "" {
 		msg = fmt.Sprintf(
-			"See https://github.com/%s/%s/releases/tag/%s for patch notes",
+			"See https://github.com/%s/%s/releases/tag/%s for release notes",
 			ri.Owner, ri.Name, ri.Version,
 		)
 	}
@@ -246,7 +246,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		Name:            github.String(ri.Version),
 		TargetCommitish: github.String(target),
 	}
-	if ri.PatchNotes == "" {
+	if ri.ReleaseNotes == "" {
 		body, err := ri.Changelog(client)
 		if err == nil {
 			rel.Body = github.String(body)
@@ -254,7 +254,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 			fmt.Println("Changelog:", err)
 		}
 	} else {
-		rel.Body = github.String(ri.PatchNotes)
+		rel.Body = github.String(ri.ReleaseNotes)
 	}
 	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
 		err = errors.Wrap(err, "Creating release")
