@@ -30,7 +30,6 @@ const (
 
 var (
 	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
-	RegistryBranch      = os.Getenv("REGISTRY_BRANCH")
 	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
@@ -128,10 +127,9 @@ func main() {
 		info := `
 Delivery ID: %s
 Registrator: %s
-Registry branch: %s
 Contact user: %s
 `
-		fmt.Printf(info, id, RegistratorUsername, RegistryBranch, ContactUser)
+		fmt.Printf(info, id, RegistratorUsername, ContactUser)
 
 		switch event.(type) {
 		case *github.PullRequestEvent:

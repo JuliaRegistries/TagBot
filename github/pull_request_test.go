@@ -13,8 +13,13 @@ func makePRE(action string, merged bool, user, branch, body string) *github.Pull
 		PullRequest: &github.PullRequest{
 			Merged: github.Bool(merged),
 			User:   &github.User{Login: github.String(user)},
-			Base:   &github.PullRequestBranch{Ref: github.String(branch)},
 			Body:   github.String(body),
+			Base: &github.PullRequestBranch{
+				Ref: github.String(branch),
+				Repo: &github.Repository{
+					DefaultBranch: github.String("master"),
+				},
+			},
 		},
 	}
 }
@@ -39,8 +44,7 @@ func makeBody(repository, version, commit, notes string) string {
 func TestShouldRelease(t *testing.T) {
 	RegistratorUsername = "R"
 	r := RegistratorUsername
-	RegistryBranch = "b"
-	b := RegistryBranch
+	b := "master"
 	cases := []struct {
 		in  *github.PullRequestEvent
 		out error

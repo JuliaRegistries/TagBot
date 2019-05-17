@@ -104,7 +104,7 @@ func ShouldRelease(pre *github.PullRequestEvent) error {
 		return ErrNotRegistrator
 	}
 
-	if pr.GetBase().GetRef() != RegistryBranch {
+	if pr.GetBase().GetRef() != pr.GetBase().GetRepo().GetDefaultBranch() {
 		return ErrBaseBranch
 	}
 
