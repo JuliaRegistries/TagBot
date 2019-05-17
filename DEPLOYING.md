@@ -39,7 +39,7 @@ Then, start a container with a mounted directory like so:
 ```sh
 # $ROOT here is the same as before, i.e. the root of the TagBot repository.
 $ mkdir $ROOT/gnupg
-$ docker run -it --rm --mount type=bind,source=$ROOT/gnupg,destination=/root/.gnupg amazonlinux
+$ docker run -it --rm --mount type=bind,source=$ROOT/gnupg,destination=/root/.gnupg amazonlinux:2018.03
 ```
 
 This should get you into a running Amazon Linux container.
