@@ -2,7 +2,7 @@ require 'github_changelog_generator'
 require 'json'
 require 'tempfile'
 
-def main(event:, context:)
+def main(event:)
   resp = { statusCode: 200, body: { changelog: nil, error: nil } }
 
   # This is where the generated changelog will go.
@@ -14,13 +14,12 @@ def main(event:, context:)
 
   begin
     GitHubChangelogGenerator::ChangelogGenerator.new.run
+    resp[:body][:changelog] = File.read path
   rescue StandardError => e
     puts e
     resp[:statusCode] = 500
     resp[:body][:error] = "Error running changelog generator"
-  else
-    resp[:body][:changelog] = File.read path
   end
 
-  return resp
+  return JSON.generate resp
 end
