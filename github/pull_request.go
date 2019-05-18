@@ -202,24 +202,19 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 
 // DoRelease creates the Git tag and GitHub release.
 func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, id string) error {
-	var err error
-
-	// Get an OAuth token to use for the Git remote.
-	// TODO: There is probably a better way to get a token.
-	_, resp, _ := client.Users.Get(Ctx, "")
-	header := resp.Request.Header.Get("Authorization")
-	if header == "" {
-		MakeErrorComment(pr, id, ErrNoAuthHeader)
-		return ErrNoAuthHeader
-	}
-	tokens := strings.Split(header, " ")
-	auth := tokens[len(tokens)-1]
-
 	// Create a Git tag, only if one doesn't already exist.
 	// If a tag already exists, make sure that it points to the right commit.
 	ref, resp, err := client.Git.GetRef(Ctx, ri.Owner, ri.Name, "tags/"+ri.Version)
 	if resp.StatusCode == 404 {
 		// No tag exists, so create one.
+		// Get an OAuth token to use for the Git remote.
+		header := resp.Request.Header.Get("Authorization")
+		if header == "" {
+			MakeErrorComment(pr, id, ErrNoAuthHeader)
+			return ErrNoAuthHeader
+		}
+		tokens := strings.Split(header, " ")
+		auth := tokens[len(tokens)-1]
 		if err = ri.CreateTag(auth); err != nil {
 			err = errors.Wrap(err, "Creating tag")
 			MakeErrorComment(pr, id, err)
