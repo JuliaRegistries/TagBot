@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -205,7 +206,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// Create a Git tag, only if one doesn't already exist.
 	// If a tag already exists, make sure that it points to the right commit.
 	ref, resp, err := client.Git.GetRef(Ctx, ri.Owner, ri.Name, "tags/"+ri.Version)
-	if resp.StatusCode == 404 {
+	if resp.StatusCode == http.StatusNotFound {
 		// No tag exists, so create one.
 		// Get an OAuth token to use for the Git remote.
 		header := resp.Request.Header.Get("Authorization")
@@ -261,7 +262,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	if rel, resp, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
 		// If the release already exists, there's no need to bug the user about it.
 		// We know from the checks above that the existing tag is correct.
-		if resp.StatusCode == 422 {
+		if resp.StatusCode == http.StatusUnprocessableEntity {
 			return ErrReleaseExists
 		}
 		err = errors.Wrap(err, "Creating release")

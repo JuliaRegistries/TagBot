@@ -100,7 +100,7 @@ func init() {
 
 func main() {
 	lambda.Start(func(lr LambdaRequest) (resp Response, nilErr error) {
-		resp = Response{StatusCode: 200}
+		resp = Response{StatusCode: http.StatusOK}
 		defer func(r *Response) {
 			fmt.Println(r.Body)
 		}(&resp)
@@ -166,7 +166,7 @@ func LambdaToHttp(lr LambdaRequest) (*http.Request, error) {
 func GetInstallationClient(owner, name string) (*github.Client, error) {
 	i, resp, err := AppClient.Apps.FindRepositoryInstallation(Ctx, owner, name)
 	if err != nil {
-		if resp.StatusCode == 404 {
+		if resp.StatusCode == http.StatusNotFound {
 			if _, _, err = AppClient.Apps.FindUserInstallation(Ctx, owner); err == nil {
 				return nil, ErrRepoNotEnabled
 			}
