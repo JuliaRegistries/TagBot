@@ -188,7 +188,7 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 			ri.Owner, ri.Name, ri.Version,
 		)
 	}
-	if err = DoCmd("git", "-C", dir, "tag", ri.Version, "-s", "-m", msg); err != nil {
+	if err = DoCmd("git", "-C", dir, "tag", ri.Version, ri.Commit, "-s", "-m", msg); err != nil {
 		return errors.Wrap(err, "git tag")
 	}
 	if err = DoCmd("git", "-C", dir, "push", "origin", "--tags"); err != nil {
