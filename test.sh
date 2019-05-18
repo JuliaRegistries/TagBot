@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-FNS=("github")
+set -e
 
-for fn in "${FNS[@]}"; do
-  (
-    cd "$fn"
-    go test -v
-  )
-done
+(
+  cd github
+  go test -v
+)

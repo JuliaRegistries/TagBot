@@ -71,6 +71,7 @@ Outside of the container, the generated GPG data can be found at `$ROOT/gnupg`.
 Once all these steps are complete, `$ROOT` should contain a file called `tag-bot.pem` and a directory called `gnupg`.
 Run `build.sh` from `$ROOT` to build the API.
 You will need the Go compiler installed, see [here](https://golang.org/doc/install) for instructions.
+You will also need Ruby 2.5 installed with [RVM](http://rvm.io).
 
 ## Setting the Environment
 
