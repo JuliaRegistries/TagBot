@@ -23,9 +23,11 @@ var (
 	ErrVersionMatch   = errors.New("No version regex match")
 	ErrCommitMatch    = errors.New("No commit regex match")
 	ErrNoAuthHeader   = errors.New("Authentication header was not set")
+	ErrBadExistingTag = errors.New("A tag already exists, but it points at the wrong commit")
 	ErrNoCommits      = errors.New("No commits were found")
 	ErrNotEnoughTags  = errors.New("Not enough tags were found")
 	ErrNoVersion      = errors.New("Version was not found in Project.toml")
+	ErrReleaseExists  = errors.New("A release for this tag already exists")
 
 	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
@@ -214,18 +216,23 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	auth := tokens[len(tokens)-1]
 
 	// Create a Git tag, only if one doesn't already exist.
-	// If a tag already exists, then there's a pretty good chance that a GitHub release also exists.
-	// However, failing there provides a much more useful error message for users.
-	// Also, we only check for 404, not any other request errors.
-	// If the request didn't go through for some reason,
-	// we can still safely skip tag creation and GitHub will tag for us when we create the release.
-	ref := "tags/" + ri.Version
-	if _, resp, _ := client.Git.GetRef(Ctx, ri.Owner, ri.Name, ref); resp.StatusCode == 404 {
+	// If a tag already exists, make sure that it points to the right commit.
+	ref, resp, err := client.Git.GetRef(Ctx, ri.Owner, ri.Name, "tags/"+ri.Version)
+	if resp.StatusCode == 404 {
+		// No tag exists, so create one.
 		if err = ri.CreateTag(auth); err != nil {
 			err = errors.Wrap(err, "Creating tag")
 			MakeErrorComment(pr, id, err)
 			return err
 		}
+	} else if err != nil {
+		// Don't worry about errors, just let GitHub create the tag along with the release.
+		fmt.Println("Get ref:", err)
+	} else if ref.GetObject().GetSHA() != ri.Commit {
+		// The existing tag is on the wrong commit.
+		err = ErrBadExistingTag
+		MakeErrorComment(pr, id, err)
+		return err
 	}
 
 	// GitHub doesn't display the nice "n commits to <branch> since this release"
@@ -256,7 +263,12 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	} else {
 		rel.Body = github.String(ri.ReleaseNotes)
 	}
-	if rel, _, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
+	if rel, resp, err = client.Repositories.CreateRelease(Ctx, ri.Owner, ri.Name, rel); err != nil {
+		// If the release already exists, there's no need to bug the user about it.
+		// We know from the checks above that the existing tag is correct.
+		if resp.StatusCode == 422 {
+			return ErrReleaseExists
+		}
 		err = errors.Wrap(err, "Creating release")
 		MakeErrorComment(pr, id, err)
 		return err
