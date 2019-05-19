@@ -27,7 +27,7 @@ This should be useful for registry maintainers who want to make recommendations 
 
 TagBot allows you to write your release notes in the same place that you trigger Registrator, but you don't have to if you're feeling lazy.
 When release notes are provided, they are copied into both the Git tag message and the GitHub release.
-If you do not write any notes, a changelog is automatically generated from your repository's commit log.
+If you do not write any notes, a changelog is automatically generated from closed issues and merged pull requests.
 This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
 
 ---

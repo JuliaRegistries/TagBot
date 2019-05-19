@@ -41,5 +41,5 @@ end
 def response(status, changelog: nil, error: nil)
   body = { changelog: changelog, error: error }
   json = JSON.generate body
-  { statusCode: status, body: json }
+  return { statusCode: status, body: json }
 end
