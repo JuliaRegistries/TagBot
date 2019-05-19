@@ -69,7 +69,7 @@ Outside of the container, the generated GPG data can be found at `$ROOT/gnupg`.
 ## Building the API
 
 Once all these steps are complete, `$ROOT` should contain a file called `tag-bot.pem` and a directory called `gnupg`.
-Run `build.sh` from `$ROOT` to build the API.
+Run `bin/build.sh` from `$ROOT` to build the API.
 You will need the Go compiler installed, see [here](https://golang.org/doc/install) for instructions.
 You will also need Ruby 2.5 installed with [RVM](http://rvm.io).
 
@@ -108,7 +108,7 @@ You'll see a URL that ends with `/webhook/github`, this is your webhook endpoint
 ## Setting Up the Webhook
 
 Now that you know where your API can be called, set up a webhook in your registry repository.
-Use the API's URL as the "Payload URL".
+Use the `/webhook/github` URL as the "Payload URL".
 Be sure to enter your webhook secret as well.
 Finally, when selecting events, choose "Issue comments" and "Pull requests".
 
