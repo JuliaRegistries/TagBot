@@ -2,8 +2,10 @@
 
 set -e
 
-PEM="$(pwd)/tag-bot.pem"
-GPG="$(pwd)/gnupg"
+PEM="tag-bot.pem"
+GPG="gnupg"
+
+cd $(dirname "$0")/..
 
 if [ ! -f  "$PEM" ]; then
     echo "File $PEM does not exist"
@@ -14,19 +16,20 @@ if [ ! -d  "$GPG" ]; then
     exit 1
 fi
 
+rm -rf github/bin
+mkdir github/bin
+chmod 644 "$PEM"
+rm -f "$GPG/S.gpg-agent"
+find "$GPG" -type d -exec chmod 700 {} \;
+find "$GPG" -type f -exec chmod 600 {} \;
+tar -cf github/bin/resources.tar "$GPG" "$PEM"
 (
   cd github
-  rm -rf bin
-  mkdir bin
-  chmod 644 "$PEM"
-  rm -f "$GPG/S.gpg-agent"
-  find "$GPG" -type d -exec chmod 700 {} \;
-  find "$GPG" -type f -exec chmod 600 {} \;
-  tar -cf bin/resources.tar "$GPG" "$PEM" 2> /dev/null
   env GOOS="linux" go build -ldflags="-s -w" -o bin/github
 )
 
 (
+  rm -rf vendor
   cd changelog
   rvm 2.5 do bundle install --quiet --path ../vendor/bundle 2> /dev/null
 )

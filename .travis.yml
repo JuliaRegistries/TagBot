@@ -1,4 +1,4 @@
 language: go
 go: 1.12
 notifications: {email: false}
-script: ./test.sh
+script: ./bin/test.sh
