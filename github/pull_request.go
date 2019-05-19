@@ -1,12 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/google/go-github/v25/github"
@@ -16,6 +17,8 @@ import (
 var (
 	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
 	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
+
+	EndpointChangelog = os.Getenv("API_BASE") + "/internal/changelog"
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -44,6 +47,12 @@ type ReleaseInfo struct {
 	Version      string
 	Commit       string
 	ReleaseNotes string
+}
+
+// Changelog is a response from the changelog service.
+type Changelog struct {
+	Changelog *string `json:"changelog"`
+	Error     *string `json:"error"`
 }
 
 // HandlePullRequest handles a pull request event.
@@ -206,16 +215,19 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// Create a Git tag, only if one doesn't already exist.
 	// If a tag already exists, make sure that it points to the right commit.
 	ref, resp, err := client.Git.GetRef(Ctx, ri.Owner, ri.Name, "tags/"+ri.Version)
+
+	// We'll need an auth token later so grab one now.
+	header := resp.Request.Header.Get("Authorization")
+	if header == "" {
+		err = ErrNoAuthHeader
+		MakeErrorComment(pr, id, err)
+		return err
+	}
+	tokens := strings.Split(header, " ")
+	auth := tokens[len(tokens)-1]
+
 	if resp.StatusCode == http.StatusNotFound {
 		// No tag exists, so create one.
-		// Get an OAuth token to use for the Git remote.
-		header := resp.Request.Header.Get("Authorization")
-		if header == "" {
-			MakeErrorComment(pr, id, ErrNoAuthHeader)
-			return ErrNoAuthHeader
-		}
-		tokens := strings.Split(header, " ")
-		auth := tokens[len(tokens)-1]
 		if err = ri.CreateTag(auth); err != nil {
 			err = errors.Wrap(err, "Creating tag")
 			MakeErrorComment(pr, id, err)
@@ -250,7 +262,7 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		TargetCommitish: github.String(target),
 	}
 	if ri.ReleaseNotes == "" {
-		body, err := ri.Changelog(client)
+		body, err := ri.Changelog(auth)
 		if err == nil {
 			rel.Body = github.String(body)
 		} else {
@@ -275,93 +287,43 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	return nil
 }
 
-// Changelog generates a changelog based on commits.
-func (ri ReleaseInfo) Changelog(client *github.Client) (string, error) {
-	// Collect all the tags.
-	opts := &github.ListOptions{}
-	tags := []*github.RepositoryTag{}
-	for {
-		ts, resp, err := client.Repositories.ListTags(Ctx, ri.Owner, ri.Name, opts)
-		if err != nil {
-			return "", errors.Wrap(err, "List tags")
-		}
-
-		for _, t := range ts {
-			tags = append(tags, t)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
+// Changelog gets a changelog from the changelog service.
+func (ri ReleaseInfo) Changelog(auth string) (string, error) {
+	req, err := http.NewRequest("GET", EndpointChangelog, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "New request")
 	}
-	if len(tags) == 0 {
-		return "", ErrNotEnoughTags
-	}
+	q := url.Values{}
+	q.Add("user", ri.Owner)
+	q.Add("repo", ri.Name)
+	q.Add("tag", ri.Version)
+	q.Add("token", auth)
+	req.URL.RawQuery = q.Encode()
 
-	// Get the highest tag that is not the new release.
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].GetName() < tags[j].GetName()
-	})
-	lastTag := tags[len(tags)-1]
-	if lastTag.GetName() == ri.Version {
-		if len(tags) < 2 {
-			return "", ErrNotEnoughTags
-		}
-		lastTag = tags[len(tags)-2]
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", errors.Wrap(err, "Changelog request")
+	}
+	defer resp.Body.Close()
+	fmt.Println("Changelog status:", resp.Status)
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", errors.Wrap(err, "Reading body")
 	}
 
-	// Collect all the commits since the previous tag.
-	commits := []*github.RepositoryCommit{}
-	cOpts := &github.CommitsListOptions{SHA: ri.Commit}
-outer:
-	for {
-		cs, resp, err := client.Repositories.ListCommits(Ctx, ri.Owner, ri.Name, cOpts)
-		if err != nil {
-			return "", errors.Wrap(err, "List commits")
-		}
-
-		for _, c := range cs {
-			if c.GetSHA() == lastTag.GetCommit().GetSHA() {
-				break outer
-			}
-			commits = append(commits, c)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		cOpts.Page = resp.NextPage
-	}
-	if len(commits) == 0 {
-		return "", ErrNoCommits
+	c := &Changelog{}
+	if err = json.Unmarshal(b, c); err != nil {
+		return "", errors.Wrap(err, "Parsing body")
 	}
 
-	// Build up the message.
-	sort.Slice(commits, func(i, j int) bool {
-		return commits[i].GetCommit().GetMessage() < commits[j].GetCommit().GetMessage()
-	})
-	body := "**Commits**\n\n"
-	prs := []string{}
-	for _, c := range commits {
-		lines := strings.Split(c.GetCommit().GetMessage(), "\n")
-		msg := strings.TrimSpace(lines[0])
-		sha := c.GetSHA()[:7]
-		if match := MergedPRRegex.FindStringSubmatch(msg); match != nil {
-			prs = append(prs, fmt.Sprintf("- #%s (%s)\n", match[1], sha))
-		} else {
-			body += fmt.Sprintf("- %s (%s)\n", msg, sha)
-		}
+	if c.Error != nil {
+		return "", errors.New("Changelog service: " + *c.Error)
+	} else if c.Changelog == nil {
+		return "", errors.New("Changelog service: Changelog is nil")
 	}
-	if len(prs) > 0 {
-		body += "\n**Merged PRs**\n\n"
-		for _, pr := range prs {
-			body += pr
-		}
-	}
-	body += "\nThis changelog was automatically generated, and might contain inaccuracies."
 
-	return body, nil
+	return *c.Changelog, nil
 }
 
 // MakeSuccessComment adds a comment to the PR indicating success.

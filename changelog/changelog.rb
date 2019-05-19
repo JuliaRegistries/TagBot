@@ -2,24 +2,44 @@ require 'github_changelog_generator'
 require 'json'
 require 'tempfile'
 
-def main(event:)
-  resp = { statusCode: 200, body: { changelog: nil, error: nil } }
+$number_regex = /\[\\#(\d+)\]\(.+?\)/
+$ack_regex = /\\\* \*this change log was automatically generated .*/i
 
-  # This is where the generated changelog will go.
-  path = Tempfile.new.path
-
+def main(event:, context:)
   ARGV.clear
-  ARGV.push '-o', path
-  # TODO: Set arguments from the query string parameters.
+
+  params = event['queryStringParameters']
+  ARGV.push '--user', params['user']
+  ARGV.push '--project', params['repo']
+  ARGV.push '--between-tags', params['tag']
+  ARGV.push '--token', params['token']
+
+  path = Tempfile.new.path
+  ARGV.push '--output', path
+
+  # TODO: Does this work? I want to disable these extra sections.
+  ARGV.push '--header-label', ''
+  ARGV.push '--bug-labels', ''
+  ARGV.push '--enhancement-labels', ''
+
+  return response(400, error: 'Missing parameter(s)') unless ARGV.all?
 
   begin
     GitHubChangelogGenerator::ChangelogGenerator.new.run
-    resp[:body][:changelog] = File.read path
+    changelog = File.read path
+    changelog.gsub! $number_regex, '(#\\1)'
+    changelog.sub! $ack_regex, ''
+    changelog.strip!
   rescue StandardError => e
     puts e
-    resp[:statusCode] = 500
-    resp[:body][:error] = "Error running changelog generator"
+    return response(500, error: 'Error running changelog generator')
   end
 
-  return JSON.generate resp
+  return response(200, changelog: changelog)
+end
+
+def response(status, changelog: nil, error: nil)
+  body = { changelog: changelog, error: error }
+  json = JSON.generate body
+  { statusCode: status, body: json }
 end

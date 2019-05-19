@@ -34,7 +34,7 @@ var (
 	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
 	Ctx          = context.Background()
-	ResourcesTar = filepath.Join("bin", "resources.tar")
+	ResourcesTar = filepath.Join("github", "bin", "resources.tar")
 	IsSetup      = false
 
 	ResourcesDir string

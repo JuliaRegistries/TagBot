@@ -1,13 +1,6 @@
 service: tag-bot
 provider:
   name: aws
-  environment:
-    GITHUB_APP_ID: ${env:GITHUB_APP_ID}
-    GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
-    GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
-    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-    GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
-    GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
 package:
   individually: true
   exclude:
@@ -17,6 +10,14 @@ functions:
     runtime: go1.x
     handler: github/bin/github
     timeout: 30
+    environment:
+      API_BASE: ${cf:tag-bot-${self:provider.stage}.ServiceEndpoint}
+      GITHUB_APP_ID: ${env:GITHUB_APP_ID}
+      GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
+      GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
+      REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
+      GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+      GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
     package:
       include:
         - ./github/bin/*
