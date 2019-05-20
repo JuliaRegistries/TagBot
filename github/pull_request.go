@@ -5,20 +5,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/google/go-github/v25/github"
 	"github.com/pkg/errors"
 )
 
 var (
-	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
-	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
-
-	EndpointChangelog = os.Getenv("API_BASE") + "/internal/changelog"
+	TaggerName   = os.Getenv("GIT_TAGGER_NAME")
+	TaggerEmail  = os.Getenv("GIT_TAGGER_EMAIL")
+	SQSQueueName = os.Getenv("SQS_QUEUE")
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -32,12 +31,15 @@ var (
 	ErrNotEnoughTags  = errors.New("Not enough tags were found")
 	ErrNoVersion      = errors.New("Version was not found in Project.toml")
 	ErrReleaseExists  = errors.New("A release for this tag already exists")
+	ErrNoSQSClient    = errors.New("SQS client was not initialized")
 
 	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
 	CommitRegex       = regexp.MustCompile(`Commit:\s*(.*)`)
 	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN (?:PATCH|RELEASE) NOTES -->(.*)<!-- END (?:PATCH|RELEASE) NOTES -->`)
 	MergedPRRegex     = regexp.MustCompile(`Merge pull request #(\d+)`)
+
+	SQSQueueURL *string
 )
 
 // ReleaseInfo contains the information needed to create a GitHub release.
@@ -47,12 +49,6 @@ type ReleaseInfo struct {
 	Version      string
 	Commit       string
 	ReleaseNotes string
-}
-
-// Changelog is a response from the changelog service.
-type Changelog struct {
-	Changelog *string `json:"changelog"`
-	Error     *string `json:"error"`
 }
 
 // HandlePullRequest handles a pull request event.
@@ -262,11 +258,8 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		TargetCommitish: github.String(target),
 	}
 	if ri.ReleaseNotes == "" {
-		body, err := ri.Changelog(auth)
-		if err == nil {
-			rel.Body = github.String(body)
-		} else {
-			fmt.Println("Changelog:", err)
+		if err := ri.QueueChangelog(auth); err != nil {
+			fmt.Println("Changelog request:", err)
 		}
 	} else {
 		rel.Body = github.String(ri.ReleaseNotes)
@@ -287,43 +280,40 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	return nil
 }
 
-// Changelog gets a changelog from the changelog service.
-func (ri ReleaseInfo) Changelog(auth string) (string, error) {
-	req, err := http.NewRequest("GET", EndpointChangelog, nil)
+// QueueChangelog queue a changelog request.
+func (ri ReleaseInfo) QueueChangelog(auth string) error {
+	if SQS == nil {
+		return ErrNoSQSClient
+	}
+
+	if SQSQueueURL == nil {
+		url, err := SQS.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: &SQSQueueName})
+		if err != nil {
+			return errors.Wrap(err, "Getting queue URL")
+		}
+		SQSQueueURL = url.QueueUrl
+	}
+
+	b, err := json.Marshal(map[string]string{
+		"user": ri.Owner,
+		"repo": ri.Name,
+		"tag":  ri.Version,
+		"auth": auth,
+	})
 	if err != nil {
-		return "", errors.Wrap(err, "New request")
+		return errors.Wrap(err, "Encoding queue input")
 	}
-	q := url.Values{}
-	q.Add("user", ri.Owner)
-	q.Add("repo", ri.Name)
-	q.Add("tag", ri.Version)
-	q.Add("token", auth)
-	req.URL.RawQuery = q.Encode()
+	body := string(b)
 
-	resp, err := http.DefaultClient.Do(req)
+	_, err = SQS.SendMessage(&sqs.SendMessageInput{
+		QueueUrl:    SQSQueueURL,
+		MessageBody: &body,
+	})
 	if err != nil {
-		return "", errors.Wrap(err, "Changelog request")
-	}
-	defer resp.Body.Close()
-	fmt.Println("Changelog status:", resp.Status)
-
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", errors.Wrap(err, "Reading body")
+		return errors.Wrap(err, "Sending queue message")
 	}
 
-	c := &Changelog{}
-	if err = json.Unmarshal(b, c); err != nil {
-		return "", errors.Wrap(err, "Parsing body")
-	}
-
-	if c.Error != nil {
-		return "", errors.New("Changelog service: " + *c.Error)
-	} else if c.Changelog == nil {
-		return "", errors.New("Changelog service: Changelog is nil")
-	}
-
-	return *c.Changelog, nil
+	return nil
 }
 
 // MakeSuccessComment adds a comment to the PR indicating success.

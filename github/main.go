@@ -14,6 +14,8 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/v25/github"
 	"github.com/pkg/errors"
@@ -40,6 +42,7 @@ var (
 	ResourcesDir string
 	AppID        int
 	AppClient    *github.Client
+	SQS          *sqs.SQS
 
 	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
@@ -94,6 +97,14 @@ func init() {
 		return
 	}
 	AppClient = github.NewClient(&http.Client{Transport: tr})
+
+	// Set up an AWS SQS client.
+	sess, err := session.NewSession()
+	if err != nil {
+		fmt.Println("Session:", err)
+	} else {
+		SQS = sqs.New(sess)
+	}
 
 	IsSetup = true
 }
