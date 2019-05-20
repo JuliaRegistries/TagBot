@@ -16,9 +16,18 @@ def main(event:, context:)
     body = JSON.parse r['body'], symbolize_names: true
     puts body
 
+    client = Octokit::Client.new(:access_token => auth)
+
+    begin
+      client.issues "#{body[:user]}/#{body[:repo]}"
+    rescue Octokit::Forbidden
+      puts 'Insufficient permissions to list issues'
+      next
+    end
+
     begin
       changelog = get_changelog body
-      update_release changelog, body unless changelog.nil?
+      update_release client, changelog, body unless changelog.nil?
     rescue => e
       log(e)
     end
@@ -87,9 +96,7 @@ def get_changelog(user:, repo:, tag:, auth:)
   return changelog
 end
 
-def update_release(changelog, user:, repo:, tag:, auth:)
-  client = Octokit::Client.new(:access_token => auth)
-
+def update_release(client, changelog, user:, repo:, tag:, auth:)
   begin
     releases = client.releases "#{user}/#{repo}"
   rescue => e
