@@ -30,6 +30,16 @@ When release notes are provided, they are copied into both the Git tag message a
 If you do not write any notes, a changelog is automatically generated from closed issues and merged pull requests.
 This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
 
+When using the automatic changelog, you can ensure that certain issues or pull requests are not included.
+These might include usage questions or typo fixes that aren't worth mentioning.
+To exclude an issue or PR, add a label to it with one of the following values:
+
+- [Dd]uplicate
+- [Qq]uestion
+- [Ii]nvalid
+- [Ww]ontfix
+- Meta: Exclude From Changelog
+
 ---
 
 For more information on what TagBot is and isn't, please see the [announcement].
