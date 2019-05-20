@@ -50,6 +50,7 @@ PLATFORMS
 
 DEPENDENCIES
   github_changelog_generator!
+  octokit (~> 4.0)!
 
 BUNDLED WITH
    2.0.1
