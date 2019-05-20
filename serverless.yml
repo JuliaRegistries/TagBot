@@ -1,6 +1,12 @@
 service: tag-bot
 provider:
   name: aws
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - sqs:GetQueueUrl
+        - sqs:SendMessage
+      Resource: !GetAtt queue.Arn
 package:
   individually: true
   exclude:
@@ -11,13 +17,13 @@ functions:
     handler: github/bin/github
     timeout: 30
     environment:
-      API_BASE: ${cf:tag-bot-${self:provider.stage}.ServiceEndpoint}
       GITHUB_APP_ID: ${env:GITHUB_APP_ID}
-      GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
       GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
-      REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-      GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+      GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
       GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
+      GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+      REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
+      SQS_QUEUE: !GetAtt queue.QueueName
     package:
       include:
         - ./github/bin/*
@@ -30,7 +36,7 @@ functions:
   changelog:
     runtime: ruby2.5
     handler: changelog/changelog.main
-    timeout: 20
+    timeout: 900
     package:
       include:
         - ./changelog/**
@@ -38,6 +44,12 @@ functions:
     layers:
       - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
-      - http:
-          path: /internal/changelog
-          method: get
+      - sqs:
+          arn: !GetAtt queue.Arn
+          batchSize: 1
+resources:
+  Resources:
+    queue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 900
