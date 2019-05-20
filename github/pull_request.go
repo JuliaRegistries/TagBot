@@ -192,7 +192,7 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	msg := ri.ReleaseNotes
 	if msg == "" {
 		msg = fmt.Sprintf(
-			"See https://github.com/%s/%s/releases/tag/%s for release notes",
+			"See github.com/%s/%s/releases/tag/%s for release notes",
 			ri.Owner, ri.Name, ri.Version,
 		)
 	}
