@@ -278,8 +278,14 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		TargetCommitish: github.String(target),
 	}
 	if ri.ReleaseNotes == "" {
-		if err := ri.QueueChangelog(auth); err != nil {
-			fmt.Println("Changelog request:", err)
+		// The new changelog generator  requires the GitHub App to have new permissions.
+		// If those permissions have not yet been accepted by the user, don't generate a changelog.
+		// If the token can't look up issues, the generator will retry for minutes before failing.
+		_, resp, _ := client.Issues.Get(Ctx, ri.Owner, ri.Name, 1)
+		if resp.StatusCode != http.StatusForbidden {
+			if err := ri.QueueChangelog(auth); err != nil {
+				fmt.Println("Changelog request:", err)
+			}
 		}
 	} else {
 		rel.Body = github.String(ri.ReleaseNotes)
