@@ -31,5 +31,5 @@ tar -cf github/bin/resources.tar "$GPG" "$PEM"
 (
   rm -rf vendor
   cd changelog
-  rvm 2.5 do bundle install --quiet --path ../vendor/bundle 2> /dev/null
+  rvm 2.5 do bundle install --quiet --path ../vendor/bundle
 )
