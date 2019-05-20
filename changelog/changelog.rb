@@ -101,6 +101,9 @@ def update_release(changelog, user:, repo:, tag:, auth:)
   if release.nil?
     puts 'Release was not found'
     return
+  elsif !release.body.empty?
+    puts 'Release already has a body'
+    return
   end
 
   begin
