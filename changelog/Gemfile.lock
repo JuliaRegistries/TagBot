@@ -1,3 +1,17 @@
+GIT
+  remote: https://github.com/github-changelog-generator/github-changelog-generator
+  revision: 9e0a9592529d09591778722d17e82ce896e4a0b7
+  ref: 9e0a959
+  specs:
+    github_changelog_generator (1.15.0.pre.rc)
+      activesupport
+      faraday-http-cache
+      multi_json
+      octokit (~> 4.6)
+      rainbow (>= 2.2.1)
+      rake (>= 10.0)
+      retriable (~> 3.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -13,14 +27,6 @@ GEM
       multipart-post (>= 1.2, < 3)
     faraday-http-cache (2.0.0)
       faraday (~> 0.8)
-    github_changelog_generator (1.14.3)
-      activesupport
-      faraday-http-cache
-      multi_json
-      octokit (~> 4.6)
-      rainbow (>= 2.1)
-      rake (>= 10.0)
-      retriable (~> 2.1)
     i18n (1.6.0)
       concurrent-ruby (~> 1.0)
     minitest (5.11.3)
@@ -31,7 +37,7 @@ GEM
     public_suffix (3.0.3)
     rainbow (3.0.0)
     rake (12.3.2)
-    retriable (2.1.0)
+    retriable (3.1.2)
     sawyer (0.8.2)
       addressable (>= 2.3.5)
       faraday (> 0.8, < 2.0)
