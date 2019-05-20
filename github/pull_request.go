@@ -232,11 +232,31 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	} else if err != nil {
 		// Don't worry about errors, just let GitHub create the tag along with the release.
 		fmt.Println("Get ref:", err)
-	} else if ref.GetObject().GetSHA() != ri.Commit {
-		// The existing tag is on the wrong commit.
-		err = ErrBadExistingTag
-		MakeErrorComment(pr, id, err)
-		return err
+	} else {
+		// A tag already exists.
+		var sha string
+		obj := ref.GetObject()
+		switch t := obj.GetType(); t {
+		case "commit":
+			sha = obj.GetSHA()
+		case "tag":
+			tag, _, err := client.Git.GetTag(Ctx, ri.Owner, ri.Name, obj.GetSHA())
+			if err != nil {
+				fmt.Println("Get tag:", err)
+			} else {
+				sha = tag.GetObject().GetSHA()
+			}
+		default:
+			fmt.Println("Unknown ref type", t)
+			sha = obj.GetSHA()
+		}
+
+		if sha != ri.Commit {
+			// The existing tag is on the wrong commit.
+			err = ErrBadExistingTag
+			MakeErrorComment(pr, id, err)
+			return err
+		}
 	}
 
 	// GitHub doesn't display the nice "n commits to <branch> since this release"
