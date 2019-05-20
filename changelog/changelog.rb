@@ -1,3 +1,7 @@
+# Hacks because github_changelog_generator is a Git dependency.
+paths = Dir.glob "**/github-changelog-generator-*/lib"
+$LOAD_PATH.unshift *paths
+
 require 'github_changelog_generator'
 require 'json'
 require 'octokit'
@@ -11,8 +15,13 @@ def main(event:, context:)
   event['Records'].each do |r|
     body = JSON.parse r['body'], symbolize_names: true
     puts body
-    changelog = get_changelog body
-    update_release changelog, body unless changelog.nil?
+
+    begin
+      changelog = get_changelog body
+      update_release changelog, body unless changelog.nil?
+    rescue => e
+      log(e)
+    end
   end
 end
 
@@ -37,16 +46,15 @@ def get_changelog(user:, repo:, tag:, auth:)
 
   begin
     GitHubChangelogGenerator::ChangelogGenerator.new.run
-  rescue StandardError => e
-    puts e
-    puts 'Changelog generator failed'
+  rescue => e
+    log(e, 'Changelog generator failed')
     return nil
   end
 
   begin
     file = File.read path
-  rescue StandardError => e
-    puts 'Changelog file could not be read'
+  rescue => e
+    log(e, 'Changelog file could not be read')
     return nil
   end
 
@@ -84,9 +92,8 @@ def update_release(changelog, user:, repo:, tag:, auth:)
 
   begin
     releases = client.releases "#{user}/#{repo}"
-  rescue StandardError => e
-    puts e
-    puts 'Listing releases failed'
+  rescue => e
+    log(e, 'Listing releases failed')
     return
   end
 
@@ -98,11 +105,16 @@ def update_release(changelog, user:, repo:, tag:, auth:)
 
   begin
     client.update_release release.url, { body: changelog }
-  rescue StandardError => e
-    puts e
-    puts 'Updating release failed'
+  rescue => e
+    log(e, 'Updating release failed')
     return
   end
 
   puts 'Updated release'
+end
+
+def log(ex, msg = nil)
+  puts msg unless msg.nil?
+  puts ex
+  puts ex.backtrace
 end
