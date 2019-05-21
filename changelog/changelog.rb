@@ -125,9 +125,9 @@ def find_section(file, tag)
   # Join the slice together and process the text a bit.
   lines[start...stop]
     .join("\n")
-    .gsub($number_regex, '(#\\1)')
+    .gsub($number_regex, '(#\1)')
     .sub($ack_regex, '')
-    .sub($changelog_regex, '[Diff since \\2](\\1/compare/\\2...\3)')
+    .sub($changelog_regex, '[Diff since \2](\1/compare/\2...\3)')
     .strip
 end
 
