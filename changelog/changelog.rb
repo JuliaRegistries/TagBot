@@ -18,11 +18,11 @@ def main(event:, _context:)
 
   event['Records'].each do |rec|
     params = JSON.parse(rec['body'], symbolize_names: true)
-    puts params
+    log('Starting', params)
 
     user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
     unless [user, repo, tag, auth].all?
-      puts 'Missing parameters'
+      log('Missing parameters', params)
       next
     end
 
@@ -35,10 +35,10 @@ def main(event:, _context:)
     begin
       client.issues(slug)
     rescue Octokit::Forbidden
-      puts 'Insufficient permissions to list issues'
+      log('Insufficient permissions to list issues', params)
       next
     rescue Octokit::Unauthorized
-      puts 'Unauthorized (this token is probably expired)'
+      log('Unauthorized (this token is probably expired)', params)
       next
     end
 
@@ -51,14 +51,14 @@ def main(event:, _context:)
 
     if !release.body.nil? && !release.body.empty?
       # Don't overwrite an existing release that has a custom body.
-      puts 'Release already has a body'
+      log('Release already has a body', params)
       next
     end
 
     changelog = get_changelog(params)
     client.edit_release(release.url, body: changelog)
 
-    puts 'Updated release'
+    log('Updated release', params)
   end
 end
 
@@ -127,6 +127,11 @@ def find_section(file, tag)
     .gsub($number_regex, '(#\\1)')
     .sub($ack_regex, '')
     .strip
+end
+
+# Log a message with some metadata.
+def log(msg, meta = {})
+  puts "#{msg} --- #{meta}"
 end
 
 String.class_eval {
