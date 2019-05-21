@@ -26,7 +26,7 @@ def main(event:, **_args)
       next
     end
 
-    client = Octokit::Client.new(:access_token => auth)
+    client = Octokit::Client.new(access_token: auth)
     slug = "#{user}/#{repo}"
 
     # If we don't have read permissions for issues, the generator will fail.
