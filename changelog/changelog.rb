@@ -11,6 +11,7 @@ $ack_regex = /\\\* \*this changelog was automatically generated .*/i
 $changelog_regex = /^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$/i
 $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
+$wip_msg = ENV['CHANGELOG_WIP_MESSAGE']
 
 def main(event:, **_args)
   # Let the other Lambda function finish.
@@ -50,7 +51,7 @@ def main(event:, **_args)
     # and the release will exist soon, so we can retry later.
     raise 'Release was not found' if release.nil?
 
-    if !release.body.nil? && !release.body.empty?
+    unless release.body.nil? || release.body.empty? || release.body == $wip_msg
       # Don't overwrite an existing release that has a custom body.
       log('Release already has a body', params)
       next

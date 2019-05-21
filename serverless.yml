@@ -5,6 +5,8 @@ provider:
     - Effect: Allow
       Action: sqs:SendMessage
       Resource: !GetAtt queue.Arn
+  environment:
+    CHANGELOG_WIP_MESSAGE: A changelog is being generated, please check back in a few minutes.
 package:
   individually: true
   exclude:

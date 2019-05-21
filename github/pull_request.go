@@ -18,6 +18,7 @@ var (
 	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
 	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
 	SQSQueue    = os.Getenv("SQS_QUEUE")
+	WIPMessage  = os.Getenv("CHANGELOG_WIP_MESSAGE")
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -278,6 +279,8 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	if ri.ReleaseNotes == "" {
 		if err := ri.QueueChangelog(auth); err != nil {
 			fmt.Println("Changelog request:", err)
+		} else {
+			rel.Body = github.String(WIPMessage)
 		}
 	} else {
 		rel.Body = github.String(ri.ReleaseNotes)
