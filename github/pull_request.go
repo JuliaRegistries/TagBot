@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	TaggerName   = os.Getenv("GIT_TAGGER_NAME")
-	TaggerEmail  = os.Getenv("GIT_TAGGER_EMAIL")
-	SQSQueueName = os.Getenv("SQS_QUEUE")
+	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
+	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
+	SQSQueue    = os.Getenv("SQS_QUEUE")
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -38,8 +38,6 @@ var (
 	CommitRegex       = regexp.MustCompile(`Commit:\s*(.*)`)
 	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN (?:PATCH|RELEASE) NOTES -->(.*)<!-- END (?:PATCH|RELEASE) NOTES -->`)
 	MergedPRRegex     = regexp.MustCompile(`Merge pull request #(\d+)`)
-
-	SQSQueueURL *string
 )
 
 // ReleaseInfo contains the information needed to create a GitHub release.
@@ -306,14 +304,6 @@ func (ri ReleaseInfo) QueueChangelog(auth string) error {
 		return ErrNoSQSClient
 	}
 
-	if SQSQueueURL == nil {
-		url, err := SQS.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: &SQSQueueName})
-		if err != nil {
-			return errors.Wrap(err, "Getting queue URL")
-		}
-		SQSQueueURL = url.QueueUrl
-	}
-
 	b, err := json.Marshal(map[string]string{
 		"user": ri.Owner,
 		"repo": ri.Name,
@@ -326,7 +316,7 @@ func (ri ReleaseInfo) QueueChangelog(auth string) error {
 	body := string(b)
 
 	_, err = SQS.SendMessage(&sqs.SendMessageInput{
-		QueueUrl:    SQSQueueURL,
+		QueueUrl:    &SQSQueue,
 		MessageBody: &body,
 	})
 	if err != nil {

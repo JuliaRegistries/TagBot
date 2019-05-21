@@ -3,9 +3,7 @@ provider:
   name: aws
   iamRoleStatements:
     - Effect: Allow
-      Action:
-        - sqs:GetQueueUrl
-        - sqs:SendMessage
+      Action: sqs:SendMessage
       Resource: !GetAtt queue.Arn
 package:
   individually: true
@@ -23,10 +21,11 @@ functions:
       GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
       GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
       REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-      SQS_QUEUE: !GetAtt queue.QueueName
+      SQS_QUEUE: !Ref queue
     package:
       include:
-        - ./github/bin/*
+        - ./github/bin/github
+        - ./github/bin/resources.tar
     layers:
       - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
@@ -39,7 +38,7 @@ functions:
     timeout: 900
     package:
       include:
-        - ./changelog/**
+        - ./changelog/changelog.rb
         - ./vendor/**
     layers:
       - arn:aws:lambda:us-east-1:553035198032:layer:git:5
