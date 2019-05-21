@@ -7,7 +7,7 @@ GPG="gnupg"
 
 cd $(dirname "$0")/..
 
-if [ $# -eq 0 ] || [ "$1" = "github" ]; then
+if [ "$#" -eq 0 ] || [ "$1" = "github" ]; then
   if [ ! -f  "$PEM" ]; then
     echo "File $PEM does not exist"
     exit 1
@@ -30,7 +30,7 @@ if [ $# -eq 0 ] || [ "$1" = "github" ]; then
   )
 fi
 
-if [ $# -eq 0 ] || [ "$1" = "changelog" ]; then
+if [ "$#" -eq 0 ] || [ "$1" = "changelog" ]; then
   (
     rm -rf vendor
     cd changelog
