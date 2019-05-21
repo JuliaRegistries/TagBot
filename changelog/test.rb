@@ -47,7 +47,7 @@ $input_tricky = %{
 $output = %{
 ## [v0.1.1](https://github.com/foo/bar/tree/v0.1.1) (1234-56-78)
 
-[Full Changelog](https://github.com/foo/bar/compare/v0.1.0...v0.1.1)
+[Diff since v0.1.0](https://github.com/foo/bar/compare/v0.1.0...v0.1.1)
 
 - Did the thing (#1)
 - Did the other thing (#2) ([foo](https://github.com/foo))

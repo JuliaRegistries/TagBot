@@ -8,6 +8,7 @@ require 'octokit'
 require 'tempfile'
 
 $ack_regex = /\\\* \*this changelog was automatically generated .*/i
+$changelog_regex = /^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$/i
 $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 
@@ -126,6 +127,7 @@ def find_section(file, tag)
     .join("\n")
     .gsub($number_regex, '(#\\1)')
     .sub($ack_regex, '')
+    .sub($changelog_regex, '[Diff since \\2](\\1/compare/\\2...\3)')
     .strip
 end
 
