@@ -12,32 +12,52 @@ $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 
 def main(event:, context:)
-  event['Records'].each do |r|
-    body = JSON.parse(r['body'], symbolize_names: true)
-    puts body
+  # Let the other Lambda function finish.
+  # The only things left to do are API calls, so it should be quick.
+  sleep 5
 
-    client = Octokit::Client.new(:access_token => body[:auth])
+  event['Records'].each do |r|
+    params = JSON.parse(r['body'], symbolize_names: true)
+    puts params
+
+    user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
+    unless [user, repo, tag, auth].all?
+      puts 'Missing parameters'
+      next
+    end
+
+    client = Octokit::Client.new(:access_token => auth)
+    slug = "#{user}/#{repo}"
 
     # If we don't have read permissions for issues, the generator will fail.
     # The GitHub App only requested these permissions recently
     # and requires confirmation from each user, so we can't guarantee anything.
     begin
-      client.issues("#{body[:user]}/#{body[:repo]}")
+      client.issues(slug)
     rescue Octokit::Forbidden
       puts 'Insufficient permissions to list issues'
       next
     end
 
-    begin
-      changelog = get_changelog(body)
-      update_release(client, changelog, body) unless changelog.nil?
-    rescue => e
-      log(e)
+    releases = client.releases(slug)
+    release = releases.find { |r| r.tag_name == tag }
+    if release.nil?
+      puts 'Release was not found'
+      next
+    elsif !release.body.nil? && !release.body.empty?
+      # Don't overwrite an existing release that has a custom body.
+      puts 'Release already has a body'
       next
     end
+
+    changelog = get_changelog(params)
+    client.edit_release(release.url, body: changelog)
+
+    puts 'Updated release'
   end
 end
 
+# Generate a changelog for a repository tag.
 def get_changelog(user:, repo:, tag:, auth:)
   ARGV.clear
 
@@ -68,20 +88,12 @@ def get_changelog(user:, repo:, tag:, auth:)
   ARGV.push('--security-labels', '')
   ARGV.push('--summary-labels', '')
 
-  begin
-    GitHubChangelogGenerator::ChangelogGenerator.new.run
-  rescue => e
-    log(e, 'Changelog generator failed')
-    return nil
-  end
+  GitHubChangelogGenerator::ChangelogGenerator.new.run
+  file = File.read(path)
 
-  file = begin
-           File.read(path)
-         rescue => e
-           log(e, 'Changelog file could not be read')
-           return nil
-         end
-
+  # Grab just the section for this tag.
+  # The generator doesn't support generating only one section.
+  # We find the line numbers of the section start and stop.
   lines = file.split("\n")
   start = nil
   stop = lines.length
@@ -98,11 +110,9 @@ def get_changelog(user:, repo:, tag:, auth:)
     end
   end
 
-  if start.nil?
-    puts 'Start of section was not found'
-    return nil
-  end
+  raise 'Start of section was not found' if start.nil?
 
+  # Join the slice together and process the text a bit.
   return lines[start...stop]
            .join("\n")
            .gsub($number_regex, '(#\\1)')
@@ -110,40 +120,8 @@ def get_changelog(user:, repo:, tag:, auth:)
            .strip
 end
 
-def update_release(client, changelog, user:, repo:, tag:, auth:)
-  releases = begin
-               client.releases("#{user}/#{repo}")
-             rescue => e
-               log(e, 'Listing releases failed')
-               return
-             end
-
-  release = releases.find { |r| r.tag_name == tag }
-  if release.nil?
-    puts 'Release was not found'
-    return
-  elsif !release.body.nil? && !release.body.empty?
-    puts 'Release already has a body'
-    return
-  end
-
-  begin
-    client.update_release(release.url, body: changelog)
-  rescue => e
-    log(e, 'Updating release failed')
-    return
-  end
-
-  puts 'Updated release'
-end
-
-def log(ex, msg = nil)
-  puts msg unless msg.nil?
-  puts ex
-  puts ex.backtrace
-end
-
 String.class_eval {
+  # Return a bunch mostly-equivalent verions of a label.
   def permutations
     s = self.split.map(&:capitalize).join(' ')
     hyphens = s.tr(' ', '-')
