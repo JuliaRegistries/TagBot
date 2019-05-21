@@ -34,11 +34,16 @@ When using the automatic changelog, you can ensure that certain issues or pull r
 These might include usage questions or typo fixes that aren't worth mentioning.
 To exclude an issue or PR, add a label to it with one of the following values:
 
-- [Dd]uplicate
-- [Qq]uestion
-- [Ii]nvalid
-- [Ww]ontfix
-- Meta: Exclude From Changelog
+- `changelog skip`
+- `duplicate`
+- `exclude from changelog`
+- `invalid`
+- `no changelog`
+- `question`
+- `wont fix`
+
+You can spell these in a few different ways.
+For example, `no changelog` could be `nochangelog`, `no-changelog`, `no_changelog`, `No Changelog`, `NoChangelog`, `No-Changelog`, or `No_Changelog`.
 
 ---
 
