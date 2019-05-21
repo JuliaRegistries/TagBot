@@ -11,7 +11,7 @@ $ack_regex = /\\\* \*this changelog was automatically generated .*/i
 $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 
-def main(event:, _context:)
+def main(event:, **_args)
   # Let the other Lambda function finish.
   # The only things left to do are API calls, so it should be quick.
   sleep 5
