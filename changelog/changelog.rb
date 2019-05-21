@@ -11,13 +11,13 @@ $ack_regex = /\\\* \*this changelog was automatically generated .*/i
 $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 
-def main(event:, context:)
+def main(event:, _context:)
   # Let the other Lambda function finish.
   # The only things left to do are API calls, so it should be quick.
   sleep 5
 
-  event['Records'].each do |r|
-    params = JSON.parse(r['body'], symbolize_names: true)
+  event['Records'].each do |rec|
+    params = JSON.parse(rec['body'], symbolize_names: true)
     puts params
 
     user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
@@ -44,11 +44,12 @@ def main(event:, context:)
 
     releases = client.releases(slug)
     release = releases.find { |r| r.tag_name == tag }
-    if release.nil?
-      # It could be the case that the previous function has not yet finished
-      # and the release will exist soon, so we can retry later.
-      raise 'Release was not found'
-    elsif !release.body.nil? && !release.body.empty?
+
+    # It could be the case that the previous function has not yet finished
+    # and the release will exist soon, so we can retry later.
+    raise 'Release was not found' if release.nil?
+
+    if !release.body.nil? && !release.body.empty?
       # Don't overwrite an existing release that has a custom body.
       puts 'Release already has a body'
       next
@@ -95,7 +96,7 @@ def get_changelog(user:, repo:, tag:, auth:)
   GitHubChangelogGenerator::ChangelogGenerator.new.run
   file = File.read(path)
 
-  return get_section(file, tag)
+  find_section(file, tag)
 end
 
 # Grab just the section for one tag.
@@ -121,21 +122,21 @@ def find_section(file, tag)
   raise 'Start of section was not found' if start.nil?
 
   # Join the slice together and process the text a bit.
-  return lines[start...stop]
-           .join("\n")
-           .gsub($number_regex, '(#\\1)')
-           .sub($ack_regex, '')
-           .strip
+  lines[start...stop]
+    .join("\n")
+    .gsub($number_regex, '(#\\1)')
+    .sub($ack_regex, '')
+    .strip
 end
 
 String.class_eval {
   # Return a bunch mostly-equivalent verions of a label.
   def permutations
-    s = self.split.map(&:capitalize).join(' ')
+    s = split.map(&:capitalize).join(' ')
     hyphens = s.tr(' ', '-')
     underscores = s.tr(' ', '_')
     compressed = s.tr(' ', '')
     all = [s, hyphens, underscores, compressed]
-    return [all, *all.map(&:downcase)].uniq
+    [all, *all.map(&:downcase)].uniq
   end
 }
