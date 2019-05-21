@@ -53,3 +53,8 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         VisibilityTimeout: 900
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt dead.Arn
+          maxReceiveCount: 3
+    dead:
+      Type: AWS::SQS::Queue

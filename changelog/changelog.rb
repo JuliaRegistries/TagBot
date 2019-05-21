@@ -37,6 +37,9 @@ def main(event:, context:)
     rescue Octokit::Forbidden
       puts 'Insufficient permissions to list issues'
       next
+    rescue Octokit::Unauthorized
+      puts 'Unauthorized (this token is probably expired)'
+      next
     end
 
     releases = client.releases(slug)
