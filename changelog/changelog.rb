@@ -42,8 +42,9 @@ def main(event:, context:)
     releases = client.releases(slug)
     release = releases.find { |r| r.tag_name == tag }
     if release.nil?
-      puts 'Release was not found'
-      next
+      # It could be the case that the previous function has not yet finished
+      # and the release will exist soon, so we can retry later.
+      raise 'Release was not found'
     elsif !release.body.nil? && !release.body.empty?
       # Don't overwrite an existing release that has a custom body.
       puts 'Release already has a body'
