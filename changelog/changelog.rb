@@ -7,7 +7,7 @@ require 'json'
 require 'octokit'
 require 'tempfile'
 
-$ack_regex = /\\\* \*this change log was automatically generated .*/i
+$ack_regex = /\\\* \*this changelog was automatically generated .*/i
 $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 
@@ -95,7 +95,11 @@ def get_changelog(user:, repo:, tag:, auth:)
   GitHubChangelogGenerator::ChangelogGenerator.new.run
   file = File.read(path)
 
-  # Grab just the section for this tag.
+  return get_section(file, tag)
+end
+
+# Grab just the section for one tag.
+def find_section(file, tag)
   # The generator doesn't support generating only one section.
   # We find the line numbers of the section start and stop.
   lines = file.split("\n")
