@@ -1,5 +1,7 @@
-/.serverless/
-/bin/
-/gnupg/
 *.env
 *.pem
+/.serverless/
+/changelog/.bundle/
+/github/bin/
+/gnupg/
+vendor/

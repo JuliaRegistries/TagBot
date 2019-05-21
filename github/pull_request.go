@@ -1,14 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/google/go-github/v25/github"
 	"github.com/pkg/errors"
 )
@@ -16,6 +17,7 @@ import (
 var (
 	TaggerName  = os.Getenv("GIT_TAGGER_NAME")
 	TaggerEmail = os.Getenv("GIT_TAGGER_EMAIL")
+	SQSQueue    = os.Getenv("SQS_QUEUE")
 
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotRegistrator = errors.New("PR not created by Registrator")
@@ -29,6 +31,7 @@ var (
 	ErrNotEnoughTags  = errors.New("Not enough tags were found")
 	ErrNoVersion      = errors.New("Version was not found in Project.toml")
 	ErrReleaseExists  = errors.New("A release for this tag already exists")
+	ErrNoSQSClient    = errors.New("SQS client was not initialized")
 
 	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
 	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
@@ -187,7 +190,7 @@ func (ri ReleaseInfo) CreateTag(auth string) error {
 	msg := ri.ReleaseNotes
 	if msg == "" {
 		msg = fmt.Sprintf(
-			"See https://github.com/%s/%s/releases/tag/%s for release notes",
+			"See github.com/%s/%s/releases/tag/%s for release notes",
 			ri.Owner, ri.Name, ri.Version,
 		)
 	}
@@ -206,16 +209,19 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	// Create a Git tag, only if one doesn't already exist.
 	// If a tag already exists, make sure that it points to the right commit.
 	ref, resp, err := client.Git.GetRef(Ctx, ri.Owner, ri.Name, "tags/"+ri.Version)
+
+	// We'll need an auth token later so grab one now.
+	header := resp.Request.Header.Get("Authorization")
+	if header == "" {
+		err = ErrNoAuthHeader
+		MakeErrorComment(pr, id, err)
+		return err
+	}
+	tokens := strings.Split(header, " ")
+	auth := tokens[len(tokens)-1]
+
 	if resp.StatusCode == http.StatusNotFound {
 		// No tag exists, so create one.
-		// Get an OAuth token to use for the Git remote.
-		header := resp.Request.Header.Get("Authorization")
-		if header == "" {
-			MakeErrorComment(pr, id, ErrNoAuthHeader)
-			return ErrNoAuthHeader
-		}
-		tokens := strings.Split(header, " ")
-		auth := tokens[len(tokens)-1]
 		if err = ri.CreateTag(auth); err != nil {
 			err = errors.Wrap(err, "Creating tag")
 			MakeErrorComment(pr, id, err)
@@ -224,11 +230,31 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	} else if err != nil {
 		// Don't worry about errors, just let GitHub create the tag along with the release.
 		fmt.Println("Get ref:", err)
-	} else if ref.GetObject().GetSHA() != ri.Commit {
-		// The existing tag is on the wrong commit.
-		err = ErrBadExistingTag
-		MakeErrorComment(pr, id, err)
-		return err
+	} else {
+		// A tag already exists.
+		var sha string
+		obj := ref.GetObject()
+		switch t := obj.GetType(); t {
+		case "commit":
+			sha = obj.GetSHA()
+		case "tag":
+			tag, _, err := client.Git.GetTag(Ctx, ri.Owner, ri.Name, obj.GetSHA())
+			if err != nil {
+				fmt.Println("Get tag:", err)
+			} else {
+				sha = tag.GetObject().GetSHA()
+			}
+		default:
+			fmt.Println("Unknown ref type", t)
+			sha = obj.GetSHA()
+		}
+
+		if sha != ri.Commit {
+			// The existing tag is on the wrong commit.
+			err = ErrBadExistingTag
+			MakeErrorComment(pr, id, err)
+			return err
+		}
 	}
 
 	// GitHub doesn't display the nice "n commits to <branch> since this release"
@@ -250,11 +276,8 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 		TargetCommitish: github.String(target),
 	}
 	if ri.ReleaseNotes == "" {
-		body, err := ri.Changelog(client)
-		if err == nil {
-			rel.Body = github.String(body)
-		} else {
-			fmt.Println("Changelog:", err)
+		if err := ri.QueueChangelog(auth); err != nil {
+			fmt.Println("Changelog request:", err)
 		}
 	} else {
 		rel.Body = github.String(ri.ReleaseNotes)
@@ -275,93 +298,32 @@ func (ri ReleaseInfo) DoRelease(client *github.Client, pr *github.PullRequest, i
 	return nil
 }
 
-// Changelog generates a changelog based on commits.
-func (ri ReleaseInfo) Changelog(client *github.Client) (string, error) {
-	// Collect all the tags.
-	opts := &github.ListOptions{}
-	tags := []*github.RepositoryTag{}
-	for {
-		ts, resp, err := client.Repositories.ListTags(Ctx, ri.Owner, ri.Name, opts)
-		if err != nil {
-			return "", errors.Wrap(err, "List tags")
-		}
-
-		for _, t := range ts {
-			tags = append(tags, t)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-	if len(tags) == 0 {
-		return "", ErrNotEnoughTags
+// QueueChangelog queue a changelog request.
+func (ri ReleaseInfo) QueueChangelog(auth string) error {
+	if SQS == nil {
+		return ErrNoSQSClient
 	}
 
-	// Get the highest tag that is not the new release.
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].GetName() < tags[j].GetName()
+	b, err := json.Marshal(map[string]string{
+		"user": ri.Owner,
+		"repo": ri.Name,
+		"tag":  ri.Version,
+		"auth": auth,
 	})
-	lastTag := tags[len(tags)-1]
-	if lastTag.GetName() == ri.Version {
-		if len(tags) < 2 {
-			return "", ErrNotEnoughTags
-		}
-		lastTag = tags[len(tags)-2]
+	if err != nil {
+		return errors.Wrap(err, "Encoding queue input")
 	}
+	body := string(b)
 
-	// Collect all the commits since the previous tag.
-	commits := []*github.RepositoryCommit{}
-	cOpts := &github.CommitsListOptions{SHA: ri.Commit}
-outer:
-	for {
-		cs, resp, err := client.Repositories.ListCommits(Ctx, ri.Owner, ri.Name, cOpts)
-		if err != nil {
-			return "", errors.Wrap(err, "List commits")
-		}
-
-		for _, c := range cs {
-			if c.GetSHA() == lastTag.GetCommit().GetSHA() {
-				break outer
-			}
-			commits = append(commits, c)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		cOpts.Page = resp.NextPage
-	}
-	if len(commits) == 0 {
-		return "", ErrNoCommits
-	}
-
-	// Build up the message.
-	sort.Slice(commits, func(i, j int) bool {
-		return commits[i].GetCommit().GetMessage() < commits[j].GetCommit().GetMessage()
+	_, err = SQS.SendMessage(&sqs.SendMessageInput{
+		QueueUrl:    &SQSQueue,
+		MessageBody: &body,
 	})
-	body := "**Commits**\n\n"
-	prs := []string{}
-	for _, c := range commits {
-		lines := strings.Split(c.GetCommit().GetMessage(), "\n")
-		msg := strings.TrimSpace(lines[0])
-		sha := c.GetSHA()[:7]
-		if match := MergedPRRegex.FindStringSubmatch(msg); match != nil {
-			prs = append(prs, fmt.Sprintf("- #%s (%s)\n", match[1], sha))
-		} else {
-			body += fmt.Sprintf("- %s (%s)\n", msg, sha)
-		}
+	if err != nil {
+		return errors.Wrap(err, "Sending queue message")
 	}
-	if len(prs) > 0 {
-		body += "\n**Merged PRs**\n\n"
-		for _, pr := range prs {
-			body += pr
-		}
-	}
-	body += "\nThis changelog was automatically generated, and might contain inaccuracies."
 
-	return body, nil
+	return nil
 }
 
 // MakeSuccessComment adds a comment to the PR indicating success.

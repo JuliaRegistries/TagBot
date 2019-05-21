@@ -51,12 +51,12 @@ func main() {
 
 	for _, i := range installs {
 		fmt.Print(i.Name, ":")
-
 		if i.All {
 			fmt.Println(" All")
 		} else if len(i.Repos) == 0 {
 			fmt.Println(" None")
 		} else {
+			fmt.Println()
 			for _, r := range i.Repos {
 				fmt.Println("  -", r)
 			}

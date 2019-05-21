@@ -27,8 +27,23 @@ This should be useful for registry maintainers who want to make recommendations 
 
 TagBot allows you to write your release notes in the same place that you trigger Registrator, but you don't have to if you're feeling lazy.
 When release notes are provided, they are copied into both the Git tag message and the GitHub release.
-If you do not write any notes, a changelog is automatically generated from your repository's commit log.
+If you do not write any notes, a changelog is automatically generated from closed issues and merged pull requests.
 This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
+
+When using the automatic changelog, you can ensure that certain issues or pull requests are not included.
+These might include usage questions or typo fixes that aren't worth mentioning.
+To exclude an issue or PR, add a label to it with one of the following values:
+
+- `changelog skip`
+- `duplicate`
+- `exclude from changelog`
+- `invalid`
+- `no changelog`
+- `question`
+- `wont fix`
+
+You can spell these in a few different ways.
+For example, `no changelog` could be `nochangelog`, `no-changelog`, `no_changelog`, `No Changelog`, `NoChangelog`, `No-Changelog`, or `No_Changelog`.
 
 ---
 

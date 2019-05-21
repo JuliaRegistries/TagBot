@@ -1,4 +1,10 @@
-language: go
-go: 1.12
 notifications: {email: false}
-script: ./test.sh
+matrix:
+  include:
+    - language: go
+      go: 1.12
+      script: ./bin/test.sh github
+    - language: ruby
+      rvm: 2.5
+      install: true
+      script: ./bin/test.sh changelog

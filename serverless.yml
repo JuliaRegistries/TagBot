@@ -1,26 +1,59 @@
 service: tag-bot
 provider:
   name: aws
-  runtime: go1.x
-  environment:
-    GITHUB_APP_ID: ${env:GITHUB_APP_ID}
-    GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
-    GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
-    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-    GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
-    GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
+  iamRoleStatements:
+    - Effect: Allow
+      Action: sqs:SendMessage
+      Resource: !GetAtt queue.Arn
 package:
+  individually: true
   exclude:
     - ./**
-  include:
-    - ./bin/**
 functions:
   github:
-    handler: bin/github
+    runtime: go1.x
+    handler: github/bin/github
     timeout: 30
+    environment:
+      GITHUB_APP_ID: ${env:GITHUB_APP_ID}
+      GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
+      GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
+      GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
+      GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+      REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
+      SQS_QUEUE: !Ref queue
+    package:
+      include:
+        - ./github/bin/github
+        - ./github/bin/resources.tar
     layers:
       - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
       - http:
           path: /webhook/github
           method: post
+  changelog:
+    runtime: ruby2.5
+    handler: changelog/changelog.main
+    timeout: 900
+    package:
+      include:
+        - ./changelog/changelog.rb
+        - ./vendor/**
+    layers:
+      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
+    events:
+      - sqs:
+          arn: !GetAtt queue.Arn
+          batchSize: 1
+resources:
+  Resources:
+    queue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 900
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt dead.Arn
+          maxReceiveCount: 3
+    dead:
+      Type: AWS::SQS::Queue

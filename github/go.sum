@@ -1,5 +1,7 @@
 github.com/aws/aws-lambda-go v1.10.0 h1:uafgdfYGQD0UeT7d2uKdyWW8j/ZYRifRPIdmeqLzLCk=
 github.com/aws/aws-lambda-go v1.10.0/go.mod h1:zUsUQhAUjYzR8AuduJPCfhBuKWUaDbQiPOG+ouzmE1A=
+github.com/aws/aws-sdk-go v1.19.34 h1:GlE1CUDxDef2CWe1oZW5kvj9bHkIpe/qZCzSavm0BNI=
+github.com/aws/aws-sdk-go v1.19.34/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/bradleyfalzon/ghinstallation v0.1.2 h1:9fdqVadlvEX/EUts5/aIGvx2ujKnGNIMcuCuUrM6s6Q=
 github.com/bradleyfalzon/ghinstallation v0.1.2/go.mod h1:VQsLlCoNa54/CNXcc2DuCfNZrZxqQcyPeqKUugF/2h8=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
@@ -11,6 +13,8 @@ github.com/google/go-github/v25 v25.0.2 h1:MqXE7nOlIF91NJ/PXAcvS2dC+XXCDbY7RvJzj
 github.com/google/go-github/v25 v25.0.2/go.mod h1:6z5pC69qHtrPJ0sXPsj4BLnd82b+r6sLB7qcBoRZqpw=
 github.com/google/go-querystring v1.0.0 h1:Xkwi/a1rcvNg1PPYe5vI8GbeBY/jrVuDX5ASuANWTrk=
 github.com/google/go-querystring v1.0.0/go.mod h1:odCYkC5MyYFN7vkCjXpyrEuKhc/BUO6wN/zVPAxq5ck=
+github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af h1:pmfjZENx5imkbgOkpRUYLnmbU7UEFbjtDA2hxJ1ichM=
+github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af/go.mod h1:Nht3zPeWKUH0NzdCt2Blrr5ys8VGpn0CEB0cQHVjt7k=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
