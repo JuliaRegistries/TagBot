@@ -2,6 +2,8 @@
 
 cd $(dirname "$0")/..
 
+status=0
+
 if [ "$#" -eq 0 ] || [ "$1" = "github" ]; then
   cd github
   go test -v

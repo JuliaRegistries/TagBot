@@ -145,6 +145,6 @@ String.class_eval {
     underscores = s.tr(' ', '_')
     compressed = s.tr(' ', '')
     all = [s, hyphens, underscores, compressed]
-    [all, *all.map(&:downcase)].uniq
+    [*all, *all.map(&:downcase)].uniq
   end
 }

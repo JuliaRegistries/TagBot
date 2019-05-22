@@ -60,8 +60,21 @@ def test_find_section
   assert($output, output_tricky)
 end
 
+def test_permutations
+  perms = "foo".permutations
+  expected = ["foo", "Foo"]
+  assert(perms.length, 2)
+  assert(perms.sort, expected.sort)
+
+  perms = "foo bar".permutations
+  expected = ["foo bar", "foobar", "foo-bar", "foo_bar", "Foo Bar", "FooBar", "Foo-Bar", "Foo_Bar"]
+  assert(perms.length, 8)
+  assert(perms.sort, expected.sort)
+end
+
 def run_tests
   test_find_section
+  test_permutations
 end
 
 def assert(expected, observed)
