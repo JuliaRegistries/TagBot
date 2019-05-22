@@ -6,5 +6,5 @@ matrix:
       script: ./bin/test.sh github
     - language: ruby
       rvm: 2.5
-      install: true
+      install: gem install bundler test-unit
       script: ./bin/test.sh changelog

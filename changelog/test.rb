@@ -1,8 +1,7 @@
 paths = Dir.glob("vendor/**/lib")
 $LOAD_PATH.unshift(*paths)
 require_relative 'changelog.rb'
-
-$return = 0
+require 'test/unit'
 
 $input_simple = %{
 ## [v0.1.2](https://github.com/foo/bar/tree/v0.1.2) (1234-56-78)
@@ -53,45 +52,23 @@ $output = %{
 - Did the other thing (#2) ([foo](https://github.com/foo))
 }.strip
 
-def test_find_section
-  output_simple = find_section($input_simple, 'v0.1.1')
-  output_tricky = find_section($input_tricky, 'v0.1.1')
-  assert($output, output_simple)
-  assert($output, output_tricky)
-end
-
-def test_permutations
-  perms = "foo".permutations
-  expected = ["foo", "Foo"]
-  assert(perms.length, 2)
-  assert(perms.sort, expected.sort)
-
-  perms = "foo bar".permutations
-  expected = ["foo bar", "foobar", "foo-bar", "foo_bar", "Foo Bar", "FooBar", "Foo-Bar", "Foo_Bar"]
-  assert(perms.length, 8)
-  assert(perms.sort, expected.sort)
-end
-
-def run_tests
-  test_find_section
-  test_permutations
-end
-
-def assert(expected, observed)
-  unless expected == observed
-    puts 'Assertion failure'
-    puts
-    puts '=== Expected ==='
-    puts expected
-    puts '=== Observed ==='
-    puts observed
-    puts '================'
-    puts caller
-    $return += 1
+class TestChangelog < Test::Unit::TestCase
+  def test_find_section
+    output_simple = find_section($input_simple, 'v0.1.1')
+    output_tricky = find_section($input_tricky, 'v0.1.1')
+    assert_equal($output, output_simple)
+    assert_equal($output, output_tricky)
   end
-end
 
-if $0 == __FILE__
-  run_tests
-  exit $return
+  def test_permutations
+    perms = "foo".permutations
+    expected = ["foo", "Foo"]
+    assert_equal(perms.length, 2)
+    assert_equal(perms.sort, expected.sort)
+
+    perms = "foo bar".permutations
+    expected = ["foo bar", "foobar", "foo-bar", "foo_bar", "Foo Bar", "FooBar", "Foo-Bar", "Foo_Bar"]
+    assert_equal(perms.length, 8)
+    assert_equal(perms.sort, expected.sort)
+  end
 end
