@@ -30,41 +30,10 @@ TagBot uses GPG to sign the tags it creates.
 Before generating the key, you need to decide whether to use our own GitHub account for tagging, or a dedicated account.
 If you want to use a dedicated account, create it now.
 
-AWS Lambda runs a very old version of GnuPG, so we need to create our keyring with an equally old version.
-The easiest way to do this is with [Docker](https://docker.com).
-If you do not already have Docker installed, install it with the instructions [here](https://docs.docker.com/install).
-
-Then, start a container with a mounted directory like so:
-
-```sh
-# $ROOT here is the same as before, i.e. the root of the TagBot repository.
-$ mkdir $ROOT/gnupg
-$ docker run -it --rm --mount type=bind,source=$ROOT/gnupg,destination=/root/.gnupg amazonlinux:2018.03
-```
-
-This should get you into a running Amazon Linux container.
-To generate a key, run this command:
-
-```sh
-$ gpg --gen-key
-```
-
-Follow the prompts, accepting the default values when you can.
-
-- For "Real name", enter the name of your tagger account.
-- For "Email address", enter the email address of your tagger.
-- Leave "Comment" blank.
-- Proceed without a password (yes, this is not ideal).
-
-Once the key is created, export the public key with the following command:
-
-```sh
-$ gpg --export --armor
-```
+To generate the key, run `bin/keygen.sh <name> <email> $ROOT/gnupg`, where `<name>` and `<email>` belong to your tagger.
+You will need [Docker](https://docker.com) installed.
 
 Use the output to add the key to your tagger's GitHub account according to the instructions [here](https://help.github.com/en/articles/adding-a-new-gpg-key-to-your-github-account).
-Now you can exit the Docker container.
-Outside of the container, the generated GPG data can be found at `$ROOT/gnupg`.
 
 ## Building the API
 
