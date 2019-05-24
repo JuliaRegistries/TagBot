@@ -38,6 +38,7 @@ functions:
     runtime: ruby2.5
     handler: changelog/changelog.main
     timeout: 900
+    memorySize: 3008
     package:
       include:
         - ./changelog/changelog.rb
