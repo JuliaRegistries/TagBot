@@ -307,11 +307,11 @@ func (ri ReleaseInfo) QueueChangelog(auth string) error {
 		return ErrNoSQSClient
 	}
 
-	b, err := json.Marshal(map[string]string{
-		"user": ri.Owner,
-		"repo": ri.Name,
-		"tag":  ri.Version,
-		"auth": auth,
+	b, err := json.Marshal(ChangelogRequest{
+		User: ri.Owner,
+		Repo: ri.Name,
+		Tag:  ri.Version,
+		Auth: auth,
 	})
 	if err != nil {
 		return errors.Wrap(err, "Encoding queue input")
