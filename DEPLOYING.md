@@ -72,7 +72,7 @@ Use the following command:
 $ serverless deploy --stage prod
 ```
 
-You'll see a URL that ends with `/webhook/github`, this is your webhook endpoint.
+You'll see a URL that ends with `/github`, this is your webhook endpoint.
 
 ## Setting Up the Webhook
 

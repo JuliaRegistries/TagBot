@@ -81,7 +81,7 @@ func (cr ChangelogRequest) deleteBody() error {
 		return ErrCustomBody
 	}
 
-	rel.Body = nil
+	rel.Body = github.String("")
 	_, _, err = client.Repositories.EditRelease(Ctx, cr.User, cr.Repo, rel.GetID(), rel)
 	if err != nil {
 		return errors.Wrap(err, "Edit release")

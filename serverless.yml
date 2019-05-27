@@ -1,4 +1,4 @@
-service: tag-bot
+service: TagBot
 provider:
   name: aws
   iamRoleStatements:
@@ -7,6 +7,8 @@ provider:
       Resource: !GetAtt queue.Arn
   environment:
     CHANGELOG_WIP_MESSAGE: A changelog is being generated, please check back in a few minutes.
+  layers:
+    - arn:aws:lambda:us-east-1:553035198032:layer:git:5
 package:
   exclude:
     - ./**
@@ -28,11 +30,9 @@ functions:
       GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
       REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
       SQS_QUEUE: !Ref queue
-    layers:
-      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
       - http:
-          path: /webhook/github
+          path: /github
           method: post
       - sqs:
           arn: !GetAtt dead.Arn
@@ -41,8 +41,6 @@ functions:
     runtime: ruby2.5
     handler: changelog/changelog.main
     timeout: 600
-    layers:
-      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
       - sqs:
           arn: !GetAtt queue.Arn
@@ -52,8 +50,6 @@ functions:
     handler: changelog/changelog.main
     timeout: 900
     memorySize: 3008
-    layers:
-      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
     events:
       - sqs:
           arn: !GetAtt backup.Arn
