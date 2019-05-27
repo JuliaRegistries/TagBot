@@ -27,14 +27,14 @@ func TestIsTriggerComment(t *testing.T) {
 	}{
 		{makeICE("deleted", true, "", ""), ErrNotNewComment},
 		{makeICE(ActionCreated, false, "", ""), ErrNotPullRequest},
-		{makeICE(ActionCreated, true, TypeBot, ""), ErrCommentByBot},
+		{makeICE(ActionCreated, true, "Bot", ""), ErrCommentByBot},
 		{makeICE(ActionCreated, true, "", ""), ErrNoTrigger},
 		{makeICE(ActionCreated, true, "", "foo "+CommandTag+" bar "+CommandIgnore), ErrIgnored},
 		{makeICE(ActionCreated, true, "", "foo "+CommandTag+" bar"), nil},
 	}
 
 	for i, tt := range cases {
-		if out := IsTriggerComment(tt.in); out != tt.out {
+		if out := isTriggerComment(tt.in); out != tt.out {
 			t.Errorf("Case %d: Expected '%v', got '%v'", i, tt.out, out)
 		}
 	}

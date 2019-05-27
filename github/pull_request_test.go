@@ -60,7 +60,7 @@ func TestShouldRelease(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		if out := ShouldRelease(tt.in); out != tt.out {
+		if out := shouldRelease(tt.in); out != tt.out {
 			t.Errorf("Case %d: Expected '%v', got '%v'", i, tt.out, out)
 		}
 	}
@@ -69,28 +69,28 @@ func TestShouldRelease(t *testing.T) {
 func TestParseBody(t *testing.T) {
 	cases := []struct {
 		in  string
-		out ReleaseInfo
+		out Release
 	}{
-		{makeBody("github.com/a/b", "v0.1.0", "sha", ""), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("https://github.com/a/b", "v0.1.0", "sha", ""), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", " "), ReleaseInfo{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "notes"), ReleaseInfo{"a", "b", "v0.1.0", "sha", "notes"}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "> foo\n> bar"), ReleaseInfo{"a", "b", "v0.1.0", "sha", "foo\nbar"}},
+		{makeBody("github.com/a/b", "v0.1.0", "sha", ""), Release{"a", "b", "v0.1.0", "sha", ""}},
+		{makeBody("https://github.com/a/b", "v0.1.0", "sha", ""), Release{"a", "b", "v0.1.0", "sha", ""}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha", " "), Release{"a", "b", "v0.1.0", "sha", ""}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "notes"), Release{"a", "b", "v0.1.0", "sha", "notes"}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "> foo\n> bar"), Release{"a", "b", "v0.1.0", "sha", "foo\nbar"}},
 	}
 
 	for i, tt := range cases {
-		ri := ParseBody(tt.in)
-		if ri.Owner != tt.out.Owner {
-			t.Errorf("Case %d: Expected owner = %s, got %s", i, tt.out.Owner, ri.Owner)
+		r := parseBody(tt.in)
+		if r.User != tt.out.User {
+			t.Errorf("Case %d: Expected owner = %s, got %s", i, tt.out.User, r.User)
 		}
-		if ri.Name != tt.out.Name {
-			t.Errorf("Case %d: Expected name = %s, got %s", i, tt.out.Name, ri.Name)
+		if r.Repo != tt.out.Repo {
+			t.Errorf("Case %d: Expected name = %s, got %s", i, tt.out.Repo, r.Repo)
 		}
-		if ri.Version != tt.out.Version {
-			t.Errorf("Case %d: Expected version = %s, got %s", i, tt.out.Version, ri.Version)
+		if r.Version != tt.out.Version {
+			t.Errorf("Case %d: Expected version = %s, got %s", i, tt.out.Version, r.Version)
 		}
-		if ri.Commit != tt.out.Commit {
-			t.Errorf("Case %d: Expected commit = %s, got %s", i, tt.out.Commit, ri.Commit)
+		if r.Commit != tt.out.Commit {
+			t.Errorf("Case %d: Expected commit = %s, got %s", i, tt.out.Commit, r.Commit)
 		}
 	}
 }

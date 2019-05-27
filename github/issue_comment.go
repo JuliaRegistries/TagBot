@@ -9,18 +9,13 @@ import (
 )
 
 const (
+	ActionCreated = "created"
+	CommandPrefix = "TagBot "
+	CommandTag    = CommandPrefix + "tag"
 	CommandIgnore = CommandPrefix + "ignore"
-	TypeBot       = "Bot"
 )
 
-var (
-	ErrNotNewComment  = errors.New("Not a comment creation event")
-	ErrNotPullRequest = errors.New("Comment not on a pull request")
-	ErrCommentByBot   = errors.New("Comment is made by a bot")
-	ErrIgnored        = errors.New("Comment contained ignore command")
-	ErrNoTrigger      = errors.New("Comment doesn't contain trigger phrase")
-)
-
+// HandleIssueComment handles issue comment events.
 func HandleIssueComment(ice *github.IssueCommentEvent, id string) error {
 	i := ice.GetIssue()
 	c := ice.GetComment()
@@ -46,7 +41,7 @@ Comment body:
 		PreprocessBody(c.GetBody()),
 	)
 
-	if err := IsTriggerComment(ice); err != nil {
+	if err := isTriggerComment(ice); err != nil {
 		return errors.Wrap(err, "Validation")
 	}
 
@@ -69,8 +64,8 @@ Comment body:
 	return HandlePullRequest(pre, id)
 }
 
-// IsTriggerComment determines whether a comment should trigger a release.
-func IsTriggerComment(ice *github.IssueCommentEvent) error {
+// isTriggerComment determines whether a comment should trigger a release.
+func isTriggerComment(ice *github.IssueCommentEvent) error {
 	if ice.GetAction() != ActionCreated {
 		return ErrNotNewComment
 	}
@@ -79,7 +74,7 @@ func IsTriggerComment(ice *github.IssueCommentEvent) error {
 		return ErrNotPullRequest
 	}
 
-	if ice.GetSender().GetType() == TypeBot {
+	if ice.GetSender().GetType() == "Bot" {
 		return ErrCommentByBot
 	}
 

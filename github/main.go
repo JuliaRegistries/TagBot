@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,19 +21,12 @@ import (
 )
 
 const (
-	ActionClosed  = "closed"
-	ActionCreated = "created"
-	PemName       = "tag-bot.pem"
-	GPGDir        = "gnupg"
-	CommandPrefix = "TagBot "
-	CommandTag    = CommandPrefix + "tag"
-	FailureMsg    = "I tried to create a changelog but failed, you may want to edit the release yourself."
+	PemName = "tag-bot.pem"
+	GPGDir  = "gnupg"
 )
 
 var (
-	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
-	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
-	WebhookSecret       = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
+	WebhookSecret = []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
 	Ctx          = context.Background()
 	ResourcesTar = filepath.Join("github", "bin", "resources.tar")
@@ -44,8 +36,6 @@ var (
 	AppID        int
 	AppClient    *github.Client
 	SQS          *sqs.SQS
-
-	ErrRepoNotEnabled = errors.New("App is installed for user but the repository is not enabled")
 )
 
 // Request is what we get from AWS Lambda.
@@ -61,18 +51,6 @@ type Request struct {
 
 // Reponse is what we return from the handler.
 type Response events.APIGatewayProxyResponse
-
-type ChangelogRequest struct {
-	User string `json:"user"`
-	Repo string `json:"repo"`
-	Tag  string `json:"tag"`
-	Auth string `json:"auth"`
-	PR   struct {
-		User   string `json:"user"`
-		Repo   string `json:"repo"`
-		Number int    `json:"number"`
-	} `json:"pr"`
-}
 
 func init() {
 	if IsSetup {
@@ -152,7 +130,7 @@ func main() {
 
 // HandleSQS handles events from SQS.
 func (r Request) HandleHTTP() error {
-	req := r.ToHTTP()
+	req := r.toHTTP()
 
 	payload, err := github.ValidatePayload(req, WebhookSecret)
 	if err != nil {
@@ -165,12 +143,7 @@ func (r Request) HandleHTTP() error {
 	}
 
 	id := github.DeliveryID(req)
-	info := `
-Delivery ID: %s
-Registrator: %s
-Contact user: %s
-`
-	fmt.Printf(info, id, RegistratorUsername, ContactUser)
+	fmt.Println("Delivery ID:", id)
 
 	switch event.(type) {
 	case *github.PullRequestEvent:
@@ -178,7 +151,7 @@ Contact user: %s
 	case *github.IssueCommentEvent:
 		return HandleIssueComment(event.(*github.IssueCommentEvent), id)
 	default:
-		return errors.New("Unknown event type: " + github.WebHookType(req))
+		return fmt.Errorf("Unknown event type: %s", github.WebHookType(req))
 	}
 }
 
@@ -187,17 +160,13 @@ func (r Request) HandleSQS() error {
 	var ret error
 
 	for _, r := range r.Records {
-		var cr *ChangelogRequest
-		if err := json.Unmarshal([]byte(r.Body), cr); err != nil {
+		var cr ChangelogRequest
+		if err := json.Unmarshal([]byte(r.Body), &cr); err != nil {
 			ret = errors.Wrap(err, "Parsing record")
 			continue
 		}
 
-		if err := cr.DeleteBody(); err != nil {
-			ret = err
-		}
-
-		if err := cr.NotifyPR(); err != nil {
+		if err := cr.Receive(); err != nil {
 			ret = err
 		}
 	}
@@ -205,49 +174,8 @@ func (r Request) HandleSQS() error {
 	return ret
 }
 
-// DeleteBody delete's the release's body.
-func (cr ChangelogRequest) DeleteBody() error {
-	client, err := GetInstallationClient(cr.User, cr.Repo)
-	if err != nil {
-		return errors.Wrap(err, "Installation client")
-	}
-
-	rel, _, err := client.Repositories.GetReleaseByTag(Ctx, cr.User, cr.Repo, cr.Tag)
-	if err != nil {
-		return errors.Wrap(err, "Getting release")
-	}
-
-	if b := rel.GetBody(); b != "" && b != WIPMessage {
-		return errors.New("Release already has a custom body")
-	}
-
-	rel.Body = nil
-	_, _, err = client.Repositories.EditRelease(Ctx, cr.User, cr.Repo, rel.GetID(), rel)
-	if err != nil {
-		return errors.Wrap(err, "Edit release")
-	}
-
-	return nil
-}
-
-// NotifyPR adds a comment to the registry PR indicating that changelog generation failed.
-func (cr ChangelogRequest) NotifyPR() error {
-	client, err := GetInstallationClient(cr.PR.User, cr.PR.Repo)
-	if err != nil {
-		return errors.Wrap(err, "Installation client")
-	}
-
-	c := &github.IssueComment{Body: github.String(FailureMsg)}
-	_, _, err = client.Issues.CreateComment(Ctx, cr.PR.User, cr.PR.Repo, cr.PR.Number, c)
-	if err != nil {
-		return errors.Wrap(err, "Creating comment")
-	}
-
-	return nil
-}
-
-// ToHTTP converts a Lambda request to an HTTP request.
-func (r Request) ToHTTP() *http.Request {
+// toHTTP converts a Lambda request to an HTTP request.
+func (r Request) toHTTP() *http.Request {
 	req := &http.Request{
 		Method: r.Method,
 		Body:   ioutil.NopCloser(strings.NewReader(r.Body)),
@@ -257,41 +185,4 @@ func (r Request) ToHTTP() *http.Request {
 		req.Header.Add(k, v)
 	}
 	return req
-}
-
-// GetInstallationClient returns a client that can be used to interact with an installation.
-func GetInstallationClient(owner, name string) (*github.Client, error) {
-	i, resp, err := AppClient.Apps.FindRepositoryInstallation(Ctx, owner, name)
-	if err != nil {
-		if resp.StatusCode == http.StatusNotFound {
-			if _, _, err = AppClient.Apps.FindUserInstallation(Ctx, owner); err == nil {
-				return nil, ErrRepoNotEnabled
-			}
-		}
-		return nil, err
-	}
-
-	pemFile := filepath.Join(ResourcesDir, PemName)
-	tr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, AppID, int(i.GetID()), pemFile)
-	if err != nil {
-		return nil, err
-	}
-
-	return github.NewClient(&http.Client{Transport: tr}), nil
-}
-
-// PreprocessBody preprocesses the PR body.
-func PreprocessBody(body string) string {
-	return strings.TrimSpace(strings.Replace(body, "\r\n", "\n", -1))
-}
-
-// DoCmd runs a shell command and prints any output.
-func DoCmd(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	b, err := cmd.CombinedOutput()
-	s := strings.TrimSpace(string(b))
-	if len(s) > 0 {
-		fmt.Println(s)
-	}
-	return err
 }
