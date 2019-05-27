@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func TestLambdaToHttp(t *testing.T) {
-	lr := LambdaRequest{"POST", map[string]string{"foo": "bar", "bar": "baz"}, "abc"}
-	r, err := LambdaToHttp(lr)
-	if err != nil {
-		t.Fatalf("Expected err = nil, got %v", err)
-	}
+func TestToHTTP(t *testing.T) {
+	r := Request{
+		Method:  "POST",
+		Headers: map[string]string{"foo": "bar", "bar": "baz"},
+		Body:    "abc",
+	}.ToHTTP()
 
 	if r.Method != "POST" {
 		t.Errorf("Expected method = 'POST', got '%s'", r.Method)

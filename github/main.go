@@ -186,18 +186,18 @@ Contact user: %s
 func (r Request) HandleSQS() error {
 	var ret error
 
-	for _, r := range lr.Records {
+	for _, r := range r.Records {
 		var cr *ChangelogRequest
 		if err := json.Unmarshal([]byte(r.Body), cr); err != nil {
 			ret = errors.Wrap(err, "Parsing record")
 			continue
 		}
 
-		if err = cr.DeleteBody(); err != nil {
+		if err := cr.DeleteBody(); err != nil {
 			ret = err
 		}
 
-		if err = cr.NotifyPR(); err != nil {
+		if err := cr.NotifyPR(); err != nil {
 			ret = err
 		}
 	}
@@ -251,6 +251,7 @@ func (r Request) ToHTTP() *http.Request {
 	req := &http.Request{
 		Method: r.Method,
 		Body:   ioutil.NopCloser(strings.NewReader(r.Body)),
+		Header: make(http.Header),
 	}
 	for k, v := range r.Headers {
 		req.Header.Add(k, v)
