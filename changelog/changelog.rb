@@ -65,7 +65,7 @@ def main(event:, **_args)
 end
 
 # Generate a changelog for a repository tag.
-def get_changelog(user:, repo:, tag:, auth:)
+def get_changelog(user:, repo:, tag:, auth:, **_args)
   ARGV.clear
 
   ARGV.push('--user', user)
