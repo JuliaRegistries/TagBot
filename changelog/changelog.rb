@@ -2,6 +2,7 @@
 paths = Dir.glob("**/github-changelog-generator-*/lib")
 $LOAD_PATH.unshift(*paths)
 
+require 'aws-sdk-sns'
 require 'github_changelog_generator'
 require 'json'
 require 'octokit'
@@ -14,58 +15,65 @@ $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 $wip_msg = ENV['CHANGELOG_WIP_MESSAGE']
 
 def main(event:, **_args)
-  # Let the other Lambda function finish.
-  # The only things left to do are API calls, so it should be quick.
-  sleep 5
-
   event['Records'].each do |rec|
-    params = JSON.parse(rec['body'], symbolize_names: true)
+    params = JSON.parse(rec['Sns']['body'], symbolize_names: true)
     log('Starting', params)
 
-    user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
-    unless [user, repo, tag, auth].all?
-      log('Missing parameters', params)
-      next
+    case params[:command]
+    when nil then
+      log('Missing command', params)
+    when 'gen-changelog' then
+      changelog = gen_changelog(params)
+      notify('github', command: 'post-changelog', changelog: changelog)
+    else
+      log('Unknown command', params)
     end
-
-    client = Octokit::Client.new(access_token: auth)
-    slug = "#{user}/#{repo}"
-
-    # If we don't have read permissions for issues, the generator will fail.
-    # The GitHub App only requested these permissions recently
-    # and requires confirmation from each user, so we can't guarantee anything.
-    begin
-      client.issues(slug)
-    rescue Octokit::Forbidden
-      log('Insufficient permissions to list issues', params)
-      next
-    rescue Octokit::Unauthorized
-      log('Unauthorized (this token is probably expired)', params)
-      next
-    end
-
-    releases = client.releases(slug)
-    release = releases.find { |r| r.tag_name == tag }
-
-    # It could be the case that the previous function has not yet finished
-    # and the release will exist soon, so we can retry later.
-    raise 'Release was not found' if release.nil?
-
-    unless release.body.nil? || release.body.empty? || release.body == $wip_msg
-      # Don't overwrite an existing release that has a custom body.
-      log('Release already has a body', params)
-      next
-    end
-
-    changelog = get_changelog(params)
-    client.edit_release(release.url, body: changelog)
-
-    log('Updated release', params)
   end
 end
 
+# Generates a changelog for a single release.
+def gen_changelog(params)
+  user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
+  unless [user, repo, tag, auth].all?
+    log('Missing parameters', params)
+    return
+  end
+
+  client = Octokit::Client.new(access_token: auth)
+  slug = "#{user}/#{repo}"
+
+  # If we don't have read permissions for issues, the generator will fail.
+  # The GitHub App only requested these permissions recently
+  # and requires confirmation from each user, so we can't guarantee anything.
+  begin
+    client.issues(slug)
+  rescue Octokit::Forbidden
+    log('Insufficient permissions to list issues', params)
+    return
+  rescue Octokit::Unauthorized
+    log('Unauthorized (this token is probably expired)', params)
+    return
+  end
+
+  releases = client.releases(slug)
+  release = releases.find { |r| r.tag_name == tag }
+
+  # It could be the case that the previous function has not yet finished
+  # and the release will exist soon, so we can retry later.
+  raise 'Release was not found' if release.nil?
+
+  unless release.body.nil? || release.body.empty? || release.body == $wip_msg
+    # Don't overwrite an existing release that has a custom body.
+    log('Release already has a body', params)
+    return
+  end
+
+  changelog = run_generator(params)
+  find_section(changelog, tag)
+end
+
 # Generate a changelog for a repository tag.
-def get_changelog(user:, repo:, tag:, auth:, **_args)
+def run_generator(user:, repo:, auth:, **_args)
   ARGV.clear
 
   ARGV.push('--user', user)
@@ -95,17 +103,18 @@ def get_changelog(user:, repo:, tag:, auth:, **_args)
   ARGV.push('--security-labels', '')
   ARGV.push('--summary-labels', '')
 
+  log('Running generator', params)
   GitHubChangelogGenerator::ChangelogGenerator.new.run
-  file = File.read(path)
+  log('Generator finished', params)
 
-  find_section(file, tag)
+  File.read(path)
 end
 
 # Grab just the section for one tag.
-def find_section(file, tag)
+def find_section(changelog, tag)
   # The generator doesn't support generating only one section.
   # We find the line numbers of the section start and stop.
-  lines = file.split("\n")
+  lines = changelog.split("\n")
   start = nil
   stop = lines.length
   in_section = false
@@ -130,6 +139,15 @@ def find_section(file, tag)
     .sub($ack_regex, '')
     .sub($changelog_regex, '[Diff since \2](\1/compare/\2...\3)')
     .strip
+end
+
+# Send a message to an SNS topic.
+def notify(topic, body)
+  topic_arn = ENV['SNS_PREFIX'] + topic
+  message = body.to_json
+  log('Sending message to topic', length: message.length, topic: topic)
+  Aws::SNS::Client.new.publish(topic_arn: topic_arn, message: message)
+  log('Sent message to topic', topic: topic)
 end
 
 # Log a message with some metadata.
