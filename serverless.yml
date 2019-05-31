@@ -31,6 +31,7 @@ functions:
     description: Handles webhook payloads from GitHub and makes GitHub API requests
     runtime: go1.x
     handler: github/bin/github
+    onError: !Ref dead
     events:
       - http:
           path: /github
@@ -40,6 +41,7 @@ functions:
     description: Uses the Git CLI
     runtime: go1.x
     handler: github/bin/github
+    onError: !Ref dead
     timeout: 900
     memorySize: 3008
     events:
@@ -48,7 +50,12 @@ functions:
     description: Creates changelogs for releases
     runtime: ruby2.5
     handler: changelog/changelog.main
+    onError: !Ref dead
     timeout: 900
     memorySize: 3008
     events:
       - sns ${self:custom.sns-prefix}changelog
+resources:
+  Resources:
+    dead:
+      Type: AWS::SNS::Topic
