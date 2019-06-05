@@ -77,7 +77,7 @@ You'll see a URL that ends with `/github`, this is your webhook endpoint.
 ## Setting Up the Webhook
 
 Now that you know where your API can be called, set up a webhook in your registry repository.
-Use the `/webhook/github` URL as the "Payload URL".
+Use the `/github` URL as the "Payload URL".
 Be sure to enter your webhook secret as well.
 Finally, when selecting events, choose "Issue comments" and "Pull requests".
 
