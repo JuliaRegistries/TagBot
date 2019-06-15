@@ -21,7 +21,7 @@ Leave everything blank except:
 - Select "Any account" for "Where can this GitHub App be installed?".
 
 On the next page, take note of your App ID, and generate a private key.
-Assuming that you have the TagBot repository cloned at `$ROOT`, save the private key to `$ROOT/tag-bot.pem`.
+Assuming that you have the TagBot repository cloned at `$ROOT`, save the private key to `$ROOT/tagbot.pem`.
 
 ## Creating a GPG key
 
@@ -37,7 +37,7 @@ Use the output to add the key to your tagger's GitHub account according to the i
 
 ## Building the API
 
-Once all these steps are complete, `$ROOT` should contain a file called `tag-bot.pem` and a directory called `gnupg`.
+Once all these steps are complete, `$ROOT` should contain a file called `tagbot.pem` and a directory called `gnupg`.
 Run `bin/build.sh` from `$ROOT` to build the API.
 You will need the Go compiler installed, see [here](https://golang.org/doc/install) for instructions.
 You will also need Ruby 2.5 installed with [RVM](http://rvm.io).

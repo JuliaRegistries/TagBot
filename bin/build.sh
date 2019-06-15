@@ -2,7 +2,7 @@
 
 set -e
 
-PEM="tag-bot.pem"
+PEM="tagbot.pem"
 GPG="gnupg"
 
 cd $(dirname "$0")/..

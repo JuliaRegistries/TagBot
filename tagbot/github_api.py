@@ -18,7 +18,7 @@ class NotInstalledForRepo(NotInstalled):
 
 
 class GitHubAPI:
-    with open(resources.resource("tag-bot.pem")) as f:
+    with open(resources.resource("tagbot.pem")) as f:
         _app = github.GithubIntegration(env.github_app_id, f.read().strip())
 
     def _client(self):
