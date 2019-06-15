@@ -7,7 +7,7 @@ GPG="gnupg"
 
 cd $(dirname "$0")/..
 
-if [ "$#" -eq 0 ] || [ "$1" = "github" ]; then
+if [ "$#" -eq 0 ] || [ "$1" = "tagbot" ]; then
   if [ ! -f  "$PEM" ]; then
     echo "File $PEM does not exist"
     exit 1
@@ -17,22 +17,15 @@ if [ "$#" -eq 0 ] || [ "$1" = "github" ]; then
     exit 1
   fi
 
-  rm -rf github/bin
-  mkdir github/bin
   chmod 644 "$PEM"
   rm -f "$GPG/S.gpg-agent"
   find "$GPG" -type d -exec chmod 700 {} \;
   find "$GPG" -type f -exec chmod 600 {} \;
-  tar -cf github/bin/resources.tar "$GPG" "$PEM"
-  (
-    cd github
-    env GOOS="linux" go build -ldflags="-s -w" -o bin/github
-  )
+  tar -cf resources.tar "$GPG" "$PEM"
 fi
 
 if [ "$#" -eq 0 ] || [ "$1" = "changelog" ]; then
   (
-    rm -rf vendor
     cd changelog
     rvm 2.5 do bundle install --quiet --path ../vendor/bundle --without test
   )

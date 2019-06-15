@@ -2,6 +2,9 @@
 *.pem
 /.serverless/
 /changelog/.bundle/
-/github/bin/
 /gnupg/
+__pycache__/
+node_modules/
+resources.tar
 vendor/
+venv/

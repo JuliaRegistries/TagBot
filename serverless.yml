@@ -1,51 +1,56 @@
 service: TagBot
+plugins:
+  - serverless-python-requirements
 custom:
   sns-prefix: '${self:service}-${self:provider.stage}-'
+  git: arn:aws:lambda:us-east-1:553035198032:layer:git:5
 provider:
   name: aws
+  runtime: python3.7
   iamRoleStatements:
     - Effect: Allow
       Action: sns:Publish
       Resource: '*'
   environment:
-    CHANGELOG_WIP_MESSAGE: A changelog is being generated, please check back in a few minutes.
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
     GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-    SNS_PREFIX: !Join [':', ['arn:aws:sns', !Ref 'AWS::Region', !Ref 'AWS::AccountId', '${self:custom.sns-prefix}']]
-  layers:
-    - arn:aws:lambda:us-east-1:553035198032:layer:git:5
+    SNS_TOPIC_PREFIX: !Join [':', ['arn:aws:sns', !Ref 'AWS::Region', !Ref 'AWS::AccountId', '${self:custom.sns-prefix}']]
 package:
   exclude:
     - ./**
   include:
     - ./changelog/changelog.rb
-    - ./github/bin/github
-    - ./github/bin/resources.tar
+    - ./resources.tar
+    - ./tagbot/**
     - ./vendor/**
 functions:
-  github:
-    description: Handles webhook payloads from GitHub and makes GitHub API requests
-    runtime: go1.x
-    handler: github/bin/github
-    onError: !Ref dead
+  webhook:
+    description: Validates and forwards webhook payloads from GitHub
+    handler: tagbot.webhook.handler
     events:
       - http:
           path: /github
           method: post
-      - sns: ${self:custom.sns-prefix}github
-  git:
-    description: Uses the Git CLI
-    runtime: go1.x
-    handler: github/bin/github
+  prepare:
+    description: Parses a GitHub event into a context
+    handler: tagbot.prepare.handler
+    onError: !Ref dead
+    events:
+      - sns: ${self:custom.sns-prefix}prepare
+  tag:
+    description: Creates a tag with the Git CLI
+    handler: tagbot.tag.handler
     onError: !Ref dead
     timeout: 900
     memorySize: 3008
+    layers:
+      - ${self:custom.git}
     events:
-      - sns: ${self:custom.sns-prefix}git
+      - sns: ${self:custom.sns-prefix}tag
   changelog:
     description: Creates changelogs for releases
     runtime: ruby2.5
@@ -53,8 +58,22 @@ functions:
     onError: !Ref dead
     timeout: 900
     memorySize: 3008
+    layers:
+      - ${self:custom.git}
     events:
       - sns ${self:custom.sns-prefix}changelog
+  release:
+    description: Creates GitHub releases
+    handler: tagbot.release.handler
+    onError: !Ref dead
+    events:
+      - sns: ${self:custom.sns-prefix}release
+  notify:
+    description: Comments on GitHub issues
+    handler: tagbot.notify.handler
+    onError: !Ref dead
+    events:
+      - sns: ${self:custom.sns-prefix}notify
 resources:
   Resources:
     dead:
