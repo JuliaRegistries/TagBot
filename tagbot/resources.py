@@ -11,5 +11,6 @@ else:
     print("Resources file was not found")
 
 
-def resource(path):
+def resource(path: str) -> str:
+    """Get the path to a resource file."""
     return os.path.join(_dir, path)

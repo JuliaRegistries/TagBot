@@ -1,1 +1,2 @@
 PyGithub[integrations]==1.43.7
+requests==2.22.0

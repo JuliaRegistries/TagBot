@@ -2,15 +2,15 @@ service: TagBot
 plugins:
   - serverless-python-requirements
 custom:
-  sns-prefix: '${self:service}-${self:provider.stage}-'
+  lambda-prefix: ${self:service}-${self:provider.stage}-
   git: arn:aws:lambda:us-east-1:553035198032:layer:git:5
 provider:
   name: aws
   runtime: python3.7
   iamRoleStatements:
     - Effect: Allow
-      Action: sns:Publish
-      Resource: '*'
+      Action: lambda:Invoke
+      Resource: '*'  # TODO: service-stage-*
   environment:
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
@@ -18,7 +18,7 @@ provider:
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-    SNS_TOPIC_PREFIX: !Join [':', ['arn:aws:sns', !Ref 'AWS::Region', !Ref 'AWS::AccountId', '${self:custom.sns-prefix}']]
+    LAMBDA_FUNCTION_PREFIX: ${self:custom.lambda-prefix}
 package:
   exclude:
     - ./**
@@ -29,30 +29,26 @@ package:
     - ./vendor/**
 functions:
   webhook:
-    description: Validates and forwards webhook payloads from GitHub
+    description: Validates and forwards a webhook payload from GitHub
     handler: tagbot.webhook.handler
     events:
       - http:
           path: /github
           method: post
   prepare:
-    description: Parses a GitHub event into a context
+    description: Prepares a context from a GitHub event
     handler: tagbot.prepare.handler
     onError: !Ref dead
-    events:
-      - sns: ${self:custom.sns-prefix}prepare
   tag:
-    description: Creates a tag with the Git CLI
+    description: Creates a Git tag
     handler: tagbot.tag.handler
     onError: !Ref dead
     timeout: 900
     memorySize: 3008
     layers:
       - ${self:custom.git}
-    events:
-      - sns: ${self:custom.sns-prefix}tag
   changelog:
-    description: Creates changelogs for releases
+    description: Creates a release changelog
     runtime: ruby2.5
     handler: changelog/changelog.main
     onError: !Ref dead
@@ -60,20 +56,14 @@ functions:
     memorySize: 3008
     layers:
       - ${self:custom.git}
-    events:
-      - sns ${self:custom.sns-prefix}changelog
   release:
-    description: Creates GitHub releases
+    description: Creates a GitHub
     handler: tagbot.release.handler
     onError: !Ref dead
-    events:
-      - sns: ${self:custom.sns-prefix}release
   notify:
-    description: Comments on GitHub issues
+    description: Comments on a GitHub issue
     handler: tagbot.notify.handler
     onError: !Ref dead
-    events:
-      - sns: ${self:custom.sns-prefix}notify
 resources:
   Resources:
     dead:

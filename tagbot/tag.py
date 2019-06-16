@@ -1,16 +1,25 @@
+from typing import Any
+
 from . import context
+from .aws_lambda import Lambda
+from .context import Context
+from .git import Git
 from .github_api import GitHubAPI
 
 
 class Handler(Git, GitHubAPI):
-    def __init__(self, evt):
-        self.ctxs = context.from_records(evt)
+    """Creates a Git tag."""
+
+    _next_step = "changelog"
+
+    def __init__(self, body: dict):
+        self.ctx = Context(**body)
         super().__init__()
 
     def do(self):
-        for ctx in self.ctxs:
-            self.create_tag(ctx.repo, ctx.version, ctx.target)
+        self.create_tag(self.ctx.repo, self.ctx.version, self.ctx.target)
+        self.invoke(self._next_step, self.ctx)
 
 
-def handler(evt, _ctx=None):
-    Handler(evt).do()
+def handler(body: dict, _ctx: Any = None):
+    Handler(body).do()
