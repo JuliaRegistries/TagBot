@@ -16,16 +16,19 @@ from . import resources
 
 class NotInstalled(Exception):
     """Indicates that the GitHub App is not installed."""
+
     pass
 
 
 class NotInstalledForOrg(NotInstalled):
     """Indicates that the GitHub App is not installed for an organization."""
+
     pass
 
 
 class NotInstalledForRepo(NotInstalled):
     """Indicates that the GitHub App is not installed for a repository."""
+
     pass
 
 
@@ -64,7 +67,7 @@ class GitHubAPI:
                 raise NotInstalledForRepo()
             except NotInstalledForOrg:
                 raise
-        return r.json()
+        return r.json()["id"]
 
     def _installation(self, repo: str) -> github.Github:
         """Get a GitHub client with an installation's permissions."""
@@ -77,22 +80,11 @@ class GitHubAPI:
         """Get a repository."""
         return self._client().get_repo(repo, lazy=lazy)
 
-    def get_pull_request(self, repo: str, number: int, lazy: bool = False) -> PullRequest:
+    def get_pull_request(
+        self, repo: str, number: int, lazy: bool = False
+    ) -> PullRequest:
         """Get a pull request."""
         return self._client().get_repo(repo, lazy=True).get_pull(number, lazy=lazy)
-
-    def get_default_branch(self, repo: str) -> Branch:
-        """Get a repository's default branch."""
-        r = self._client().get_repo(repo)
-        return r.get_branch(r.default_branch)
-
-    def create_comment(
-            self, issue_or_pr: Union[Issue, PullRequest], body: str
-    ) -> IssueComment:
-        """Comment on an issue or pull request."""
-        if isinstance(issue_or_pr, PullRequest):
-            issue_or_pr = issue_or_pr.as_issue()
-        return issue_or_pr.create_comment(body)
 
     def get_issue(self, repo: str, number: int) -> Issue:
         """Get an issue."""
@@ -102,11 +94,28 @@ class GitHubAPI:
         """Get an issue comment."""
         return self.get_issue(repo, issue).get_comment(id)
 
-    def create_release(self, repo: str, tag: str, ref: str, body: Optional[str]) -> GitRelease:
+    def get_default_branch(self, repo: str) -> Branch:
+        """Get a repository's default branch."""
+        r = self._client().get_repo(repo)
+        return r.get_branch(r.default_branch)
+
+    def create_comment(
+        self, issue_or_pr: Union[Issue, PullRequest], body: str
+    ) -> IssueComment:
+        """Comment on an issue or pull request."""
+        if isinstance(issue_or_pr, PullRequest):
+            issue_or_pr = issue_or_pr.as_issue()
+        return issue_or_pr.create_comment(body)
+
+    def append_comment(self, comment: IssueComment, body: str) -> IssueComment:
+        return comment.edit(body=comment.body + "\n---\n" + body)
+
+    def create_release(
+        self, repo: str, tag: str, ref: str, body: Optional[str]
+    ) -> GitRelease:
         """Create a GitHub release."""
         return (
-            self._installation(repo)
-            .get_repo(repo, lazy=True)
+            self._installation(repo).get_repo(repo, lazy=True)
             # TODO: Is None body okay?
             .create_git_release(tag, tag, body, target_commitish=ref)
         )

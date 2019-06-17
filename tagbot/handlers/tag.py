@@ -1,10 +1,10 @@
 from typing import Any
 
-from . import context
-from .aws_lambda import Lambda
-from .context import Context
-from .git import Git
-from .github_api import GitHubAPI
+from .. import context
+from ..aws_lambda import Lambda
+from ..context import Context
+from ..git import Git
+from ..github_api import GitHubAPI
 
 
 class Handler(Git, GitHubAPI):

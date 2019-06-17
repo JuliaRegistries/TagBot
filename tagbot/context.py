@@ -14,5 +14,7 @@ class Context:
     version: str
     commit: str
     target: str
+    issue: int
     release_notes: Optional[str] = None
     comment_id: Optional[int] = None
+    notification: Optional[str] = None

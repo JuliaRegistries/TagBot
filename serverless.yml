@@ -2,15 +2,17 @@ service: TagBot
 plugins:
   - serverless-python-requirements
 custom:
-  lambda-prefix: ${self:service}-${self:provider.stage}-
   git: arn:aws:lambda:us-east-1:553035198032:layer:git:5
 provider:
   name: aws
   runtime: python3.7
   iamRoleStatements:
     - Effect: Allow
-      Action: lambda:Invoke
-      Resource: '*'  # TODO: service-stage-*
+      Action: lambda:InvokeFunction
+      Resource: !Join [':', ['arn', 'aws', 'lambda', '${self:provider.region}', !Ref 'AWS::AccountId', 'function', '${self:service}-${self:provider.stage}-*']]
+    - Effect: Allow
+      Action: sns:Publish
+      Resource: !Ref dead
   environment:
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
@@ -18,7 +20,7 @@ provider:
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
-    LAMBDA_FUNCTION_PREFIX: ${self:custom.lambda-prefix}
+    LAMBDA_FUNCTION_PREFIX: ${self:service}-${self:provider.stage}-
 package:
   exclude:
     - ./**
@@ -30,18 +32,18 @@ package:
 functions:
   webhook:
     description: Validates and forwards a webhook payload from GitHub
-    handler: tagbot.webhook.handler
+    handler: tagbot.handlers.webhook.handler
     events:
       - http:
           path: /github
           method: post
   prepare:
     description: Prepares a context from a GitHub event
-    handler: tagbot.prepare.handler
+    handler: tagbot.handlers.prepare.handler
     onError: !Ref dead
   tag:
     description: Creates a Git tag
-    handler: tagbot.tag.handler
+    handler: tagbot.handlers.tag.handler
     onError: !Ref dead
     timeout: 900
     memorySize: 3008
@@ -57,13 +59,20 @@ functions:
     layers:
       - ${self:custom.git}
   release:
-    description: Creates a GitHub
-    handler: tagbot.release.handler
+    description: Creates a GitHub release
+    handler: tagbot.handlers.release.handler
     onError: !Ref dead
   notify:
     description: Comments on a GitHub issue
-    handler: tagbot.notify.handler
+    handler: tagbot.handlers.notify.handler
     onError: !Ref dead
+  failure:
+    description: Handles failure
+    handler: tagbot.handlers.failure.handler
+    events:
+      - sns:
+          arn: !Ref dead
+          topicName: dead
 resources:
   Resources:
     dead:

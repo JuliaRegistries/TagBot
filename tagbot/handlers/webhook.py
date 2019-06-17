@@ -1,12 +1,10 @@
 import hmac
 import json
-import os
-import sys
 
 from typing import Any
 
-from . import env, get_in
-from .aws_lambda import Lambda
+from .. import env
+from ..aws_lambda import Lambda
 
 
 class Handler(Lambda):
@@ -21,8 +19,9 @@ class Handler(Lambda):
 
     def __init__(self, event):
         self.body = event.get("body", "{}")
+        headers = event.get("headers", {})
         self.id, self.type, self.sha = [
-            get_in(event, "headers", k, default="")
+            headers.get(k, "")
             for k in ["X-GitHub-Delivery", "X-GitHub-Event", "X-Hub-Signature"]
         ]
 

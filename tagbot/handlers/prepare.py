@@ -3,20 +3,22 @@ import traceback
 
 from typing import Any
 
-from . import get_in
-from .aws_lambda import Lambda
-from .context import Context
-from .github_api import GitHubAPI
+from ..aws_lambda import Lambda
+from ..context import Context
+from ..github_api import GitHubAPI
 
 
 class UnknownType(Exception):
     """Indicates a message from GitHub of unknown type."""
+
     pass
 
 
 class InvalidPayload(Exception):
     """Indicates an invalid GitHub payload."""
+
     pass
+
 
 class Handler(GitHubAPI, Lambda):
     """Builds a Context from a GitHub event."""
@@ -75,6 +77,15 @@ class Handler(GitHubAPI, Lambda):
         """Get the release target (see issue #10)."""
         branch = self.get_default_branch(ctx.repo)
         return branch.name if branch.commit.sha == ctx.commit else ctx.commit
+
+
+def get_in(d: dict, *keys: str, default: Any = None) -> Any:
+    """Safely retrieve a nested value from a dict."""
+    for k in keys:
+        if k not in d:
+            return None
+        d = d[k]
+    return d
 
 
 def handler(evt: dict, _ctx: Any = None) -> None:
