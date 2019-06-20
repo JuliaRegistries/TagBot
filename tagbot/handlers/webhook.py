@@ -1,9 +1,7 @@
 import hmac
 import json
 
-from typing import Any
-
-from .. import env
+from .. import env, stages
 from ..mixins.aws import AWS
 
 
@@ -15,7 +13,7 @@ class Handler(AWS):
     """
 
     _secret = env.webhook_secret
-    _next_step = "prepare"
+    _next_step = stages.prepare
 
     def __init__(self, request: dict):
         self.body = request.get("body", "{}")
@@ -29,7 +27,7 @@ class Handler(AWS):
         if not self._verify_signature():
             return {"statusCode": 400}
         message = {"id": self.id, "type": self.type, "payload": json.loads(self.body)}
-        self.invoke_function(self._next_step, message)
+        self.invoke(self._next_step, message)
         return {"statusCode": 200}
 
     def _verify_signature(self) -> bool:
@@ -43,5 +41,5 @@ class Handler(AWS):
         return hmac.compare_digest(mac.hexdigest(), sig)
 
 
-def handler(request: dict, _ctx: Any = None) -> None:
+def handler(request: dict, _ctx=None) -> None:
     Handler(request).do()

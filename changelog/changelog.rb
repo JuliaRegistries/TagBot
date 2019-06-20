@@ -2,11 +2,20 @@
 paths = Dir.glob("**/github-changelog-generator-*/lib")
 $LOAD_PATH.unshift(*paths)
 
-require 'aws-sdk-sns'
-require 'github_changelog_generator'
 require 'json'
-require 'octokit'
 require 'tempfile'
+
+require 'aws-sdk-dynamodb'
+require 'aws-sdk-lambda'
+require 'github_changelog_generator'
+require 'octokit'
+
+
+class ChangelogError < StandardError
+  def initialize(msg)
+    super
+  end
+end
 
 $ack_regex = /\\\* \*this changelog was automatically generated .*/i
 $changelog_regex = /^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$/i
@@ -14,27 +23,24 @@ $number_regex = /\[\\#(\d+)\]\(.+?\)/
 $section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
 $wip_msg = ENV['CHANGELOG_WIP_MESSAGE']
 
-def main(event:, **_args)
-  event['Records'].each do |rec|
-    params = JSON.parse(rec['Sns']['body'], symbolize_names: true)
-    log('Starting', params)
 
-    case params[:command]
-    when nil then
-      log('Missing command', params)
-    when 'gen-changelog' then
-      changelog = gen_changelog(params)
-      notify('github', command: 'post-changelog', changelog: changelog)
-    else
-      log('Unknown command', params)
-    end
+# TODO: Make sure to check for an existing changelog.
+# TODO: Check for an existing tag, and if none exists, use the --future-release option.
+
+def main(ctx:, **_args)
+  begin
+    ctx[:release_notes] = gen_changelog(ctx)
+  rescue ChangelogError => e
+    ctx[:notification] = e.to_s
+    invoke('notify', ctx)
   end
+  invoke('release', ctx)
 end
 
 # Generates a changelog for a single release.
-def gen_changelog(params)
-  user, repo, tag, auth = %i[user repo tag auth].map { |k| params[k] }
-  unless [user, repo, tag, auth].all?
+def gen_changelog(ctx)
+  repo, tag, auth = %i[repo tag auth].map { |k| ctx[k] }
+  unless [repo, tag, auth].all?
     log('Missing parameters', params)
     return
   end
@@ -142,12 +148,15 @@ def find_section(changelog, tag)
 end
 
 # Send a message to an SNS topic.
-def notify(topic, body)
-  topic_arn = ENV['SNS_PREFIX'] + topic
-  message = body.to_json
-  log('Sending message to topic', length: message.length, topic: topic)
-  Aws::SNS::Client.new.publish(topic_arn: topic_arn, message: message)
-  log('Sent message to topic', topic: topic)
+def invoke(function, body)
+  function_name = ENV['LAMBDA_FUNCTION_PREFIX'] + function
+  payload = body.to_json
+  log('Invoking function', length: payload.length, function: function_name)
+  Aws::Lambda::Client.new.invoke(
+    function_name: function_name,
+    payload: payload,
+    invocation_type: 'Event',
+  )
 end
 
 # Log a message with some metadata.

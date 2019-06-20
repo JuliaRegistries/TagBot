@@ -2,7 +2,11 @@ service: TagBot
 plugins:
   - serverless-python-requirements
 custom:
-  git: arn:aws:lambda:us-east-1:553035198032:layer:git:5
+  cli: &cli
+    timeout: 900
+    memorySize: 3008
+    layers:
+      - arn:aws:lambda:us-east-1:553035198032:layer:git:5
 provider:
   name: aws
   runtime: python3.7
@@ -17,16 +21,10 @@ provider:
       Resource: !Join [':', ['arn', 'aws', 'lambda', '${self:provider.region}', !Ref 'AWS::AccountId', 'function', '${self:service}-${self:provider.stage}-*']]
     - Effect: Allow
       Action: sns:Publish
-      Resource: !Ref dead
+      Resource: !Join [':', ['arn', 'aws', 'sns', '${self:provider.region}', !Ref 'AWS::AccountId', 'dead-*']]
   environment:
-    DYNAMODB_TABLE_NAME: !Ref table
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
-    GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
-    GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
-    GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
-    GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
     LAMBDA_FUNCTION_PREFIX: ${self:service}-${self:provider.stage}-
-    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
 package:
   exclude:
     - ./**
@@ -39,6 +37,8 @@ functions:
   webhook:
     description: Validates and forwards a webhook payload from GitHub
     handler: tagbot.handlers.webhook.handler
+    environment:
+      GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
     events:
       - http:
           path: /github
@@ -46,42 +46,65 @@ functions:
   prepare:
     description: Prepares a context from a GitHub event
     handler: tagbot.handlers.prepare.handler
-    onError: !Ref dead
+    onError: !Ref dead-prepare
+    environment:
+      REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
   tag:
     description: Creates a Git tag
     handler: tagbot.handlers.tag.handler
-    onError: !Ref dead
-    timeout: 900
-    memorySize: 3008
-    layers:
-      - ${self:custom.git}
+    onError: !Ref dead-tag
+    environment:
+      GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
+      GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
+    <<: *cli
   changelog:
     description: Creates a release changelog
     runtime: ruby2.5
     handler: changelog/changelog.main
-    onError: !Ref dead
-    timeout: 900
-    memorySize: 3008
-    layers:
-      - ${self:custom.git}
+    onError: !Ref dead-changelog
+    environment:
+      DYNAMODB_TABLE_NAME: !Ref table
+    <<: *cli
   release:
     description: Creates a GitHub release
     handler: tagbot.handlers.release.handler
-    onError: !Ref dead
+    onError: !Ref dead-release
   notify:
     description: Comments on a GitHub issue
     handler: tagbot.handlers.notify.handler
-    onError: !Ref dead
+    onError: !Ref dead-notify
+    environment:
+      GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
   failure:
     description: Handles failure
     handler: tagbot.handlers.failure.handler
     events:
       - sns:
-          arn: !Ref dead
-          topicName: dead
+          arn: !Ref dead-prepare
+          topicName: dead-prepare
+      - sns:
+          arn: !Ref dead-tag
+          topicName: dead-tag
+      - sns:
+          arn: !Ref dead-changelog
+          topicName: dead-changelog
+      - sns:
+          arn: !Ref dead-release
+          topicName: dead-release
+      - sns:
+          arn: !Ref dead-notify
+          topicName: dead-notify
 resources:
   Resources:
-    dead:
+    dead-prepare:
+      Type: AWS::SNS::Topic
+    dead-tag:
+      Type: AWS::SNS::Topic
+    dead-changelog:
+      Type: AWS::SNS::Topic
+    dead-release:
+      Type: AWS::SNS::Topic
+    dead-notify:
       Type: AWS::SNS::Topic
     table:
       Type: AWS::DynamoDB::Table
@@ -89,7 +112,7 @@ resources:
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: id
-            AttributeType: S
+            AttributeType: N
         KeySchema:
           - AttributeName: id
             KeyType: HASH

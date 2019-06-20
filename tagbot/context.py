@@ -12,6 +12,7 @@ class Context:
     commit: str
     target: str
     issue: int
-    release_notes: Optional[str] = None
+    auth: str
     comment_id: Optional[int] = None
     notification: Optional[str] = None
+    changelog: Optional[str] = None

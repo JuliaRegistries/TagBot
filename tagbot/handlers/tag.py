@@ -1,10 +1,6 @@
-from typing import Any
-
 from .. import context
 from ..context import Context
-from ..mixins.aws import AWS
-from ..mixins.git import Git
-from ..mixins.github_api import GitHubAPI
+from ..mixins import AWS, Git, GitHubAPI
 
 
 class Handler(AWS, Git, GitHubAPI):
@@ -20,5 +16,5 @@ class Handler(AWS, Git, GitHubAPI):
         self.invoke(self._next_step, self.ctx)
 
 
-def handler(body: dict, _ctx: Any = None):
+def handler(body: dict, _ctx=None):
     Handler(body).do()

@@ -3,11 +3,10 @@ import traceback
 
 from typing import Any
 
+from .. import stages
 from ..context import Context
-from ..enums import stages
 from ..exceptions import InvalidPayload, UnknownType
-from ..mixins.aws import AWS
-from ..mixins.github_api import GitHubAPI
+from ..mixins import AWS, GitHubAPI
 
 
 class Handler(AWS, GitHubAPI):
@@ -19,17 +18,15 @@ class Handler(AWS, GitHubAPI):
     _this_stage = stages.prepare
     _next_stage = stages.tag
 
-    def __init__(self, body: dict, aws_id: str):
+    def __init__(self, body: dict):
         self.body = body
-        self.aws_id = aws_id
 
     def do(self) -> None:
-        self.put_item(self.aws_id, self._this_stage)
         try:
             ctx = self._from_github()
         except (UnknownType, InvalidPayload):
             traceback.print_exc()
-        self.invoke_function(self._next_stage, ctx)
+        self.invoke(self._next_stage, ctx)
 
     def _from_github(self) -> Context:
         """Build a Context from a GitHub event."""
@@ -79,5 +76,5 @@ def get_in(d: dict, *keys: str, default: Any = None) -> Any:
     return d
 
 
-def handler(evt: dict, ctx) -> None:
-    Handler(evt, ctx.aws_request_id).do()
+def handler(evt: dict, _ctx=None) -> None:
+    Handler(evt).do()

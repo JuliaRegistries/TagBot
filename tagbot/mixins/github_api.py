@@ -23,7 +23,7 @@ class GitHubAPI:
 
     def _client(self) -> github.Github:
         """Get a GitHub API client, authenticated as the app."""
-        return github.Github(jwt=self._app.create_jwt())
+        return github.Github(jwt=self.jwt())
 
     def __headers(self) -> Dict[str, str]:
         """Get headers required to make manual requests to the GitHub API."""
@@ -58,6 +58,10 @@ class GitHubAPI:
         return github.Github(
             self._app.get_access_token(self.__repo_installation_id(repo)).token
         )
+
+    def jwt(self):
+        """Get a JWT for authentication."""
+        return self._app.create_jwt()
 
     def get_repo(self, repo: str, lazy: bool = False) -> Repository:
         """Get a repository."""

@@ -1,9 +1,6 @@
-from typing import Any
-
-from ..enums import stages
+from .. import stages
 from ..context import Context
-from ..mixins.aws import AWS
-from ..mixins.github_api import GitHubAPI
+from ..mixins import AWS, GitHubAPI
 
 
 class Handler(AWS, GitHubAPI):
@@ -11,17 +8,15 @@ class Handler(AWS, GitHubAPI):
 
     _this_stage = stages.release
 
-    def __init__(self, body: dict, aws_id: str):
+    def __init__(self, body: dict):
         self.ctx = Context(**body)
-        self.aws_id = aws_id
 
     def do(self) -> None:
-        self.put_item(self.aws_id, self._this_stage)
         self.create_release(
-            self.ctx.repo, self.ctx.version, self.ctx.commit, self.ctx.release_notes
+            self.ctx.repo, self.ctx.version, self.ctx.commit, self.ctx.changelog
         )
         # TODO: notify
 
 
-def handler(body: dict, ctx) -> None:
-    Handler(body, ctx.aws_request_id).do()
+def handler(body: dict, _ctx=None) -> None:
+    Handler(body).do()
