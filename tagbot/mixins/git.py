@@ -1,9 +1,8 @@
-import os
 import shutil
 import subprocess
 import tempfile
 
-from . import env
+from .. import env
 
 
 class Git:
@@ -12,26 +11,30 @@ class Git:
     _name = env.git_tagger_name
     _email = env.git_tagger_email
 
-    def __call(*args: str) -> None:
+    def __git(*args: str, dir=None) -> None:
         """Run a shell command."""
+        args.insert(0, "git")
+        if dir:
+            args.insert(1, "-C")
+            args.insert(2, dir)
         subprocess.run(args, check=True)
 
     def _git_clone(self, repo: str, dir: str, auth: str) -> None:
         """Clone a Git repo."""
         url = f"https://oauth2:{auth}@github.com/{repo}"
-        self.__call("git", "clone", url, dir)
+        self.__git("clone", url, dir)
 
     def _git_config(self, dir: str, key: str, val: str) -> None:
         """Configure a Git repo."""
-        self.__call("git", "-C", dir, "config", key, val)
+        self.__git("config", key, val, dir=dir)
 
     def _git_tag(self, dir: str, tag: str, ref: str, body: str) -> None:
         """Create a Git tag."""
-        self.__call("git", "-C", dir, "tag", tag, ref, "-s", "-m", body)
+        self.__git("tag", tag, ref, "-s", "-m", body, dir=dir)
 
     def _git_push_tags(self, dir: str) -> None:
         """Push Git tags.`"""
-        self.__call("git", "-C", dir, "push", "origin", "--tags")
+        self.__git("push", "origin", "--tags", dir=dir)
 
     def create_tag(self, repo: str, tag: str, ref: str, body: str, auth: str) -> None:
         """Create and push a Git tag."""

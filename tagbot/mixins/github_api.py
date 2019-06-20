@@ -10,26 +10,9 @@ from github.IssueComment import IssueComment
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from . import env
-from . import resources
-
-
-class NotInstalled(Exception):
-    """Indicates that the GitHub App is not installed."""
-
-    pass
-
-
-class NotInstalledForOrg(NotInstalled):
-    """Indicates that the GitHub App is not installed for an organization."""
-
-    pass
-
-
-class NotInstalledForRepo(NotInstalled):
-    """Indicates that the GitHub App is not installed for a repository."""
-
-    pass
+from .. import env
+from .. import resources
+from ..exceptions import NotInstalledForOrg, NotInstalledForRepo
 
 
 class GitHubAPI:
@@ -107,7 +90,13 @@ class GitHubAPI:
             issue_or_pr = issue_or_pr.as_issue()
         return issue_or_pr.create_comment(body)
 
-    def append_comment(self, comment: IssueComment, body: str) -> IssueComment:
+    def append_comment(
+        self, comment: IssueComment, body: str
+    ) -> Optional[IssueComment]:
+        """Add a message to an existing comment."""
+        if body in comment.body:
+            print("Body is already in the comment")
+            return
         return comment.edit(body=comment.body + "\n---\n" + body)
 
     def create_release(

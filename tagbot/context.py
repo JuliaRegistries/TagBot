@@ -4,10 +4,7 @@ from typing import Optional
 
 @dataclass
 class Context:
-    """
-    A container for job data.
-    It gets passed through the execution pipeline, accumulating information.
-    """
+    """Contains job data."""
 
     id: str
     repo: str

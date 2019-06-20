@@ -3,37 +3,28 @@ import traceback
 
 from typing import Any
 
-from ..aws_lambda import Lambda
+from ..enums import stages
 from ..context import Context
-from ..github_api import GitHubAPI
+from ..exceptions import InvalidPayload, UnknownType
+from ..mixins.aws import AWS
+from ..mixins.github_api import GitHubAPI
 
 
-class UnknownType(Exception):
-    """Indicates a message from GitHub of unknown type."""
-
-    pass
-
-
-class InvalidPayload(Exception):
-    """Indicates an invalid GitHub payload."""
-
-    pass
-
-
-class Handler(GitHubAPI, Lambda):
+class Handler(AWS, GitHubAPI):
     """Builds a Context from a GitHub event."""
 
     _command_prefix = "TagBot "
     _command_ignore = _command_prefix + "ignore"
     _command_tag = _command_prefix + "tag"
-    _next_step = "tag"
+    _this_stage = stages.prepare
+    _next_stage = stages.tag
 
-    def __init__(self, body: dict):
+    def __init__(self, body: dict, aws_id: str):
         self.body = body
-        super().__init__()
+        self.aws_id = aws_id
 
     def do(self) -> None:
-        print("id:", self.body.get("id"))
+        self.put_item(self.aws_id, self._this_stage)
         try:
             ctx = self._from_github()
         except (UnknownType, InvalidPayload):
@@ -88,5 +79,5 @@ def get_in(d: dict, *keys: str, default: Any = None) -> Any:
     return d
 
 
-def handler(evt: dict, _ctx: Any = None) -> None:
-    Handler(evt).do()
+def handler(evt: dict, ctx) -> None:
+    Handler(evt, ctx.aws_request_id).do()

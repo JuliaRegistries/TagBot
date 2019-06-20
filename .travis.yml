@@ -1,9 +1,11 @@
 notifications: {email: false}
 matrix:
   include:
-    - language: go
-      go: 1.12
-      script: ./bin/test.sh github
+    - language: python
+      dist: xenial
+      python: 3.7
+      before_script: pip install mypy pytest
+      script: ./bin/test.sh tabgot
     - language: ruby
       rvm: 2.5
       install: gem install bundler test-unit

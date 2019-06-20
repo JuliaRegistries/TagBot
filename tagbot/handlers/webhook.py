@@ -4,10 +4,10 @@ import json
 from typing import Any
 
 from .. import env
-from ..aws_lambda import Lambda
+from ..mixins.aws import AWS
 
 
-class Handler(Lambda):
+class Handler(AWS):
     """
     Handles webhook payloads from GitHub.
     Nothing happens here except signature validation, because we can't retry.
@@ -17,9 +17,9 @@ class Handler(Lambda):
     _secret = env.webhook_secret
     _next_step = "prepare"
 
-    def __init__(self, event):
-        self.body = event.get("body", "{}")
-        headers = event.get("headers", {})
+    def __init__(self, request: dict):
+        self.body = request.get("body", "{}")
+        headers = request.get("headers", {})
         self.id, self.type, self.sha = [
             headers.get(k, "")
             for k in ["X-GitHub-Delivery", "X-GitHub-Event", "X-Hub-Signature"]
@@ -29,7 +29,7 @@ class Handler(Lambda):
         if not self._verify_signature():
             return {"statusCode": 400}
         message = {"id": self.id, "type": self.type, "payload": json.loads(self.body)}
-        self.invoke(self._next_step, message)
+        self.invoke_function(self._next_step, message)
         return {"statusCode": 200}
 
     def _verify_signature(self) -> bool:
@@ -43,5 +43,5 @@ class Handler(Lambda):
         return hmac.compare_digest(mac.hexdigest(), sig)
 
 
-def handler(event: dict, _ctx: Any = None) -> None:
-    Handler(event).do()
+def handler(request: dict, _ctx: Any = None) -> None:
+    Handler(request).do()

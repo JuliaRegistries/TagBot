@@ -8,19 +8,25 @@ provider:
   runtime: python3.7
   iamRoleStatements:
     - Effect: Allow
+      Action:
+        - DynamoDB:GetItem
+        - DynamoDB:PutItem
+      Resource: !GetAtt table.Arn
+    - Effect: Allow
       Action: lambda:InvokeFunction
       Resource: !Join [':', ['arn', 'aws', 'lambda', '${self:provider.region}', !Ref 'AWS::AccountId', 'function', '${self:service}-${self:provider.stage}-*']]
     - Effect: Allow
       Action: sns:Publish
       Resource: !Ref dead
   environment:
+    DYNAMODB_TABLE_NAME: !Ref table
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
     GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
     GITHUB_WEBHOOK_SECRET: ${env:GITHUB_WEBHOOK_SECRET}
     GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
     GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
-    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
     LAMBDA_FUNCTION_PREFIX: ${self:service}-${self:provider.stage}-
+    REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
 package:
   exclude:
     - ./**
@@ -77,3 +83,16 @@ resources:
   Resources:
     dead:
       Type: AWS::SNS::Topic
+    table:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true

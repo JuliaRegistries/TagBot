@@ -1,18 +1,22 @@
 from typing import Any
 
-from ..aws_lambda import Lambda
+from ..enums import stages
 from ..context import Context
-from ..github_api import GitHubAPI
+from ..mixins.aws import AWS
+from ..mixins.github_api import GitHubAPI
 
 
-class Handler(GitHubAPI, Lambda):
+class Handler(AWS, GitHubAPI):
     """Creates a GitHub release."""
 
-    def __init__(self, body: dict):
+    _this_stage = stages.release
+
+    def __init__(self, body: dict, aws_id: str):
         self.ctx = Context(**body)
-        super().__init__()
+        self.aws_id = aws_id
 
     def do(self) -> None:
+        self.put_item(self.aws_id, self._this_stage)
         self.create_release(
             self.ctx.repo, self.ctx.version, self.ctx.commit, self.ctx.release_notes
         )
