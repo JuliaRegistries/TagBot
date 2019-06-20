@@ -96,7 +96,7 @@ class GitHubAPI:
         """Add a message to an existing comment."""
         if body in comment.body:
             print("Body is already in the comment")
-            return
+            return None
         return comment.edit(body=comment.body + "\n---\n" + body)
 
     def create_release(

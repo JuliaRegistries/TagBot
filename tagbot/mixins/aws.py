@@ -2,7 +2,7 @@ import boto3
 import json
 import time
 
-from typing import Union
+from typing import Optional, Union
 
 from .. import env
 from ..context import Context
@@ -31,7 +31,7 @@ class AWS:
     def invoke_notify(self, ctx: Context, notification: str):
         """Invokes the notify function."""
         ctx.notification = notification
-        self.invoke_function(self, stages.notify, ctx)
+        self.invoke_function(stages.notify, ctx)
 
     def get_item(self, key: str) -> Optional[str]:
         resp = self._dynamodb.get_item(

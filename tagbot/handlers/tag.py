@@ -2,12 +2,12 @@ from typing import Any
 
 from .. import context
 from ..context import Context
-from ..mixins.aws_lambda import Lambda
+from ..mixins.aws import AWS
 from ..mixins.git import Git
 from ..mixins.github_api import GitHubAPI
 
 
-class Handler(Git, GitHubAPI, Lambda):
+class Handler(AWS, Git, GitHubAPI):
     """Creates a Git tag."""
 
     _next_step = "changelog"

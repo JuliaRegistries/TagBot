@@ -23,5 +23,5 @@ class Handler(AWS, GitHubAPI):
         # TODO: notify
 
 
-def handler(body: dict, _ctx: Any = None) -> None:
-    Handler(body).do()
+def handler(body: dict, ctx) -> None:
+    Handler(body, ctx.aws_request_id).do()

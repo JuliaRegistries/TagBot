@@ -13,11 +13,12 @@ class Git:
 
     def __git(*args: str, dir=None) -> None:
         """Run a shell command."""
-        args.insert(0, "git")
+        argv = list(args)
+        argv.insert(0, "git")
         if dir:
-            args.insert(1, "-C")
-            args.insert(2, dir)
-        subprocess.run(args, check=True)
+            argv.insert(1, "-C")
+            argv.insert(2, dir)
+        subprocess.run(argv, check=True)
 
     def _git_clone(self, repo: str, dir: str, auth: str) -> None:
         """Clone a Git repo."""

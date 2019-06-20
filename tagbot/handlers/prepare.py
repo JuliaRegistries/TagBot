@@ -3,8 +3,8 @@ import traceback
 
 from typing import Any
 
-from ..enums import stages
 from ..context import Context
+from ..enums import stages
 from ..exceptions import InvalidPayload, UnknownType
 from ..mixins.aws import AWS
 from ..mixins.github_api import GitHubAPI
@@ -29,7 +29,7 @@ class Handler(AWS, GitHubAPI):
             ctx = self._from_github()
         except (UnknownType, InvalidPayload):
             traceback.print_exc()
-        self.invoke(self._next_step, ctx)
+        self.invoke_function(self._next_stage, ctx)
 
     def _from_github(self) -> Context:
         """Build a Context from a GitHub event."""

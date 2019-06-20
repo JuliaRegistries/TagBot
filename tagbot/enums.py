@@ -6,5 +6,7 @@ class Status(Enum):
     FINISHED = auto()
 
 
-Stages = namedtuple("Stages", ["prepare", "tag", "changelog", "release", "notify"])
-stages = Stages("prepare", "tag", "changelog", "release", "notify")
+Stages = namedtuple(
+    "Stages", ["prepare", "tag", "changelog", "release", "notify", "unknown"]
+)
+stages = Stages("prepare", "tag", "changelog", "release", "notify", "unknown")

@@ -1,28 +1,33 @@
 import json
 
-from typing import Any
+from typing import Any, List
 
 from ..enums import stages
 from ..context import Context
+from ..mixins.aws import AWS
 from ..mixins.github_api import GitHubAPI
 
 
-class Handler(GitHubAPI):
+class Handler(AWS, GitHubAPI):
     """Notifies of failure."""
 
     def __init__(self, event: dict):
-        self.ctxs = []
-        self.stages = []
-        self.errors = []
+        self.ctxs: List[Context] = []
+        self.stages: List[str] = []
+        self.errors: List[str] = []
         for r in event["Records"]:
-            self.ctxs.push(Context(**json.loads(r["Sns"]["Message"])))
-            self.stages.push(
+            self.ctxs.append(Context(**json.loads(r["Sns"]["Message"])))
+            self.stages.append(
                 self.get_item(r["MessageAttributes"]["RequestId"]["Value"])
+                or stages.unknown
             )
-            self.errors.push(r["MessageAttributes"]["ErrorMessage"]["Value"])
+            self.errors.append(r["MessageAttributes"]["ErrorMessage"]["Value"])
 
     def do(self) -> None:
         for ctx, stage, error in zip(self.ctxs, self.stages, self.errors):
+            if ctx.comment_id is None:
+                print("Context has no comment ID")
+                continue
             if stage == stages.prepare:
                 action = "prepare a job context"
             elif stage == stages.tag:
