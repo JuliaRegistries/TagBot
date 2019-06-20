@@ -6,11 +6,7 @@ from ..mixins.aws import AWS
 
 
 class Handler(AWS):
-    """
-    Handles webhook payloads from GitHub.
-    Nothing happens here except signature validation, because we can't retry.
-    The request body is forwarded to another stage without modification.
-    """
+    """Handles webhook payloads from GitHub."""
 
     _secret = env.webhook_secret
     _next_step = stages.prepare
@@ -28,6 +24,7 @@ class Handler(AWS):
             return {"statusCode": 400}
         message = {"id": self.id, "type": self.type, "payload": json.loads(self.body)}
         self.invoke(self._next_step, message)
+
         return {"statusCode": 200}
 
     def _verify_signature(self) -> bool:

@@ -49,7 +49,6 @@ The following variables must be set:
 
 - `GITHUB_APP_ID`: Your GitHub App's ID.
 - `GITHUB_WEBHOOK_SECRET`: The secret key that you generated.
-- `GITHUB_CONTACT_USER`: The username of a GitHub user to ping when errors occur.
 - `REGISTRATOR_USERNAME`: The username of the user creating pull requests via [Registrator.jl](https://github.com/JuliaRegistries/Registrator.jl).
 - `GIT_TAGGER_NAME`: The name you used when creating the GPG key.
 - `GIT_TAGGER_EMAIL`: The email you used when creating the GPG key.

@@ -16,13 +16,19 @@ class NotInstalledForRepo(NotInstalled):
     pass
 
 
-class UnknownType(Exception):
+class StopPipeline(Exception):
+    """Indicates that the pipeline should halt."""
+
+    pass
+
+
+class UnknownType(StopPipeline):
     """Indicates a message from GitHub of unknown type."""
 
     pass
 
 
-class InvalidPayload(Exception):
+class InvalidPayload(StopPipeline):
     """Indicates an invalid GitHub payload."""
 
     pass

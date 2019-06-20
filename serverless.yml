@@ -74,8 +74,6 @@ functions:
     description: Comments on a GitHub issue
     handler: tagbot.handlers.notify.handler
     onError: !Ref dead-notify
-    environment:
-      GITHUB_CONTACT_USER: ${env:GITHUB_CONTACT_USER}
   failure:
     description: Handles failure
     handler: tagbot.handlers.failure.handler

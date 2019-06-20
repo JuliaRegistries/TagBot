@@ -1,9 +1,11 @@
+from functools import lru_cache
 from typing import Dict, Optional, Union
 
 import github
 import requests
 
 from github.Branch import Branch
+from github.GitObject import GitObject
 from github.GitRelease import GitRelease
 from github.Issue import Issue
 from github.IssueComment import IssueComment
@@ -12,6 +14,9 @@ from github.Repository import Repository
 
 from .. import env, resources
 from ..exceptions import NotInstalledForOwner, NotInstalledForRepo
+
+
+# TODO: Probably need to do most of these operations as _installation instead of _client.
 
 
 class GitHubAPI:
@@ -31,6 +36,7 @@ class GitHubAPI:
             "Authorization": "Bearer " + self._app.create_jwt(),
         }
 
+    @lru_cache
     def __installation_id(self, path: str, key: str) -> Optional[int]:
         """Get the ID of an installation."""
         url = f"https://api.github.com/{path}/{key}/installation"
@@ -53,11 +59,11 @@ class GitHubAPI:
         self, repo: str, number: int, lazy: bool = False
     ) -> PullRequest:
         """Get a pull request."""
-        return self._client().get_repo(repo, lazy=True).get_pull(number, lazy=lazy)
+        return self.get_repo(repo, lazy=True).get_pull(number, lazy=lazy)
 
     def get_issue(self, repo: str, number: int) -> Issue:
         """Get an issue."""
-        return self._client().get_repo(repo, lazy=True).get_issue(number)
+        return self.get_repo(repo, lazy=True).get_issue(number)
 
     def get_issue_comment(self, repo: str, issue: int, id: int) -> IssueComment:
         """Get an issue comment."""
@@ -65,8 +71,12 @@ class GitHubAPI:
 
     def get_default_branch(self, repo: str) -> Branch:
         """Get a repository's default branch."""
-        r = self._client().get_repo(repo)
+        r = self.get_repo(repo)
         return r.get_branch(r.default_branch)
+
+    def get_tag(self, repo: str, tag: str) -> GitObject:
+        """Check whether or not a tag exists."""
+        return self.get_repo(repo, lazy=True).get_git_ref(f"tags/{tag}").object
 
     def create_comment(
         self, issue_or_pr: Union[Issue, PullRequest], body: str
