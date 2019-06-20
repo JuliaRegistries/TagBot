@@ -10,9 +10,8 @@ from github.IssueComment import IssueComment
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from .. import env
-from .. import resources
-from ..exceptions import NotInstalledForOrg, NotInstalledForRepo
+from .. import env, resources
+from ..exceptions import NotInstalledForOwner, NotInstalledForRepo
 
 
 class GitHubAPI:
@@ -23,7 +22,7 @@ class GitHubAPI:
 
     def _client(self) -> github.Github:
         """Get a GitHub API client, authenticated as the app."""
-        return github.Github(jwt=self.jwt())
+        return github.Github(jwt=self._app.create_jwt())
 
     def __headers(self) -> Dict[str, str]:
         """Get headers required to make manual requests to the GitHub API."""
@@ -32,36 +31,19 @@ class GitHubAPI:
             "Authorization": "Bearer " + self._app.create_jwt(),
         }
 
-    def __org_installation_id(self, org: str) -> int:
-        """Get the ID of an installation by organization."""
-        url = f"https://api.github.com/orgs/{org}/installation"
+    def __installation_id(self, path: str, key: str) -> Optional[int]:
+        """Get the ID of an installation."""
+        url = f"https://api.github.com/{path}/{key}/installation"
         r = requests.get(url, headers=self.__headers())
-        if r.status_code == 404:
-            raise NotInstalledForOrg()
-        return r.json()["id"]
-
-    def __repo_installation_id(self, repo: str) -> int:
-        """Get the ID of an installation by repository."""
-        url = f"https://api.github.com/repos/{repo}/installation"
-        r = requests.get(url, headers=self.__headers())
-        if r.status_code == 404:
-            try:
-                self.__org_installation_id(repo.split("/")[0])
-                raise NotInstalledForRepo()
-            except NotInstalledForOrg:
-                raise
-        return r.json()["id"]
+        if r.status_code == 200:
+            return r.json().get("id")
+        if r.status_code != 404:
+            r.raise_for_status()
+        return None
 
     def _installation(self, repo: str) -> github.Github:
         """Get a GitHub client with an installation's permissions."""
-        # TODO: Use the github package when these endpoints are supported.
-        return github.Github(
-            self._app.get_access_token(self.__repo_installation_id(repo)).token
-        )
-
-    def jwt(self):
-        """Get a JWT for authentication."""
-        return self._app.create_jwt()
+        return github.Github(self.auth_token(repo))
 
     def get_repo(self, repo: str, lazy: bool = False) -> Repository:
         """Get a repository."""
@@ -103,12 +85,24 @@ class GitHubAPI:
             return None
         return comment.edit(body=comment.body + "\n---\n" + body)
 
+    def auth_token(self, repo: str) -> str:
+        """Get an OAuth2 token for a repository."""
+        id = self.__installation_id("repos", repo)
+        if id is not None:
+            return self._app.get_access_token(id).token
+        owner = repo.split("/")[0]
+        if self.__installation_id("users", owner) is not None:
+            raise NotInstalledForRepo()
+        if self.__installation_id("orgs", owner) is not None:
+            raise NotInstalledForRepo()
+        raise NotInstalledForOwner()
+
     def create_release(
         self, repo: str, tag: str, ref: str, body: Optional[str]
     ) -> GitRelease:
         """Create a GitHub release."""
         return (
-            self._installation(repo).get_repo(repo, lazy=True)
-            # TODO: Is None body okay?
-            .create_git_release(tag, tag, body, target_commitish=ref)
+            self._installation(repo)
+            .get_repo(repo, lazy=True)
+            .create_git_release(tag, tag, body or "", target_commitish=ref)
         )

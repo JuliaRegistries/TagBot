@@ -4,8 +4,8 @@ class NotInstalled(Exception):
     pass
 
 
-class NotInstalledForOrg(NotInstalled):
-    """Indicates that the GitHub App is not installed for an organization."""
+class NotInstalledForOwner(NotInstalled):
+    """Indicates that the GitHub App is not installed by the owner."""
 
     pass
 

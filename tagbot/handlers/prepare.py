@@ -3,9 +3,14 @@ import traceback
 
 from typing import Any
 
-from .. import stages
+from .. import env, stages
 from ..context import Context
-from ..exceptions import InvalidPayload, UnknownType
+from ..exceptions import (
+    InvalidPayload,
+    NotInstalledForOwner,
+    NotInstalledForRepo,
+    UnknownType,
+)
 from ..mixins import AWS, GitHubAPI
 
 
@@ -15,8 +20,8 @@ class Handler(AWS, GitHubAPI):
     _command_prefix = "TagBot "
     _command_ignore = _command_prefix + "ignore"
     _command_tag = _command_prefix + "tag"
+    _github_app_name = env.github_app_name
     _this_stage = stages.prepare
-    _next_stage = stages.tag
 
     def __init__(self, body: dict):
         self.body = body
@@ -24,9 +29,9 @@ class Handler(AWS, GitHubAPI):
     def do(self) -> None:
         try:
             ctx = self._from_github()
-        except (UnknownType, InvalidPayload):
+        except (InvalidPayload, NotInstalledForOwner, UnknownType):
             traceback.print_exc()
-        self.invoke(self._next_stage, ctx)
+        self.invoke(stages.next(self._this_stage), ctx)
 
     def _from_github(self) -> Context:
         """Build a Context from a GitHub event."""
@@ -38,12 +43,21 @@ class Handler(AWS, GitHubAPI):
             ctx = self._from_issue_comment(payload)
         else:
             raise InvalidPayload(f"Unknown type {type}")
+        try:
+            ctx.auth = self.auth_token(repo)
+        except NotInstalledForRepo:
+            msg = f"""
+            The GitHub App is installed for the repository owner's account, but the repository itself is not enabled.
+            Go [here](https://github.com/apps/{self.github_app_name}/installations/new) to update your settings.
+            """
+            self.invoke_notify(ctx, msg)
         ctx.id = payload.get("id")
         ctx.target = self._target(ctx)
         return ctx
 
     def _from_pull_request(self, payload: dict) -> Context:
         """Build a Context from a pull request event."""
+        # TODO
         pass
 
     def _from_issue_comment(self, payload: dict) -> Context:

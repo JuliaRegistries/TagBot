@@ -48,6 +48,7 @@ functions:
     handler: tagbot.handlers.prepare.handler
     onError: !Ref dead-prepare
     environment:
+      GITHUB_APP_NAME: ${env:GITHUB_APP_NAME}
       REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
   tag:
     description: Creates a Git tag
