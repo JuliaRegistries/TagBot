@@ -1,7 +1,8 @@
 # Hacks because github_changelog_generator is a Git dependency.
-paths = Dir.glob("**/github-changelog-generator-*/lib")
+paths = Dir.glob('**/github-changelog-generator-*/lib')
 $LOAD_PATH.unshift(*paths)
 
+require 'date'
 require 'json'
 require 'tempfile'
 
@@ -10,162 +11,183 @@ require 'aws-sdk-lambda'
 require 'github_changelog_generator'
 require 'octokit'
 
+# Generates changelogs.
+class Handler
+  @lambda = Aws::Lambda::Client.new
+  @dynamodb = Aws::DynamoDB::Client.new
 
-class ChangelogError < StandardError
-  def initialize(msg)
-    super
-  end
-end
+  @lambda_function_prefix = ENV['LAMBDA_FUNCTION_PREFIX']
+  @dynamodb_table_name = ENV['DYNAMODB_TABLE_NAME']
 
-$ack_regex = /\\\* \*this changelog was automatically generated .*/i
-$changelog_regex = /^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$/i
-$number_regex = /\[\\#(\d+)\]\(.+?\)/
-$section_header_regex = /^## \[.*\]\(.*\) \(.*\)$/
-$wip_msg = ENV['CHANGELOG_WIP_MESSAGE']
+  @stage_notify = 'notify'
+  @stage_release = 'release'
 
+  @re_ack = /\\\* \*this changelog was automatically generated .*/i
+  @re_compare = %r{^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$}i
+  @re_number = /\[\\#(\d+)\]\(.+?\)/
+  @re_section_header = /^## \[.*\]\(.*\) \(.*\)$/
 
-# TODO: Make sure to check for an existing changelog.
-# TODO: Check for an existing tag, and if none exists, use the --future-release option.
-
-def main(ctx:, **_args)
-  begin
-    ctx[:release_notes] = gen_changelog(ctx)
-  rescue ChangelogError => e
-    ctx[:notification] = e.to_s
-    invoke('notify', ctx)
-  end
-  invoke('release', ctx)
-end
-
-# Generates a changelog for a single release.
-def gen_changelog(ctx)
-  repo, tag, auth = %i[repo tag auth].map { |k| ctx[k] }
-  unless [repo, tag, auth].all?
-    log('Missing parameters', params)
-    return
+  def initialize(body)
+    @ctx = body
+    @auth = @ctx[:auth]
+    @issue = ctx[:issue]
+    @repo = @ctx[:repo]
+    @version = @ctx[:version]
+    @github = Octokit::Client.new(access_token: @auth)
   end
 
-  client = Octokit::Client.new(access_token: auth)
-  slug = "#{user}/#{repo}"
-
-  # If we don't have read permissions for issues, the generator will fail.
-  # The GitHub App only requested these permissions recently
-  # and requires confirmation from each user, so we can't guarantee anything.
-  begin
-    client.issues(slug)
-  rescue Octokit::Forbidden
-    log('Insufficient permissions to list issues', params)
-    return
-  rescue Octokit::Unauthorized
-    log('Unauthorized (this token is probably expired)', params)
-    return
-  end
-
-  releases = client.releases(slug)
-  release = releases.find { |r| r.tag_name == tag }
-
-  # It could be the case that the previous function has not yet finished
-  # and the release will exist soon, so we can retry later.
-  raise 'Release was not found' if release.nil?
-
-  unless release.body.nil? || release.body.empty? || release.body == $wip_msg
-    # Don't overwrite an existing release that has a custom body.
-    log('Release already has a body', params)
-    return
-  end
-
-  changelog = run_generator(params)
-  find_section(changelog, tag)
-end
-
-# Generate a changelog for a repository tag.
-def run_generator(user:, repo:, auth:, **_args)
-  ARGV.clear
-
-  ARGV.push('--user', user)
-  ARGV.push('--project', repo)
-  ARGV.push('--token', auth)
-
-  path = Tempfile.new.path
-  ARGV.push('--output', path)
-
-  excludes = [
-    'changelog skip',
-    'duplicate',
-    'exclude from changelog',
-    'invalid',
-    'no changelog',
-    'question',
-    'wont fix',
-  ].map(&:permutations).flatten.join(',')
-  ARGV.push('--exclude-labels', excludes)
-
-  ARGV.push('--header-label', '')
-  ARGV.push('--breaking-labels', '')
-  ARGV.push('--bug-labels', '')
-  ARGV.push('--deprecated-labels', '')
-  ARGV.push('--enhancement-labels', '')
-  ARGV.push('--removed-labels', '')
-  ARGV.push('--security-labels', '')
-  ARGV.push('--summary-labels', '')
-
-  log('Running generator', params)
-  GitHubChangelogGenerator::ChangelogGenerator.new.run
-  log('Generator finished', params)
-
-  File.read(path)
-end
-
-# Grab just the section for one tag.
-def find_section(changelog, tag)
-  # The generator doesn't support generating only one section.
-  # We find the line numbers of the section start and stop.
-  lines = changelog.split("\n")
-  start = nil
-  stop = lines.length
-  in_section = false
-  lines.each_with_index do |line, i|
-    if $section_header_regex.match?(line)
-      if in_section
-        stop = i
-        break
-      elsif /\[#{tag}\]/.match?(line)
-        start = i
-        in_section = true
+  def do
+    changelog = from_ddb
+    if changelog.nil?
+      begin
+        @ctx[:changelog] = gen_changelog
+      rescue Unrecoverable => e
+        @ctx[:notification] = %(
+        I tried to generate a changelog but failed:
+        ```
+        #{e}
+        ```
+        You might want to manually update the release body.
+        ).strip
+        invoke(@stage_notify)
+      else
+        put_ddb(changelog)
       end
+    else
+      @ctx[:changelog] = changelog
+    end
+    invoke(@stage_release)
+  end
+
+  # Get a changelog from DynamoDB.
+  def from_ddb
+    resp = @dynamodb.get_item(
+      table_name: @dynamodb_table_name,
+      key: { id: @issue },
+      attributes_to_get: ['changelog']
+    )
+    if resp.item.nil?
+      nil
+    else
+      resp.item['changelog']
     end
   end
 
-  raise 'Start of section was not found' if start.nil?
+  # Store a changelog to DynamoDB.
+  def put_ddb(changelog)
+    ttl = (DateTime.now + 14).to_time.to_i
+    @dynamodb.put_item(
+      table_name: @dynamodb_table_name,
+      item: { id: @issue, changelog: changelog, ttl: ttl }
+    )
+  end
 
-  # Join the slice together and process the text a bit.
-  lines[start...stop]
-    .join("\n")
-    .gsub($number_regex, '(#\1)')
-    .sub($ack_regex, '')
-    .sub($changelog_regex, '[Diff since \2](\1/compare/\2...\3)')
-    .strip
+  # Invoke a Lambda function.
+  def invoke(function)
+    @lambda.invoke(
+      function_name: @lambda_function_prefix + function,
+      payload: @ctx.to_json,
+      invocation_type: 'Event'
+    )
+  end
+
+  # Generate a changelog.
+  def gen_changelog
+    check_auth
+    raw = run_generator
+    section = find_section(raw)
+    format_section(section)
+  end
+
+  # Check whether or not th GitHub client is authenticated.
+  def check_auth
+    @github.issues(@repo)
+  rescue Octokit::Forbidden
+    raise Unrecoverable, 'Insufficient permissions to list issues'
+  rescue Octokit::Unauthorized
+    raise Unrecoverable, 'Unauthorized (token is invalid or expired)'
+  end
+
+  # Run the generator CLI.
+  def run_generator
+    ARGV.clear
+
+    user, project = repo.split('/')
+    ARGV.push('--user', user)
+    ARGV.push('--project', project)
+    ARGV.push('--token', @auth)
+
+    path = Tempfile.new.path
+    ARGV.push('--output', path)
+
+    ARGV.push('--future-release', version) unless tag_exists?
+
+    excludes = [
+      'changelog skip',
+      'duplicate',
+      'exclude from changelog',
+      'invalid',
+      'no changelog',
+      'question',
+      'wont fix'
+    ].map(&:permutations).flatten.join(',')
+    ARGV.push('--exclude-labels', excludes)
+
+    GitHubChangelogGenerator::ChangelogGenerator.new.run
+    File.read(path)
+  end
+
+  # Check whether or not a tag exists.
+  def tag_exists?
+    @github.ref(@repo, "tags/#{@version}")
+    true
+  rescue Octokit::NotFound
+    false
+  end
+
+  # Extract the changelog section for the version we care about.
+  def find_section(changelog)
+    lines = changelog.split("\n")
+    start = nil
+    stop = lines.length
+    in_section = false
+
+    lines.each_with_index do |line, i|
+      if @re_section_header.match?(line)
+        if in_section
+          stop = i
+          break
+        elsif /\[#{@version}\]/.match?(line)
+          start = i
+          in_section = true
+        end
+      end
+    end
+
+    raise Unrecoverable, 'Section start for release was not found' if start.nil?
+
+    lines[start...stop].join("\n")
+  end
+
+  # Format the changelog section.
+  def format_section(section)
+    section
+      .gsub(@re_number, '(#\1)')
+      .sub(@re_ack, '')
+      .sub(@re_compare, '[Diff since \2](\1/compare/\2...\3)')
+      .strip
+  end
 end
 
-# Send a message to an SNS topic.
-def invoke(function, body)
-  function_name = ENV['LAMBDA_FUNCTION_PREFIX'] + function
-  payload = body.to_json
-  log('Invoking function', length: payload.length, function: function_name)
-  Aws::Lambda::Client.new.invoke(
-    function_name: function_name,
-    payload: payload,
-    invocation_type: 'Event',
-  )
-end
+# An error that cannot be fixed by retrying.
+class Unrecoverable < StandardError; end
 
-# Log a message with some metadata.
-def log(msg, meta = {})
-  puts "#{msg} --- #{meta}"
+def handler(body, _ctx)
+  Handler.new(body).do
 end
 
 String.class_eval {
-  # Return a bunch mostly-equivalent verions of a label.
+  # Return a bunch of mostly-equivalent verions of a label.
   def permutations
     s = split.map(&:capitalize).join(' ')
     hyphens = s.tr(' ', '-')
