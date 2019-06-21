@@ -36,7 +36,8 @@ class GitHubAPI:
             "Authorization": "Bearer " + self._app.create_jwt(),
         }
 
-    @lru_cache
+    # https://stackoverflow.com/a/50503682
+    @lru_cache  # type: ignore
     def __installation_id(self, path: str, key: str) -> Optional[int]:
         """Get the ID of an installation."""
         url = f"https://api.github.com/{path}/{key}/installation"
@@ -97,13 +98,13 @@ class GitHubAPI:
 
     def auth_token(self, repo: str) -> str:
         """Get an OAuth2 token for a repository."""
-        id = self.__installation_id("repos", repo)
+        id = self.__installation_id("repos", repo)  # type: ignore
         if id is not None:
             return self._app.get_access_token(id).token
         owner = repo.split("/")[0]
-        if self.__installation_id("users", owner) is not None:
+        if self.__installation_id("users", owner) is not None:  # type: ignore
             raise NotInstalledForRepo()
-        if self.__installation_id("orgs", owner) is not None:
+        if self.__installation_id("orgs", owner) is not None:  # type: ignore
             raise NotInstalledForRepo()
         raise NotInstalledForOwner()
 
