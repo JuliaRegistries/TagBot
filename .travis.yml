@@ -4,9 +4,15 @@ matrix:
     - language: python
       dist: xenial
       python: 3.7
-      before_script: pip install mypy pytest
-      script: ./bin/test.sh tabgot
+      before_script: pip install -r requirements.txt black mypy pytest
+      script:
+        - pytest
+        - mypy tagbot
+        - black --check tagbot
     - language: ruby
       rvm: 2.5
       install: gem install bundler test-unit
-      script: ./bin/test.sh changelog
+      before_script:
+        - cd changelog
+        - bundle install --deployment
+      script: ruby test.rb

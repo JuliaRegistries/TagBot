@@ -27,6 +27,6 @@ fi
 if [ "$#" -eq 0 ] || [ "$1" = "changelog" ]; then
   (
     cd changelog
-    rvm 2.5 do bundle install --quiet --path ../vendor/bundle --without test
+    rvm 2.5 do bundle install --quiet --deployment --path ../vendor/bundle --without test
   )
 fi
