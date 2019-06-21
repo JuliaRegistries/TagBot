@@ -15,13 +15,13 @@ provider:
       Action:
         - DynamoDB:GetItem
         - DynamoDB:PutItem
-      Resource: !GetAtt table.Arn
+      Resource: !GetAtt changelogs.Arn
     - Effect: Allow
       Action: lambda:InvokeFunction
       Resource: !Join [':', ['arn', 'aws', 'lambda', '${self:provider.region}', !Ref 'AWS::AccountId', 'function', '${self:service}-${self:provider.stage}-*']]
     - Effect: Allow
       Action: sns:Publish
-      Resource: !Join [':', ['arn', 'aws', 'sns', '${self:provider.region}', !Ref 'AWS::AccountId', 'dead-*']]
+      Resource: !Join [':', ['arn', 'aws', 'sns', '${self:provider.region}', !Ref 'AWS::AccountId', '${self:service}-${self:provider.stage}-*']]
   environment:
     GITHUB_APP_ID: ${env:GITHUB_APP_ID}
     LAMBDA_FUNCTION_PREFIX: ${self:service}-${self:provider.stage}-
@@ -46,14 +46,14 @@ functions:
   prepare:
     description: Prepares a context from a GitHub event
     handler: tagbot.handlers.prepare.handler
-    onError: !Ref dead-prepare
+    onError: !Ref prepare
     environment:
       GITHUB_APP_NAME: ${env:GITHUB_APP_NAME}
       REGISTRATOR_USERNAME: ${env:REGISTRATOR_USERNAME}
   tag:
     description: Creates a Git tag
     handler: tagbot.handlers.tag.handler
-    onError: !Ref dead-tag
+    onError: !Ref tag
     environment:
       GIT_TAGGER_EMAIL: ${env:GIT_TAGGER_EMAIL}
       GIT_TAGGER_NAME: ${env:GIT_TAGGER_NAME}
@@ -62,50 +62,50 @@ functions:
     description: Creates a release changelog
     runtime: ruby2.5
     handler: changelog/changelog.main
-    onError: !Ref dead-changelog
+    onError: !Ref changelog
     environment:
-      DYNAMODB_TABLE_NAME: !Ref table
+      DYNAMODB_TABLE_NAME: !Ref changelogs
     <<: *cli
   release:
     description: Creates a GitHub release
     handler: tagbot.handlers.release.handler
-    onError: !Ref dead-release
+    onError: !Ref release
   notify:
     description: Comments on a GitHub issue
     handler: tagbot.handlers.notify.handler
-    onError: !Ref dead-notify
+    onError: !Ref notify
   failure:
     description: Handles failure
     handler: tagbot.handlers.failure.handler
     events:
       - sns:
-          arn: !Ref dead-prepare
-          topicName: dead-prepare
+          arn: !Ref prepare
+          topicName: prepare
       - sns:
-          arn: !Ref dead-tag
-          topicName: dead-tag
+          arn: !Ref tag
+          topicName: tag
       - sns:
-          arn: !Ref dead-changelog
-          topicName: dead-changelog
+          arn: !Ref changelog
+          topicName: changelog
       - sns:
-          arn: !Ref dead-release
-          topicName: dead-release
+          arn: !Ref release
+          topicName: release
       - sns:
-          arn: !Ref dead-notify
-          topicName: dead-notify
+          arn: !Ref notify
+          topicName: notify
 resources:
   Resources:
-    dead-prepare:
+    prepare:
       Type: AWS::SNS::Topic
-    dead-tag:
+    tag:
       Type: AWS::SNS::Topic
-    dead-changelog:
+    changelog:
       Type: AWS::SNS::Topic
-    dead-release:
+    release:
       Type: AWS::SNS::Topic
-    dead-notify:
+    notify:
       Type: AWS::SNS::Topic
-    table:
+    changelogs:
       Type: AWS::DynamoDB::Table
       Properties:
         BillingMode: PAY_PER_REQUEST

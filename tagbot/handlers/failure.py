@@ -14,8 +14,8 @@ class Handler(AWS, GitHubAPI):
         self.errors: List[str] = []
         for r in event["Records"]:
             self.bodies.append(json.loads(r["Sns"]["Message"]))
-            # This assumes that the topics are named dead-<stage>.
-            self.stages.append(r["Sns"]["TopicArn"].split(":")[-1].split("-")[-1])
+            # This assumes that the topics are named <irrelevant>-<stage>-<irrelevant>.
+            self.stages.append(r["Sns"]["TopicArn"].split(":")[-1].split("-")[-2])
             self.errors.append(r["MessageAttributes"]["ErrorMessage"]["Value"])
 
     def do(self) -> None:
