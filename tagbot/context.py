@@ -6,13 +6,13 @@ from typing import Optional
 class Context:
     """Contains job data."""
 
-    id: str
     repo: str
     version: str
     commit: str
-    target: str
     issue: int
-    auth: str
-    comment_id: Optional[int] = None
+    id: str = ""
+    target: str = ""
+    auth: str = ""
+    comment_id: int = 0
     notification: Optional[str] = None
     changelog: Optional[str] = None

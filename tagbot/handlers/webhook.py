@@ -12,8 +12,8 @@ class Handler(AWS):
     _next_step = stages.prepare
 
     def __init__(self, request: dict):
-        self.body = request.get("body", "{}")
-        headers = request.get("headers", {})
+        self.body = request["body"]
+        headers = request["headers"]
         self.id, self.type, self.sha = [
             headers.get(k, "")
             for k in ["X-GitHub-Delivery", "X-GitHub-Event", "X-Hub-Signature"]

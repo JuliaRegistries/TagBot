@@ -56,11 +56,9 @@ class GitHubAPI:
         """Get a repository."""
         return self._client().get_repo(repo, lazy=lazy)
 
-    def get_pull_request(
-        self, repo: str, number: int, lazy: bool = False
-    ) -> PullRequest:
+    def get_pull_request(self, repo: str, number: int) -> PullRequest:
         """Get a pull request."""
-        return self.get_repo(repo, lazy=True).get_pull(number, lazy=lazy)
+        return self.get_repo(repo, lazy=True).get_pull(number)
 
     def get_issue(self, repo: str, number: int) -> Issue:
         """Get an issue."""
@@ -87,14 +85,12 @@ class GitHubAPI:
             issue_or_pr = issue_or_pr.as_issue()
         return issue_or_pr.create_comment(body)
 
-    def append_comment(
-        self, comment: IssueComment, body: str
-    ) -> Optional[IssueComment]:
+    def append_comment(self, comment: IssueComment, body: str) -> IssueComment:
         """Add a message to an existing comment."""
         if body in comment.body:
             print("Body is already in the comment")
-            return None
-        return comment.edit(body=comment.body + "\n---\n" + body)
+            return comment
+        return comment.edit(body=comment.body + "\n\n---\n\n" + body)
 
     def auth_token(self, repo: str) -> str:
         """Get an OAuth2 token for a repository."""
