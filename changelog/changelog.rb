@@ -27,8 +27,8 @@ class Handler
   @re_number = /\[\\#(\d+)\]\(.+?\)/
   @re_section_header = /^## \[.*\]\(.*\) \(.*\)$/
 
-  def initialize(body)
-    @ctx = body
+  def initialize(ctx)
+    @ctx = ctx
     @auth = @ctx[:auth]
     @issue = ctx[:issue]
     @repo = @ctx[:repo]
@@ -182,11 +182,11 @@ end
 # An error that cannot be fixed by retrying.
 class Unrecoverable < StandardError; end
 
-def handler(body, _ctx)
-  Handler.new(body).do
+def handler(event:, **_args)
+  Handler.new(event.symbolize).do
 end
 
-String.class_eval {
+class String
   # Return a bunch of mostly-equivalent verions of a label.
   def permutations
     s = split.map(&:capitalize).join(' ')
@@ -196,4 +196,11 @@ String.class_eval {
     all = [s, hyphens, underscores, compressed]
     [*all, *all.map(&:downcase)].uniq
   end
-}
+end
+
+class Hash
+  # Convert keys to symbols.
+  def symbolize
+    map { |k, v| [k.to_sym, v] }.to_h
+  end
+end
