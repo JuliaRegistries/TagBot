@@ -1,5 +1,6 @@
 paths = Dir.glob("vendor/**/lib")
 $LOAD_PATH.unshift(*paths)
+ENV['AWS_REGION'] = 'us-east-1'
 require_relative 'changelog.rb'
 require 'test/unit'
 
