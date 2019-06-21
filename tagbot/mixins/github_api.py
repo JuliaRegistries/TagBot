@@ -16,9 +16,6 @@ from .. import env, resources
 from ..exceptions import NotInstalledForOwner, NotInstalledForRepo
 
 
-# TODO: Probably need to do most of these operations as _installation instead of _client.
-
-
 class GitHubAPI:
     """Provides access to the GitHub API."""
 
@@ -36,8 +33,7 @@ class GitHubAPI:
             "Authorization": "Bearer " + self._app.create_jwt(),
         }
 
-    # https://stackoverflow.com/a/50503682
-    @lru_cache  # type: ignore
+    @lru_cache()
     def __installation_id(self, path: str, key: str) -> Optional[int]:
         """Get the ID of an installation."""
         url = f"https://api.github.com/{path}/{key}/installation"
@@ -54,7 +50,7 @@ class GitHubAPI:
 
     def get_repo(self, repo: str, lazy: bool = False) -> Repository:
         """Get a repository."""
-        return self._client().get_repo(repo, lazy=lazy)
+        return self._installation(repo).get_repo(repo, lazy=lazy)
 
     def get_pull_request(self, repo: str, number: int) -> PullRequest:
         """Get a pull request."""
@@ -92,15 +88,16 @@ class GitHubAPI:
             return comment
         return comment.edit(body=comment.body + "\n\n---\n\n" + body)
 
+    @lru_cache()  # TODO: This might cause tokens to expire, TTL would work better.
     def auth_token(self, repo: str) -> str:
         """Get an OAuth2 token for a repository."""
-        id = self.__installation_id("repos", repo)  # type: ignore
+        id = self.__installation_id("repos", repo)
         if id is not None:
             return self._app.get_access_token(id).token
         owner = repo.split("/")[0]
-        if self.__installation_id("users", owner) is not None:  # type: ignore
+        if self.__installation_id("users", owner) is not None:
             raise NotInstalledForRepo()
-        if self.__installation_id("orgs", owner) is not None:  # type: ignore
+        if self.__installation_id("orgs", owner) is not None:
             raise NotInstalledForRepo()
         raise NotInstalledForOwner()
 
@@ -108,8 +105,6 @@ class GitHubAPI:
         self, repo: str, tag: str, ref: str, body: Optional[str]
     ) -> GitRelease:
         """Create a GitHub release."""
-        return (
-            self._installation(repo)
-            .get_repo(repo, lazy=True)
-            .create_git_release(tag, tag, body or "", target_commitish=ref)
+        return self.get_repo(repo, lazy=True).create_git_release(
+            tag, tag, body or "", target_commitish=ref
         )

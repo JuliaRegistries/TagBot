@@ -13,6 +13,7 @@ It contains these fields:
 - `id (str)`: The GitHub webhook delivery ID, a unique ID for the job.
   Information that is valid for this job only can be stored with this key (for example, the current stage).
 - `repo (str)`: The repository slug, e.g. `owner/name`.
+- `registry (str)`: The registry's repository slug.
 - `version (str)`: The version being registered, e.g. `v1.2.3`.
 - `commit (str)`: The Git commit SHA being registered.
 - `target (str)`: The GitHub release target, which is either the commit SHA or the default branch name.
@@ -21,9 +22,9 @@ It contains these fields:
 - `issue (int)`: The registry pull request number.
   While this is not a unique job ID (jobs can be triggered multiple times for one pull request), it can be used as a key for data that does not change with each job.
   For example, generated changelogs can be indexed by this key.
-- `auth str`: An OAuth2 token, which is valid for one hour.
+- `auth (str)`: An OAuth2 token, which is valid for one hour.
   To deal with the expiry, the value is continually updated.
-- `comment_id (str | null)`: GitHub ID of a comment made by TagBot on the registry PR.
+- `comment_id (int)`: GitHub ID of a comment made by TagBot on the registry PR.
   This is used to avoid creating many new comments.
   Instead, one comment is created, its ID is stored, and it is edited many times to append each new message.
 - `changelog (str | null)`: Release notes for the new version.

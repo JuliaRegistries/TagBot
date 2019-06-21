@@ -1,5 +1,6 @@
 import hmac
 import json
+import sys
 
 from .. import env, stages
 from ..mixins.aws import AWS
@@ -23,6 +24,7 @@ class Handler(AWS):
         if not self._verify_signature():
             return {"statusCode": 400}
         message = {"id": self.id, "type": self.type, "payload": json.loads(self.body)}
+        json.dump(message, sys.stdout, indent=2)
         self.invoke(self._next_step, message)
 
         return {"statusCode": 200}

@@ -12,9 +12,8 @@ class Handler(AWS, GitHubAPI):
         if not self.ctx.notification:
             print("Notification field is empty")
             return
-        issue = self.get_issue(self.ctx.repo, self.ctx.issue)
         comment = self.get_issue_comment(
-            self.ctx.repo, self.ctx.issue, self.ctx.comment_id
+            self.ctx.registry, self.ctx.issue, self.ctx.comment_id
         )
         self.append_comment(comment, self.ctx.notification)
 

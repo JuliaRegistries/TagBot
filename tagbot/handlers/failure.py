@@ -9,26 +9,45 @@ from ..mixins import AWS, GitHubAPI
 
 class Handler(AWS, GitHubAPI):
     def __init__(self, event: dict):
-        self.ctxs: List[Context] = []
+        self.bodies: List[dict] = []
         self.stages: List[str] = []
         self.errors: List[str] = []
         for r in event["Records"]:
-            self.ctxs.append(Context(**json.loads(r["Sns"]["Message"])))
+            self.bodies.append(json.loads(r["Sns"]["Message"]))
             # This assumes that the topics are named dead-<stage>.
             self.stages.append(r["Sns"]["TopicArn"].split(":")[-1].split("-")[-1])
             self.errors.append(r["MessageAttributes"]["ErrorMessage"]["Value"])
 
     def do(self) -> None:
-        for ctx, stage, error in zip(self.ctxs, self.stages, self.errors):
+        for body, stage, error in zip(self.bodies, self.stages, self.errors):
             action = stages.action(stage)
             if not action:
                 continue
             msg = f"I was trying to {action} but I ran into this:\n```\n{error}\n```"
-            if ctx.comment_id is None:
-                issue = self.get_issue(ctx.repo, ctx.issue)
+            # This is ugly, but the input to prepare is not a context.
+            # Really, this should probably be a separate handler entirely.
+            if stage == stages.prepare:
+                type = body["type"]
+                payload = body["payload"]
+                try:
+                    registry = payload["repository"]["full_name"]
+                    if type == "pull_request":
+                        number = payload["pull_request"]["number"]
+                    elif type == "issue_comment":
+                        number = payload["issue"]["number"]
+                    else:
+                        print(f"Unknown type {type}")
+                        continue
+                except KeyError:
+                    print("Payload is malformed")
+                    continue
+                issue = self.get_issue(registry, number)
                 self.create_comment(issue, msg)
             else:
-                comment = self.get_issue_comment(ctx.repo, ctx.issue, ctx.comment_id)
+                ctx = Context(**body)
+                comment = self.get_issue_comment(
+                    ctx.registry, ctx.issue, ctx.comment_id
+                )
                 self.append_comment(comment, msg)
             next_stage = stages.next(stage)
             if next_stage:

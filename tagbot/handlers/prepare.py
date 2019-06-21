@@ -4,7 +4,7 @@ import traceback
 
 from typing import Any
 
-from github import ObjectNotFoundException
+from github import UnknownObjectException
 
 from .. import env, stages
 from ..context import Context
@@ -52,7 +52,7 @@ class Handler(AWS, GitHubAPI):
         ID: {ctx.id}
         -->
         """
-        issue = self.get_issue(ctx.repo, ctx.issue)
+        issue = self.get_issue(ctx.registry, ctx.issue)
         comment = self.create_comment(issue, msg)
         ctx.comment_id = comment.id
         self.invoke(self._next_stage, ctx)  # type: ignore
@@ -83,7 +83,7 @@ class Handler(AWS, GitHubAPI):
             raise StopPipeline("Not installed for repository")
         try:
             tag = self.get_tag(ctx.repo, ctx.version)
-        except ObjectNotFoundException:
+        except UnknownObjectException:
             pass
         else:
             if tag.sha != ctx.commit:
@@ -127,9 +127,15 @@ class Handler(AWS, GitHubAPI):
         m = self._re_changelog.search(body)
         if m:
             changelog = m[1].strip()
+        registry = payload["repository"]["full_name"]
         issue = pr["number"]
         return Context(
-            repo=repo, version=version, commit=commit, changelog=changelog, issue=issue
+            repo=repo,
+            version=version,
+            commit=commit,
+            changelog=changelog,
+            issue=issue,
+            registry=registry,
         )
 
     def _from_issue_comment(self, payload: dict) -> Context:

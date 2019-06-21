@@ -6,6 +6,7 @@ from typing import Optional
 class Context:
     """Contains job data."""
 
+    registry: str
     repo: str
     version: str
     commit: str
