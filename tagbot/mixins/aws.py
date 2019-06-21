@@ -18,7 +18,6 @@ class AWS:
         """Invoke an AWS Lambda function."""
         if isinstance(msg, Context):
             msg = msg.__dict__
-        msg["stage"] = fn
         self._lambda.invoke(
             FunctionName=self._function(fn),
             InvocationType="Event",

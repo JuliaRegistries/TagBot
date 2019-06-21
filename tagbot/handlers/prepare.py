@@ -26,9 +26,9 @@ class Handler(AWS, GitHubAPI):
     _command_tag = _command_prefix + "tag"
     _github_app_name = env.github_app_name
     _registrator_username = env.registrator_username
-    _re_repo = re.compile("")
-    _re_version = re.compile("Repository:.*github.com/(.*)/(.*)")
-    _re_commit = re.compile("Version:\s*(v.*)")
+    _re_repo = re.compile("Repository:.*github.com/(.*)/(.*)")
+    _re_version = re.compile("Version:\\s*(v.*)")
+    _re_commit = re.compile("Commit:\\s*(.*)")
     _re_changelog = re.compile(
         "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->"
     )

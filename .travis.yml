@@ -7,8 +7,8 @@ matrix:
       before_script: pip install -r requirements.txt black mypy pytest
       script:
         - pytest
-        - mypy tagbot
-        - black --check tagbot
+        - mypy tagbot test
+        - black --check tagbot test
     - language: ruby
       rvm: 2.5
       install: gem install bundler test-unit

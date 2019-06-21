@@ -2,7 +2,9 @@ import shutil
 import subprocess
 import tempfile
 
-from .. import env
+from typing import Optional
+
+from .. import env, resources
 
 
 class Git:
@@ -11,7 +13,7 @@ class Git:
     _name = env.git_tagger_name
     _email = env.git_tagger_email
 
-    def __git(*args: str, dir=None) -> None:
+    def __git(self, *args: str, dir: Optional[str] = None) -> None:
         """Run a shell command."""
         argv = list(args)
         argv.insert(0, "git")
@@ -31,10 +33,13 @@ class Git:
 
     def _git_tag(self, dir: str, tag: str, ref: str, body: str) -> None:
         """Create a Git tag."""
-        self.__git("tag", tag, ref, "-s", "-m", body, dir=dir)
+        args = ["tag", tag, ref, "-m", body]
+        if resources.has_gpg:
+            args.append("-s")
+        self.__git(*args, dir=dir)
 
     def _git_push_tags(self, dir: str) -> None:
-        """Push Git tags.`"""
+        """Push Git tags."""
         self.__git("push", "origin", "--tags", dir=dir)
 
     def create_tag(self, repo: str, tag: str, ref: str, body: str, auth: str) -> None:

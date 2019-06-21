@@ -44,8 +44,6 @@ def after_failure(stage: str) -> Optional[str]:
 def action(stage: str) -> Optional[str]:
     """Get the action associated with a stage."""
     if stage == prepare:
-        return "create a job context"
-    elif stage == tag:
         return "prepare a job context"
     elif stage == tag:
         return "create a Git tag"
