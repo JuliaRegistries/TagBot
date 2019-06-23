@@ -4,7 +4,7 @@ matrix:
     - language: python
       dist: xenial
       python: 3.7
-      before_script: pip install -r requirements.txt black mypy pytest
+      before_script: pip install -r requirements.txt -r requirements.dev.txt
       script:
         - pytest
         - mypy tagbot test

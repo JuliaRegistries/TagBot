@@ -2,6 +2,7 @@ import os
 import sys
 
 sys.path.insert(0, "../tagbot")
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["GITHUB_APP_ID"] = "100"
 os.environ["GITHUB_APP_NAME"] = "julia-tagbot"
 os.environ["GITHUB_WEBHOOK_SECRET"] = "abcdef"

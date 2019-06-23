@@ -10,6 +10,7 @@ mixin = AWS()
 mixin._function_prefix = "prefix-"
 mixin._lambda.invoke = Mock()
 
+
 def test_invoke():
     mixin.invoke("fun", {"foo": "bar"})
     mixin._lambda.invoke.assert_called_once_with(

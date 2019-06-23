@@ -1,3 +1,5 @@
+import os.path
+
 from functools import lru_cache
 from typing import Dict, Optional, Union
 
@@ -19,8 +21,13 @@ from ..exceptions import NotInstalledForOwner, NotInstalledForRepo
 class GitHubAPI:
     """Provides access to the GitHub API."""
 
-    with open(resources.resource("tagbot.pem")) as f:
-        _app = github.GithubIntegration(env.github_app_id, f.read().strip())
+    if os.path.isfile("tagbot.pem"):
+        with open(resources.resource("tagbot.pem")) as f:
+            __pem = f.read().strip()
+    else:
+        print("Private key is not available")
+        __pem = ""
+    _app = github.GithubIntegration(env.github_app_id, __pem)
 
     def _client(self) -> github.Github:
         """Get a GitHub API client, authenticated as the app."""
