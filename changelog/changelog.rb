@@ -1,26 +1,26 @@
 # Hacks because github_changelog_generator is a Git dependency.
-paths = Dir.glob('**/github-changelog-generator-*/lib')
+paths = Dir.glob("**/github-changelog-generator-*/lib")
 $LOAD_PATH.unshift(*paths)
 
-require 'date'
-require 'json'
-require 'tempfile'
+require "date"
+require "json"
+require "tempfile"
 
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-lambda'
-require 'github_changelog_generator'
-require 'octokit'
+require "aws-sdk-dynamodb"
+require "aws-sdk-lambda"
+require "github_changelog_generator"
+require "octokit"
 
 # Generates changelogs.
 class Handler
   @lambda = Aws::Lambda::Client.new
   @dynamodb = Aws::DynamoDB::Client.new
 
-  @lambda_function_prefix = ENV['LAMBDA_FUNCTION_PREFIX']
-  @dynamodb_table_name = ENV['DYNAMODB_TABLE_NAME']
+  @lambda_function_prefix = ENV["LAMBDA_FUNCTION_PREFIX"]
+  @dynamodb_table_name = ENV["DYNAMODB_TABLE_NAME"]
 
-  @stage_notify = 'notify'
-  @stage_release = 'release'
+  @stage_notify = "notify"
+  @stage_release = "release"
 
   @re_ack = /\\\* \*this changelog was automatically generated .*/i
   @re_compare = %r{^\[full changelog\]\((.*)\/compare\/(.*)\.\.\.(.*)\)$}i
@@ -64,12 +64,12 @@ class Handler
     resp = @dynamodb.get_item(
       table_name: @dynamodb_table_name,
       key: { id: @issue },
-      attributes_to_get: ['changelog']
+      attributes_to_get: ["changelog"],
     )
     if resp.item.nil?
       nil
     else
-      resp.item['changelog']
+      resp.item["changelog"]
     end
   end
 
@@ -78,7 +78,7 @@ class Handler
     ttl = (DateTime.now + 14).to_time.to_i
     @dynamodb.put_item(
       table_name: @dynamodb_table_name,
-      item: { id: @issue, changelog: changelog, ttl: ttl }
+      item: { id: @issue, changelog: changelog, ttl: ttl },
     )
   end
 
@@ -87,7 +87,7 @@ class Handler
     @lambda.invoke(
       function_name: @lambda_function_prefix + function,
       payload: @ctx.to_json,
-      invocation_type: 'Event'
+      invocation_type: "Event",
     )
   end
 
@@ -103,35 +103,35 @@ class Handler
   def check_auth
     @github.issues(@repo)
   rescue Octokit::Forbidden
-    raise Unrecoverable, 'Insufficient permissions to list issues'
+    raise Unrecoverable, "Insufficient permissions to list issues"
   rescue Octokit::Unauthorized
-    raise Unrecoverable, 'Unauthorized (token is invalid or expired)'
+    raise Unrecoverable, "Unauthorized (token is invalid or expired)"
   end
 
   # Run the generator CLI.
   def run_generator
     ARGV.clear
 
-    user, project = repo.split('/')
-    ARGV.push('--user', user)
-    ARGV.push('--project', project)
-    ARGV.push('--token', @auth)
+    user, project = repo.split("/")
+    ARGV.push("--user", user)
+    ARGV.push("--project", project)
+    ARGV.push("--token", @auth)
 
     path = Tempfile.new.path
-    ARGV.push('--output', path)
+    ARGV.push("--output", path)
 
-    ARGV.push('--future-release', version) unless tag_exists?
+    ARGV.push("--future-release", version) unless tag_exists?
 
     excludes = [
-      'changelog skip',
-      'duplicate',
-      'exclude from changelog',
-      'invalid',
-      'no changelog',
-      'question',
-      'wont fix'
-    ].map(&:permutations).flatten.join(',')
-    ARGV.push('--exclude-labels', excludes)
+      "changelog skip",
+      "duplicate",
+      "exclude from changelog",
+      "invalid",
+      "no changelog",
+      "question",
+      "wont fix",
+    ].map(&:permutations).flatten.join(",")
+    ARGV.push("--exclude-labels", excludes)
 
     GitHubChangelogGenerator::ChangelogGenerator.new.run
     File.read(path)
@@ -164,7 +164,7 @@ class Handler
       end
     end
 
-    raise Unrecoverable, 'Section start for release was not found' if start.nil?
+    raise Unrecoverable, "Section start for release was not found" if start.nil?
 
     lines[start...stop].join("\n")
   end
@@ -173,7 +173,7 @@ class Handler
   def format_section(section)
     section
       .gsub(@re_number, '(#\1)')
-      .sub(@re_ack, '')
+      .sub(@re_ack, "")
       .sub(@re_compare, '[Diff since \2](\1/compare/\2...\3)')
       .strip
   end
@@ -189,10 +189,10 @@ end
 class String
   # Return a bunch of mostly-equivalent verions of a label.
   def permutations
-    s = split.map(&:capitalize).join(' ')
-    hyphens = s.tr(' ', '-')
-    underscores = s.tr(' ', '_')
-    compressed = s.tr(' ', '')
+    s = split.map(&:capitalize).join(" ")
+    hyphens = s.tr(" ", "-")
+    underscores = s.tr(" ", "_")
+    compressed = s.tr(" ", "")
     all = [s, hyphens, underscores, compressed]
     [*all, *all.map(&:downcase)].uniq
   end

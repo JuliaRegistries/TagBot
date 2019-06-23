@@ -1,8 +1,8 @@
 paths = Dir.glob("vendor/**/lib")
 $LOAD_PATH.unshift(*paths)
-ENV['AWS_REGION'] = 'us-east-1'
-require_relative 'changelog.rb'
-require 'test/unit'
+ENV["AWS_REGION"] = "us-east-1"
+require_relative "changelog.rb"
+require "test/unit"
 
 $input_simple = %{
 ## [v0.1.2](https://github.com/foo/bar/tree/v0.1.2) (1234-56-78)
@@ -55,8 +55,8 @@ $output = %{
 
 class TestChangelog < Test::Unit::TestCase
   def test_find_section
-    output_simple = find_section($input_simple, 'v0.1.1')
-    output_tricky = find_section($input_tricky, 'v0.1.1')
+    output_simple = find_section($input_simple, "v0.1.1")
+    output_tricky = find_section($input_tricky, "v0.1.1")
     assert_equal($output, output_simple)
     assert_equal($output, output_tricky)
   end
@@ -71,5 +71,10 @@ class TestChangelog < Test::Unit::TestCase
     expected = ["foo bar", "foobar", "foo-bar", "foo_bar", "Foo Bar", "FooBar", "Foo-Bar", "Foo_Bar"]
     assert_equal(perms.length, 8)
     assert_equal(perms.sort, expected.sort)
+  end
+
+  def test_symbolize
+    syms = { "foo" => "bar", "baz" => 1 }.symbolize
+    assert_equal(syms, foo: "bar", baz: 1)
   end
 end
