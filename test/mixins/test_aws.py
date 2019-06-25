@@ -2,8 +2,7 @@ import json
 
 from unittest.mock import Mock
 
-from tagbot import stages
-from tagbot.context import Context
+from tagbot import Context, stages
 from tagbot.mixins import AWS
 
 mixin = AWS()

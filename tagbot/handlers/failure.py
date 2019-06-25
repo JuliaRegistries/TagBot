@@ -2,8 +2,7 @@ import json
 
 from typing import List, Optional
 
-from .. import stages
-from ..context import Context
+from .. import Context, stages
 from ..mixins import AWS, GitHubAPI
 
 

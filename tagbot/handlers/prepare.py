@@ -6,8 +6,7 @@ from typing import Any
 
 from github import UnknownObjectException
 
-from .. import env, stages
-from ..context import Context
+from .. import Context, env, stages
 from ..exceptions import (
     InvalidPayload,
     NotInstalled,

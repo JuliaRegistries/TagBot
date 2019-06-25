@@ -4,8 +4,7 @@ import time
 
 from typing import Optional, Union
 
-from .. import env, stages
-from ..context import Context
+from .. import Context, env, stages
 
 
 class AWS:

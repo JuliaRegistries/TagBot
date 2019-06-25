@@ -1,4 +1,4 @@
-from ..context import Context
+from .. import Context
 from ..mixins import AWS, GitHubAPI
 
 
