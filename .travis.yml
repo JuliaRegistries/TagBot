@@ -11,8 +11,10 @@ matrix:
         - black --check tagbot test
     - language: ruby
       rvm: 2.5
-      install: gem install bundler test-unit
-      before_script:
+      install:
+        - gem install bundler
         - cd changelog
-        - bundle install --deployment
-      script: ruby test.rb
+        - bundle install --path vendor/bundle
+      script:
+        - ruby test.rb
+        - $(find vendor -name rufo | head -n1) --check .

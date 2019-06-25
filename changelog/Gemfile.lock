@@ -23,7 +23,7 @@ GEM
     addressable (2.6.0)
       public_suffix (>= 2.0.2, < 4.0)
     aws-eventstream (1.0.3)
-    aws-partitions (1.177.0)
+    aws-partitions (1.178.0)
     aws-sdk-core (3.56.0)
       aws-eventstream (~> 1.0, >= 1.0.2)
       aws-partitions (~> 1.0)
@@ -50,13 +50,17 @@ GEM
     multipart-post (2.1.1)
     octokit (4.14.0)
       sawyer (~> 0.8.0, >= 0.5.3)
+    power_assert (1.1.4)
     public_suffix (3.1.0)
     rainbow (3.0.0)
     rake (12.3.2)
     retriable (3.1.2)
+    rufo (0.7.0)
     sawyer (0.8.2)
       addressable (>= 2.3.5)
       faraday (> 0.8, < 2.0)
+    test-unit (3.3.3)
+      power_assert
     thread_safe (0.3.6)
     tzinfo (1.2.5)
       thread_safe (~> 0.1)
@@ -69,6 +73,8 @@ DEPENDENCIES
   aws-sdk-lambda (~> 1)!
   github_changelog_generator!
   octokit (~> 4)!
+  rufo (~> 0.7)!
+  test-unit (~> 3)!
 
 BUNDLED WITH
-   2.0.1
+   2.0.2

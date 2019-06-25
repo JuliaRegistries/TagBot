@@ -1,5 +1,5 @@
-black==19.3b0
-boto3==1.9.174
-mypy==0.710
-pytest==4.6.3
-requests==2.22.0
+black
+boto3
+mypy
+pytest
+requests

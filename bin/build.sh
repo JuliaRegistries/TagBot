@@ -25,8 +25,5 @@ if [ "$#" -eq 0 ] || [ "$1" = "tagbot" ]; then
 fi
 
 if [ "$#" -eq 0 ] || [ "$1" = "changelog" ]; then
-  (
-    cd changelog
-    rvm 2.5 do bundle install --quiet --deployment --path ../vendor/bundle --without test
-  )
+  bundle install --gemfile changelog/Gemfile --quiet --without dev test --path ../vendor/bundle
 fi
