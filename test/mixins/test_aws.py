@@ -26,7 +26,6 @@ def test_invoke_notify():
         commit="abc",
         issue=1,
         id="id",
-        auth="token",
     )
     copied = Context(**ctx.__dict__.copy())
     copied.notification = "notification"

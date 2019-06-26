@@ -71,7 +71,7 @@ class Handler(AWS, GitHubAPI):
         except KeyError as e:
             raise InvalidPayload(f"KeyError: {e}")
         try:
-            ctx.auth = self.auth_token(ctx.repo)
+            self.auth_token(ctx.repo)
         except NotInstalledForRepo:
             msg = f"""
             The GitHub App is installed for the repository owner's account, but the repository itself is not enabled.

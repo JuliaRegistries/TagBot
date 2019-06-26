@@ -22,8 +22,6 @@ It contains these fields:
 - `issue (int)`: The registry pull request number.
   While this is not a unique job ID (jobs can be triggered multiple times for one pull request), it can be used as a key for data that does not change with each job.
   For example, generated changelogs can be indexed by this key.
-- `auth (str)`: An OAuth2 token, which is valid for one hour.
-  To deal with the expiry, the value is continually updated.
 - `comment_id (int)`: GitHub ID of a comment made by TagBot on the registry PR.
   This is used to avoid creating many new comments.
   Instead, one comment is created, its ID is stored, and it is edited many times to append each new message.

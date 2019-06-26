@@ -77,7 +77,7 @@ class GitHubAPI:
         return r.get_branch(r.default_branch)
 
     def get_tag(self, repo: str, tag: str) -> GitObject:
-        """Check whether or not a tag exists."""
+        """Get a Git tag.."""
         return self.get_repo(repo, lazy=True).get_git_ref(f"tags/{tag}").object
 
     def create_comment(

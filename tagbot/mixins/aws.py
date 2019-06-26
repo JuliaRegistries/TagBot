@@ -1,5 +1,6 @@
 import boto3
 import json
+import time
 
 from typing import Optional, Union
 
@@ -33,10 +34,17 @@ class AWS:
         """Get a Lambda function name."""
         return self._function_prefix + fn
 
-    def get_changelog(self, id: str) -> Optional[str]:
-        """Retrieve a stored changelog if it exists."""
-        pass  # TODO
+    def get_item(self, key: int) -> Optional[str]:
+        """Retrieve a stored item if it exists."""
+        resp = self._dynamodb.get_item(
+            TableName=self._table_name, Key={"id": {"N": key}}
+        )
+        return None if "Item" not in resp else resp["Item"]["val"]["S"]
 
-    def put_changelog(self, id: str, changelog: str) -> None:
-        """Store a changelog."""
-        pass  # TODO
+    def put_item(self, key: int, val: str) -> None:
+        """Store an item."""
+        ttl = round(time.time() * 1000)
+        self._dynamodb.put_item(
+            TableName=self._table_name,
+            Item={"id": {"N": key}, "val": {"S": val}, "ttl": {"N": ttl}},
+        )

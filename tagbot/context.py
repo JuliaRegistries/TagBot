@@ -13,7 +13,6 @@ class Context:
     issue: int
     id: str = ""
     target: str = ""
-    auth: str = ""
     comment_id: int = 0
     notification: Optional[str] = None
     changelog: Optional[str] = None
