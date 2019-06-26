@@ -1,1 +1,1 @@
-from . import failure, notify, prepare, release, tag, webhook
+from . import changelog, failure, notify, prepare, release, tag, webhook

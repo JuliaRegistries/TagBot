@@ -10,6 +10,7 @@ def _getenv_warn(key: str, default: str = "") -> str:
     return val
 
 
+dynamodb_table_name = _getenv_warn("DYNAMODB_TABLE_NAME")
 git_tagger_email = _getenv_warn("GIT_TAGGER_EMAIL")
 git_tagger_name = _getenv_warn("GIT_TAGGER_NAME")
 github_app_id = int(_getenv_warn("GITHUB_APP_ID", "0"))

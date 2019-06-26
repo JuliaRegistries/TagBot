@@ -1,6 +1,5 @@
 import boto3
 import json
-import time
 
 from typing import Optional, Union
 
@@ -10,8 +9,10 @@ from .. import Context, env, stages
 class AWS:
     """Provides access to AWS."""
 
-    _lambda = boto3.client("lambda")
+    _dynamodb = boto3.client("dynamodb")
     _function_prefix = env.lambda_function_prefix
+    _lambda = boto3.client("lambda")
+    _table_name = env.dynamodb_table_name
 
     def invoke(self, fn: str, msg: Union[dict, Context]) -> None:
         """Invoke an AWS Lambda function."""
@@ -31,3 +32,11 @@ class AWS:
     def _function(self, fn: str) -> str:
         """Get a Lambda function name."""
         return self._function_prefix + fn
+
+    def get_changelog(self, id: str) -> Optional[str]:
+        """Retrieve a stored changelog if it exists."""
+        pass  # TODO
+
+    def put_changelog(self, id: str, changelog: str) -> None:
+        """Store a changelog."""
+        pass  # TODO

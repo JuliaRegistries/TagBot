@@ -1,20 +1,9 @@
 notifications: {email: false}
-matrix:
-  include:
-    - language: python
-      dist: xenial
-      python: 3.7
-      before_script: pip install -r requirements.txt -r requirements.dev.txt
-      script:
-        - pytest
-        - mypy tagbot test
-        - black --check tagbot test
-    - language: ruby
-      rvm: 2.5
-      install:
-        - gem install bundler
-        - cd changelog
-        - bundle install --path vendor/bundle
-      script:
-        - ruby test.rb
-        - $(find vendor -name rufo | head -n1) --check .
+language: python
+dist: xenial
+python: 3.7
+before_script: pip install -r requirements.txt -r requirements.dev.txt
+script:
+  - pytest
+  - mypy tagbot test
+  - black --check tagbot test

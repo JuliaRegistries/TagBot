@@ -1,11 +1,8 @@
 *.env
 *.pem
 *_cache/
-/.serverless/
-/changelog/.bundle/
-/gnupg/
+.serverless/
 __pycache__/
+gnupg/
 node_modules/
 resources.tar
-vendor/
-venv/

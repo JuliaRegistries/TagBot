@@ -7,23 +7,21 @@ GPG="gnupg"
 
 cd $(dirname "$0")/..
 
-if [ "$#" -eq 0 ] || [ "$1" = "tagbot" ]; then
-  if [ ! -f  "$PEM" ]; then
-    echo "File $PEM does not exist"
-    exit 1
-  fi
-  if [ ! -d  "$GPG" ]; then
-    echo "Directory $GPG does not exist"
-    exit 1
-  fi
-
-  chmod 644 "$PEM"
-  rm -f "$GPG/S.gpg-agent"
-  find "$GPG" -type d -exec chmod 700 {} \;
-  find "$GPG" -type f -exec chmod 600 {} \;
-  tar -cf resources.tar "$GPG" "$PEM"
+if [ ! -f  "$PEM" ]; then
+  echo "File $PEM does not exist"
+  exit 1
+fi
+if [ ! -d  "$GPG" ]; then
+  echo "Directory $GPG does not exist"
+  exit 1
 fi
 
-if [ "$#" -eq 0 ] || [ "$1" = "changelog" ]; then
-  bundle install --gemfile changelog/Gemfile --quiet --without dev test --path ../vendor/bundle
-fi
+chmod 644 "$PEM"
+rm -f "$GPG/S.gpg-agent"
+find "$GPG" -type d -exec chmod 700 {} \;
+find "$GPG" -type f -exec chmod 600 {} \;
+tar -cf resources.tar "$GPG" "$PEM"
+
+for layer in $(ls layers); do
+  "./layers/$layer/build.sh"
+done

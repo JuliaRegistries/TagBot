@@ -7,6 +7,8 @@ from ..mixins import AWS, GitHubAPI
 
 
 class Handler(AWS, GitHubAPI):
+    """Notifies of failure."""
+
     def __init__(self, event: dict):
         self.bodies: List[dict] = []
         self.stages: List[str] = []
