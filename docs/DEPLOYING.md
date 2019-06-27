@@ -39,7 +39,6 @@ Use the output to add the key to your tagger's GitHub account according to the i
 
 Once all these steps are complete, `$ROOT` should contain a file called `tagbot.pem` and a directory called `gnupg`.
 Run `bin/build.sh` from `$ROOT` to build the API.
-You will also need Ruby 2.5 installed ([`asdf`](https://asdf-vm.com) can help with this), as well as the `bundler` gem.
 
 ## Setting the Environment
 
@@ -47,6 +46,7 @@ TagBot relies on some environment variables as configuration.
 The following variables must be set:
 
 - `GITHUB_APP_ID`: Your GitHub App's ID.
+- `GITHUB_APP_NAME`: Your GitHub App's name as found in its URL (e.g. for https://github.com/apps/julia-tagbot, the name is `julia-tagbot`).
 - `GITHUB_WEBHOOK_SECRET`: The secret key that you generated.
 - `REGISTRATOR_USERNAME`: The username of the user creating pull requests via [Registrator.jl](https://github.com/JuliaRegistries/Registrator.jl).
 - `GIT_TAGGER_NAME`: The name you used when creating the GPG key.

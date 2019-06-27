@@ -36,7 +36,8 @@ package:
     - ./tagbot/**/*.py
 layers:
   changelog:
-    path: layers/changelog
+    name: ${self:service}-${self:provider.stage}-changelog
+    path: ./layers/changelog
     package:
       exclude:
         - ./**
