@@ -7,6 +7,7 @@ IMAGE="amazonlinux:2018.03"
 RUBY_VER="2.6.3"
 
 if [ "$1" = build ]; then
+  user="$2"
   yum -y update
   yum -y install bzip2 gcc git openssl-devel readline-devel unzip which zlib-devel
   curl -Lo ruby-build.zip https://github.com/rbenv/ruby-build/archive/v20190615.zip
@@ -16,6 +17,8 @@ if [ "$1" = build ]; then
   /opt/bin/gem install specific_install
   /opt/bin/gem specific_install https://github.com/github-changelog-generator/github-changelog-generator --ref "$GCG_REF"
   /opt/bin/gem uninstall specific_install
+  useradd "$user"
+  chown -R "$user:$user" /opt/bin /opt/lib
 else
   cd $(dirname "$0")
   if [ -d bin ]; then
@@ -24,6 +27,6 @@ else
   fi
   rm -rf bin lib
   script=$(basename "$0")
-  docker run --rm --mount "type=bind,source=$(pwd),destination=/opt" "$IMAGE" "/opt/$script" build
+  docker run --rm --mount "type=bind,source=$(pwd),destination=/opt" "$IMAGE" "/opt/$script" build "$USER"
   sudo chown -R "$USER:$USER" .
 fi
