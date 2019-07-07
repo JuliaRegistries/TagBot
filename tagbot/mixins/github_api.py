@@ -1,4 +1,5 @@
 import os.path
+import textwrap
 
 from functools import lru_cache
 from typing import Dict, Optional, Union
@@ -8,8 +9,8 @@ import requests
 
 from github import UnknownObjectException
 from github.Branch import Branch
-from github.GitObject import GitObject
 from github.GitRelease import GitRelease
+from github.GitTag import GitTag
 from github.Issue import Issue
 from github.IssueComment import IssueComment
 from github.PullRequest import PullRequest
@@ -77,9 +78,10 @@ class GitHubAPI:
         r = self.get_repo(repo)
         return r.get_branch(r.default_branch)
 
-    def get_tag(self, repo: str, tag: str) -> GitObject:
+    def get_tag(self, repo: str, tag: str) -> GitTag:
         """Get a Git tag.."""
-        return self.get_repo(repo, lazy=True).get_git_ref(f"tags/{tag}").object
+        r = self.get_repo(repo, lazy=True)
+        return r.get_git_tag(r.get_git_ref(f"tags/{tag}").object.sha)
 
     def tag_exists(self, repo: str, tag: str) -> bool:
         """Determine whether or not a tag exists."""
@@ -96,14 +98,14 @@ class GitHubAPI:
         """Comment on an issue or pull request."""
         if isinstance(issue_or_pr, PullRequest):
             issue_or_pr = issue_or_pr.as_issue()
-        return issue_or_pr.create_comment(body)
+        return issue_or_pr.create_comment(textwrap.dedent(body).strip())
 
     def append_comment(self, comment: IssueComment, body: str) -> IssueComment:
         """Add a message to an existing comment."""
         if body in comment.body:
             print("Body is already in the comment")
             return comment
-        return comment.edit(body=comment.body + "\n\n---\n\n" + body)
+        return comment.edit(body=comment.body + "\n\n---\n\n" + textwrap.dedent(body).strip())
 
     @lru_cache()  # TODO: This might cause tokens to expire, TTL would work better.
     def auth_token(self, repo: str) -> str:
