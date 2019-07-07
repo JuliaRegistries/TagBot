@@ -1,8 +1,6 @@
-import os.path
+import os
 import tarfile
 import tempfile
-
-_dir = tempfile.mkdtemp()
 
 
 def resource(path: str) -> str:
@@ -11,14 +9,20 @@ def resource(path: str) -> str:
 
 
 has_gpg = False
-if os.path.isfile("resources.tar"):
-    with tarfile.TarFile("resources.tar") as tf:
-        tf.extractall(_dir)
-    _gpg = resource("gnupg")
-    if os.path.isdir(_gpg):
-        has_gpg = True
-        os.environ["GNUPGHOME"] = _gpg
-    else:
-        print("GPG signing is disabled")
+link = os.path.join(tempfile.gettempdir(), "tagbot-resources")
+if os.path.islink(link):
+    _dir = os.readlink(link)
 else:
-    print("Resources file was not found")
+    _dir = tempfile.mkdtemp(prefix="tagbot-resources-")
+    os.symlink(_dir, link)
+    if os.path.isfile("resources.tar"):
+        with tarfile.TarFile("resources.tar") as tf:
+            tf.extractall(_dir)
+    else:
+        print("Resources file was not found")
+_gpg = resource("gnupg")
+if os.path.isdir(_gpg):
+    has_gpg = True
+    os.environ["GNUPGHOME"] = _gpg
+else:
+    print("GPG signing is disabled")

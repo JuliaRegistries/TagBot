@@ -44,7 +44,7 @@ class Git:
 
     def create_tag(self, repo: str, tag: str, ref: str, body: str, auth: str) -> None:
         """Create and push a Git tag."""
-        dir = tempfile.mkdtemp()
+        dir = tempfile.mkdtemp(prefix="tagbot-git-")
         try:
             self._git_clone(repo, dir, auth)
             self._git_config(dir, "user.name", self._name)
