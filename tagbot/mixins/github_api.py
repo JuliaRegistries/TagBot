@@ -6,6 +6,7 @@ from typing import Dict, Optional, Union
 import github
 import requests
 
+from github import UnknownObjectException
 from github.Branch import Branch
 from github.GitObject import GitObject
 from github.GitRelease import GitRelease
@@ -79,6 +80,15 @@ class GitHubAPI:
     def get_tag(self, repo: str, tag: str) -> GitObject:
         """Get a Git tag.."""
         return self.get_repo(repo, lazy=True).get_git_ref(f"tags/{tag}").object
+
+    def tag_exists(self, repo: str, tag: str) -> bool:
+        """Determine whether or not a tag exists."""
+        try:
+            self.get_tag(repo, tag)
+        except UnknownObjectException:
+            return False
+        else:
+            return True
 
     def create_comment(
         self, issue_or_pr: Union[Issue, PullRequest], body: str

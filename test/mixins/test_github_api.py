@@ -59,7 +59,12 @@ def test_installation_id(get):
 def test_installation():
     old = mixin.auth_token
     mixin.auth_token = Mock(return_value="token")
-    assert mixin._installation("foo/bar")._Github__requester._Requester__authorizationHeader == "token token"
+    assert (
+        mixin._installation(
+            "foo/bar"
+        )._Github__requester._Requester__authorizationHeader
+        == "token token"
+    )
     mixin.auth_token.assert_called_once_with("foo/bar")
     mixin.auth_token = old
 
@@ -85,6 +90,10 @@ def test_get_default_branch():
 
 
 def test_get_tag():
+    pass
+
+
+def test_tag_exists():
     pass
 
 

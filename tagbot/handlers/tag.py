@@ -13,7 +13,9 @@ class Handler(AWS, Git, GitHubAPI):
 
     def do(self):
         if not self.tag_exists(self.ctx.repo, self.ctx.version):
-            self.create_tag(self.ctx.repo, self.ctx.version, self.ctx.target)
+            msg = f"See github.com/{self.ctx.repo}/releases/tag/{self.ctx.version}"
+            auth = self.auth_token(self.ctx.repo)
+            self.create_tag(self.ctx.repo, self.ctx.version, self.ctx.target, msg, auth)
         self.invoke(self._next_stage, self.ctx)
 
 

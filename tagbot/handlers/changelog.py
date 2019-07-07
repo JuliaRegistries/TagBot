@@ -5,8 +5,6 @@ import tempfile
 
 from typing import List, Optional
 
-from github import UnknownObjectException
-
 from .. import Context, stages
 from ..mixins import AWS, GitHubAPI
 
@@ -27,19 +25,11 @@ class Handler(AWS, GitHubAPI):
     def do(self) -> None:
         changelog = self._get_changelog()
         if not changelog:
-            tag_exists = self._tag_exists()
+            tag_exists = self.tag_exists(self.ctx.repo, self.ctx.version)
             changelog = self._generate_changelog(tag_exists)
         self.ctx.changelog = changelog
         self._put_changelog()
         self.invoke(self._next_stage, self.ctx)
-
-    def _tag_exists(self) -> bool:
-        """Determine whether or not a tag exists."""
-        try:
-            self.get_tag(self.ctx.repo, self.ctx.version)
-            return True
-        except UnknownObjectException:
-            return False
 
     def _get_changelog(self) -> Optional[str]:
         """Get an existing changelog."""
