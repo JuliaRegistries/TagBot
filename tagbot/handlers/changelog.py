@@ -16,11 +16,10 @@ class Handler(AWS, GitHubAPI):
 
     _gcg_bin = "github_changelog_generator"
     _next_stage = stages.release
-    # TODO: regexes
-    _re_number = re.compile("")
-    _re_ack = re.compile("")
-    _re_compare = re.compile("")
-    _re_section_header = re.compile("")
+    _re_ack = re.compile("(?i).*this changelog was automatically generated.*")
+    _re_compare = re.compile("(?i)^\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)$")
+    _re_number = re.compile("\[\\#(\d+)\]\(.+?\)")
+    _re_section_header = re.compile("^## \[.*\]\(.*\) \(.*\)$")
 
     def __init__(self, body: dict):
         self.ctx = Context(**body)
@@ -84,6 +83,7 @@ class Handler(AWS, GitHubAPI):
             return f.read()
 
     def __find_section(self, output: str) -> Optional[str]:
+        """Search for a single release's section in the generated changelog."""
         lines = output.split("\n")
         start = None
         in_section = False
@@ -102,6 +102,7 @@ class Handler(AWS, GitHubAPI):
         return "\n".join(lines[start:stop])
 
     def __format_section(self, section: str) -> str:
+        """Format the release changelog."""
         section = self._re_number.sub("(#\\1)", section)
         section = self._re_ack.sub("", section)
         section = self._re_compare.sub(
@@ -121,7 +122,7 @@ class Handler(AWS, GitHubAPI):
             "wont fix",
         ]
         perms = [self.__permutations(s) for s in excludes]
-        return set(itertools.chain.from_iterable(perms))
+        return ",".join(set(itertools.chain.from_iterable(perms)))
 
     def __permutations(self, s: str) -> List[str]:
         """Compute a bunch of different forms of the same string."""
