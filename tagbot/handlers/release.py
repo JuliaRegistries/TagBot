@@ -9,6 +9,7 @@ class Handler(AWS, GitHubAPI):
         self.ctx = Context(**body)
 
     def do(self) -> None:
+        self.ctx.dump()
         release = self.create_release(
             self.ctx.repo, self.ctx.version, self.ctx.commit, self.ctx.changelog
         )

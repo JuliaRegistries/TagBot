@@ -15,7 +15,7 @@ class Handler(AWS, GitHubAPI):
     _gcg_bin = "github_changelog_generator"
     _next_stage = stages.release
     _re_ack = re.compile(r"(?i).*this changelog was automatically generated.*")
-    _re_compare = re.compile(r"(?i)^\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)$")
+    _re_compare = re.compile(r"(?i)\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)")
     _re_number = re.compile(r"\[\#(\d+)\]\(.+?\)")
     _re_section_header = re.compile(r"^## \[.*\]\(.*\) \(.*\)$")
 
@@ -23,11 +23,15 @@ class Handler(AWS, GitHubAPI):
         self.ctx = Context(**body)
 
     def do(self) -> None:
+        self.ctx.dump()
         changelog = self._get_changelog()
-        if not changelog:
+        if changelog:
+            print("Changelog exists")
+        else:
             tag_exists = self.tag_exists(self.ctx.repo, self.ctx.version)
             changelog = self._generate_changelog(tag_exists)
-        self.ctx.changelog = changelog
+        if changelog:
+            self.ctx.changelog = changelog
         self._put_changelog()
         self.invoke(self._next_stage, self.ctx)
 
@@ -42,7 +46,7 @@ class Handler(AWS, GitHubAPI):
             return
         return self.put_item(self.ctx.issue, self.ctx.changelog)
 
-    def _generate_changelog(self, tag_exists: bool):
+    def _generate_changelog(self, tag_exists: bool) -> Optional[str]:
         """Generate the release changelog."""
         output = self.__run_generator(tag_exists)
         section = self.__find_section(output)
@@ -50,7 +54,7 @@ class Handler(AWS, GitHubAPI):
             return None
         return self.__format_section(section)
 
-    def __run_generator(self, tag_exists: bool):
+    def __run_generator(self, tag_exists: bool) -> str:
         """Run the generator CLI."""
         user, project = self.ctx.repo.split("/")
         token = self.auth_token(self.ctx.repo)
@@ -86,10 +90,12 @@ class Handler(AWS, GitHubAPI):
                 elif this_version.search(line):
                     start = i
                     in_section = True
+        else:
+            stop = i
         if start is None:
             print("Section was not found")
             return None
-        return "\n".join(lines[start:stop])
+        return "\n".join(lines[start:stop]).strip()
 
     def __format_section(self, section: str) -> str:
         """Format the release changelog."""
@@ -100,7 +106,7 @@ class Handler(AWS, GitHubAPI):
         )
         return section.strip()
 
-    def __exclude_labels(self):
+    def __exclude_labels(self) -> str:
         """Compute the labels to be excluded from sections."""
         excludes = [
             "changelog skip",

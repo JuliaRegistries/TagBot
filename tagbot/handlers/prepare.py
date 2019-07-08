@@ -54,6 +54,7 @@ class Handler(AWS, GitHubAPI):
         issue = self.get_issue(ctx.registry, ctx.issue)
         comment = self.create_comment(issue, msg)
         ctx.comment_id = comment.id
+        ctx.dump()
         self.invoke(self._next_stage, ctx)  # type: ignore
 
     def _from_github(self) -> Context:
@@ -70,6 +71,9 @@ class Handler(AWS, GitHubAPI):
             ctx = f(payload)
         except KeyError as e:
             raise InvalidPayload(f"KeyError: {e}")
+        # TODO: It would be nice to use invoke_notify here for retries etc.,
+        # but we don't yet have a comment ID to use, so we're stuck with create_comment.
+        # Should there be separate notify functions for create + append?
         try:
             self.auth_token(ctx.repo)
         except NotInstalledForRepo:
@@ -78,21 +82,21 @@ class Handler(AWS, GitHubAPI):
             Go [here](https://github.com/apps/{self._github_app_name}/installations/new) to update your settings.
             Once that's done, you might want to retry by making a reply to this comment containing `{self._command_tag}`.
             """
-            self.invoke_notify(ctx, msg)
+            self.create_comment(self.get_issue(ctx.registry, ctx.issue), msg)
             raise StopPipeline("Not installed for repository")
         try:
             tag = self.get_tag(ctx.repo, ctx.version)
         except UnknownObjectException:
             pass
         else:
-            if tag.sha != ctx.commit:
+            if tag.object.sha != ctx.commit:
                 msg = f"""
                 A tag `{ctx.version}` already exists, but it points at the wrong commit.
                 Expected: `{ctx.commit}`
                 Observed: `{tag.sha}`
                 You might want to delete the existing tag and retry by making a reply to this comment containing `{self._command_tag}`.
                 """
-                self.invoke_notify(ctx, msg)
+                self.create_comment(self.get_issue(ctx.registry, ctx.issue), msg)
                 raise StopPipeline("Invalid existing tag")
         ctx.id = self.body["id"]
         ctx.target = self._target(ctx)
@@ -122,7 +126,7 @@ class Handler(AWS, GitHubAPI):
         if not m:
             raise InvalidPayload("No commit match")
         commit = m[1].strip()
-        changelog = None
+        changelog = ""
         m = self._re_changelog.search(body)
         if m:
             changelog = m[1].strip()

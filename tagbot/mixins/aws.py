@@ -37,7 +37,7 @@ class AWS:
     def get_item(self, key: int) -> Optional[str]:
         """Retrieve a stored item if it exists."""
         resp = self._dynamodb.get_item(
-            TableName=self._table_name, Key={"id": {"N": key}}
+            TableName=self._table_name, Key={"id": {"N": str(key)}}
         )
         return None if "Item" not in resp else resp["Item"]["val"]["S"]
 
@@ -46,5 +46,5 @@ class AWS:
         ttl = round(time.time() * 1000)
         self._dynamodb.put_item(
             TableName=self._table_name,
-            Item={"id": {"N": key}, "val": {"S": val}, "ttl": {"N": ttl}},
+            Item={"id": {"N": str(key)}, "val": {"S": val}, "ttl": {"N": str(ttl)}},
         )

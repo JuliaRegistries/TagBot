@@ -14,10 +14,11 @@ class Handler(AWS, GitHubAPI):
         self.stages: List[str] = []
         self.errors: List[str] = []
         for r in event["Records"]:
-            self.bodies.append(json.loads(r["Sns"]["Message"]))
+            sns = r["Sns"]
+            self.bodies.append(json.loads(sns["Message"]))
             # This assumes that the topics are named <irrelevant>-<stage>-<irrelevant>.
-            self.stages.append(r["Sns"]["TopicArn"].split(":")[-1].split("-")[-2])
-            self.errors.append(r["MessageAttributes"]["ErrorMessage"]["Value"])
+            self.stages.append(sns["TopicArn"].split(":")[-1].split("-")[-2])
+            self.errors.append(sns["MessageAttributes"]["ErrorMessage"]["Value"])
 
     def do(self) -> None:
         for body, stage, error in zip(self.bodies, self.stages, self.errors):
@@ -46,6 +47,7 @@ class Handler(AWS, GitHubAPI):
                 self.create_comment(issue, msg)
             else:
                 ctx = Context(**body)
+                ctx.dump()
                 comment = self.get_issue_comment(
                     ctx.registry, ctx.issue, ctx.comment_id
                 )

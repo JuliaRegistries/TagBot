@@ -9,6 +9,7 @@ class Handler(AWS, GitHubAPI):
         self.ctx = Context(**body)
 
     def do(self):
+        self.ctx.dump()
         if not self.ctx.notification:
             print("Notification field is empty")
             return

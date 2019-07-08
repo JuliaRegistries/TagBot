@@ -9,12 +9,12 @@ def resource(path: str) -> str:
 
 
 has_gpg = False
-link = os.path.join(tempfile.gettempdir(), "tagbot-resources")
-if os.path.islink(link):
-    _dir = os.readlink(link)
+_link = os.path.join(tempfile.gettempdir(), "tagbot-resources")
+if os.path.islink(_link):
+    _dir = os.readlink(_link)
 else:
     _dir = tempfile.mkdtemp(prefix="tagbot-resources-")
-    os.symlink(_dir, link)
+    os.symlink(_dir, _link)
     if os.path.isfile("resources.tar"):
         with tarfile.TarFile("resources.tar") as tf:
             tf.extractall(_dir)

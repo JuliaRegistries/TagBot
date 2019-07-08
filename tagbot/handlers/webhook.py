@@ -26,7 +26,6 @@ class Handler(AWS):
         message = {"id": self.id, "type": self.type, "payload": json.loads(self.body)}
         json.dump(message, sys.stdout, indent=2)
         self.invoke(self._next_step, message)
-
         return {"statusCode": 200}
 
     def _verify_signature(self) -> bool:
@@ -40,5 +39,5 @@ class Handler(AWS):
         return hmac.compare_digest(mac.hexdigest(), sig)
 
 
-def handler(request: dict, _ctx=None) -> None:
-    Handler(request).do()
+def handler(request: dict, _ctx=None) -> dict:
+    return Handler(request).do()

@@ -23,8 +23,9 @@ from ..exceptions import NotInstalledForOwner, NotInstalledForRepo
 class GitHubAPI:
     """Provides access to the GitHub API."""
 
-    if os.path.isfile("tagbot.pem"):
-        with open(resources.resource("tagbot.pem")) as f:
+    __pem = resources.resource("tagbot.pem")
+    if os.path.isfile(__pem):
+        with open(__pem) as f:
             __pem = f.read().strip()
     else:
         print("Private key is not available")
@@ -105,7 +106,9 @@ class GitHubAPI:
         if body in comment.body:
             print("Body is already in the comment")
             return comment
-        return comment.edit(body=comment.body + "\n\n---\n\n" + textwrap.dedent(body).strip())
+        return comment.edit(
+            body=comment.body + "\n\n---\n\n" + textwrap.dedent(body).strip()
+        )
 
     @lru_cache()  # TODO: This might cause tokens to expire, TTL would work better.
     def auth_token(self, repo: str) -> str:
