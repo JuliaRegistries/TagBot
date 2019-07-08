@@ -25,7 +25,8 @@ Assuming that you have the TagBot repository cloned at `$ROOT`, save the private
 
 ## Creating a GPG key
 
-TagBot uses GPG to sign the tags it creates.
+TagBot optionally uses GPG to sign the tags it creates.
+You can skip this step if you wish, but it's not recommended.
 
 Before generating the key, you need to decide whether to use our own GitHub account for tagging, or a dedicated account.
 If you want to use a dedicated account, create it now.
@@ -54,7 +55,7 @@ The following variables must be set:
 
 ## Deploying the API
 
-TagBot is deployed to [AWS Lambda](https://aws.amazon.com/lambda/) using the [Serverless Framework](https://serverless.com).
+TagBot is deployed to [AWS Lambda](https://aws.amazon.com/lambda) using the [Serverless Framework](https://serverless.com).
 Install it with the following command:
 
 ```sh
