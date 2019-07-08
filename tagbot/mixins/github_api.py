@@ -10,7 +10,6 @@ import requests
 from github import UnknownObjectException
 from github.Branch import Branch
 from github.GitRelease import GitRelease
-from github.GitTag import GitTag
 from github.Issue import Issue
 from github.IssueComment import IssueComment
 from github.PullRequest import PullRequest
@@ -79,15 +78,18 @@ class GitHubAPI:
         r = self.get_repo(repo)
         return r.get_branch(r.default_branch)
 
-    def get_tag(self, repo: str, tag: str) -> GitTag:
+    def get_tag_commit_sha(self, repo: str, tag: str) -> str:
         """Get a Git tag.."""
         r = self.get_repo(repo, lazy=True)
-        return r.get_git_tag(r.get_git_ref(f"tags/{tag}").object.sha)
+        ref = r.get_git_ref(f"tags/{tag}")
+        if ref.object.type == "commit":
+            return ref.object.sha
+        return r.get_git_tag(ref.object.sha).object.sha
 
     def tag_exists(self, repo: str, tag: str) -> bool:
         """Determine whether or not a tag exists."""
         try:
-            self.get_tag(repo, tag)
+            self.get_tag_commit_sha(repo, tag)
         except UnknownObjectException:
             return False
         else:

@@ -21,3 +21,4 @@ class Context:
 
     def dump(self):
         json.dump(self.__dict__, sys.stdout, indent=2)
+        print()

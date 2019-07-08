@@ -89,7 +89,7 @@ def test_get_default_branch():
     pass
 
 
-def test_get_tag():
+def test_get_tag_commit_sha():
     pass
 
 

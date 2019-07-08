@@ -17,6 +17,8 @@ class AWS:
 
     def invoke(self, fn: str, msg: Union[dict, Context]) -> None:
         """Invoke an AWS Lambda function."""
+        if not self._function_prefix:
+            return
         if isinstance(msg, Context):
             msg = msg.__dict__
         self._lambda.invoke(
@@ -36,6 +38,8 @@ class AWS:
 
     def get_item(self, key: int) -> Optional[str]:
         """Retrieve a stored item if it exists."""
+        if not self._table_name:
+            return None
         resp = self._dynamodb.get_item(
             TableName=self._table_name, Key={"id": {"N": str(key)}}
         )
@@ -43,6 +47,8 @@ class AWS:
 
     def put_item(self, key: int, val: str) -> None:
         """Store an item."""
+        if not self._table_name:
+            return
         ttl = round(time.time() * 1000)
         self._dynamodb.put_item(
             TableName=self._table_name,

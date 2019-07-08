@@ -85,15 +85,15 @@ class Handler(AWS, GitHubAPI):
             self.create_comment(self.get_issue(ctx.registry, ctx.issue), msg)
             raise StopPipeline("Not installed for repository")
         try:
-            tag = self.get_tag(ctx.repo, ctx.version)
+            sha = self.get_tag_commit_sha(ctx.repo, ctx.version)
         except UnknownObjectException:
             pass
         else:
-            if tag.object.sha != ctx.commit:
+            if sha != ctx.commit:
                 msg = f"""
                 A tag `{ctx.version}` already exists, but it points at the wrong commit.
                 Expected: `{ctx.commit}`
-                Observed: `{tag.sha}`
+                Observed: `{sha}`
                 You might want to delete the existing tag and retry by making a reply to this comment containing `{self._command_tag}`.
                 """
                 self.create_comment(self.get_issue(ctx.registry, ctx.issue), msg)
