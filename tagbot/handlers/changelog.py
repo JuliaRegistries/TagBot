@@ -16,7 +16,7 @@ class Handler(AWS, GitHubAPI):
     _next_stage = stages.release
     _re_ack = re.compile(r"(?i).*this changelog was automatically generated.*")
     _re_compare = re.compile(r"(?i)\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)")
-    _re_number = re.compile(r"\[\#(\d+)\]\(.+?\)")
+    _re_number = re.compile(r"\[\\#(\d+)\]\(.+?\)")
     _re_section_header = re.compile(r"^## \[.*\]\(.*\) \(.*\)$")
 
     def __init__(self, body: dict):
