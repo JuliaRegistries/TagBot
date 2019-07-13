@@ -3,7 +3,4 @@ language: python
 dist: xenial
 python: 3.7
 before_script: pip install -r requirements.txt -r requirements.dev.txt
-script:
-  - pytest
-  - mypy tagbot test
-  - black --check tagbot test
+script: ./bin/test.sh

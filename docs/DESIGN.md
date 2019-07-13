@@ -25,7 +25,8 @@ It contains these fields:
 - `comment_id (int)`: GitHub ID of a comment made by TagBot on the registry PR.
   This is used to avoid creating many new comments.
   Instead, one comment is created, its ID is stored, and it is edited many times to append each new message.
-- `changelog (str | null)`: Release notes for the new version.
+- `notification (str)`: Carries a message to be added to a GitHub comment.
+- `changelog (str)`: Release notes for the new version.
 
 ## The Pipeline
 
