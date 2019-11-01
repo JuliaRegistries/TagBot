@@ -1,7 +1,1 @@
-*.env
-*.pem
-/.serverless/
-/changelog/.bundle/
-/github/bin/
-/gnupg/
-vendor/
+*_cache/

@@ -1,10 +1,6 @@
 notifications: {email: false}
-matrix:
-  include:
-    - language: go
-      go: 1.12
-      script: ./bin/test.sh github
-    - language: ruby
-      rvm: 2.5
-      install: gem install bundler test-unit
-      script: ./bin/test.sh changelog
+language: python
+dist: xenial
+python: 3.7
+# before_script: pip install -r requirements.txt -r requirements.dev.txt
+script: true  # TODO

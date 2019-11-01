@@ -1,0 +1,10 @@
+name: TagBot
+author: Chris de Graaf
+description: Creates GitHub releases for your registered packages
+inputs:
+  token:
+    description: GitHub API token
+    required: true
+runs:
+  using: docker
+  image: Dockerfile
