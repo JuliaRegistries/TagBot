@@ -1,4 +1,0 @@
-source 'https://rubygems.org' do
-  gem 'github_changelog_generator', git: 'https://github.com/github-changelog-generator/github-changelog-generator', ref: '9e0a959'
-  gem 'octokit', '~> 4.0'
-end
