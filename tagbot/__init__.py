@@ -2,13 +2,14 @@ import json
 import os
 import subprocess
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import toml
 
 from github import Github, UnknownObjectException
 
 from . import env
+from .changelog import get_changelog
 
 
 def logger(level: str) -> Callable[[Any], None]:
@@ -99,20 +100,12 @@ def create_tag(version: str, sha: str) -> None:
     info("Pushed Git tag")
 
 
-def get_changelog(version: str) -> str:
-    """Generate a changelog for the new version."""
-    info("Creating changelog")
-    changelog = "TODO"
-    info("Created changelog")
-    return changelog
-
-
-def create_release(version: str, sha: str, message: str) -> None:
+def create_release(version: str, sha: str, message: Optional[str]) -> None:
     """Create a GitHub release for the new version."""
     info("Creating GitHub release")
     gh = Github(env.TOKEN)
     r = gh.get_repo(env.REPO, lazy=True)
     target = r.default_branch if git("rev-parse", "HEAD") == sha else sha
     info(f"Target: {target}")
-    r.create_git_release(version, version, message, target_commitish=target)
+    r.create_git_release(version, version, message or "", target_commitish=target)
     info("Created GitHub release")
