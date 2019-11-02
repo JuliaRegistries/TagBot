@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 import toml
 
-from github import Github
+from github import Github, UnknownObjectException
 
 from . import env
 
@@ -61,8 +61,34 @@ def git(*argv: str) -> str:
     return out
 
 
+def release_exists(version: str) -> bool:
+    """Check if a GitHub release already exists."""
+    gh = Github(env.TOKEN)
+    r = gh.get_repo(env.REPO, lazy=True)
+    # TODO: This should use a different endpoint:
+    # https://developer.github.com/v3/repos/releases/#get-a-release-by-tag-name
+    for rel in r.get_releases():
+        if rel.tag_name == version:
+            return True
+    return False
+
+
+def tag_exists(version: str) -> bool:
+    """Check if a Git tag already exists."""
+    gh = Github(env.TOKEN)
+    r = gh.get_repo(env.REPO, lazy=True)
+    try:
+        r.get_git_ref(f"tags/{version}")
+    except UnknownObjectException:
+        return False
+    return True
+
+
 def create_tag(version: str, sha: str) -> None:
     """Create and push a Git tag."""
+    if tag_exists(version):
+        info("Git tag already exists")
+        return
     info("Creating Git tag")
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
         die(error, "You must use the actions/checkout action prior to this one", 1)
