@@ -11,6 +11,8 @@ version = data["version"]
 if not version.startswith("v"):
     version = f"v{version}"
 sha = data["sha"]
+if release_exists(version):
+    die(warn, f"Release {version} already exists", 0)
 create_tag(version, sha)
 changelog = get_changelog(version)
 create_release(version, sha, changelog)
