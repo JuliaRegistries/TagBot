@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - run: $GITHUB_WORKSPACE/bin/publish.py
-        with:
-          image: tagbot
-          username: degraafc
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        env:
+          DOCKER_IMAGE: tagbot
+          DOCKER_USERNAME: degraafc
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

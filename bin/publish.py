@@ -7,9 +7,9 @@ import subprocess
 DEST = "tagbot"
 REF = os.environ["GITHUB_REF"]
 REPO = os.environ["GITHUB_WORKSPACE"]
-IMAGE = os.environ["INPUT_IMAGE"]
-USER = os.environ["INPUT_USERNAME"]
-PASS = os.environ["INPUT_PASSWORD"]
+IMAGE = os.environ["DOCKER_IMAGE"]
+USER = os.environ["DOCKER_USERNAME"]
+PASS = os.environ["DOCKER_PASSWORD"]
 VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
 
@@ -34,8 +34,7 @@ def push(version):
 
 
 def main():
-    ref = REF[1:] if REF.startswith("v") else REF
-    major, minor, patch = VERSION_RE.match(ref).groups()
+    major, minor, patch = VERSION_RE.search(REF).groups()
     versions = [f"{major}", f"{major}.{minor}", f"{major}.{minor}.{patch}"]
     build()
     login()
