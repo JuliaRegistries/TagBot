@@ -68,10 +68,11 @@ def get_versions(registry: str) -> Dict[str, str]:
     return {v: versions[v]["git-tree-sha1"] for v in versions}
 
 
-def rollback(repo: str) -> None:
-    """Roll back a repo to a commit 3 days ago."""
+def rollback(repo: str, days: int = 3) -> None:
+    """Roll back a repo to a commit some time ago."""
     # https://stackoverflow.com/a/20801396
-    sha = git("rev-list", "-n", "1", "--before", "3 days ago", "master", root=repo)
+    spec = f"{days} days ago"
+    sha = git("rev-list", "-n", "1", "--before", spec, "master", root=repo)
     git("checkout", sha, root=repo)
 
 

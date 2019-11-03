@@ -1,7 +1,5 @@
 # <img src="logo.png" width="60"> Julia TagBot
 
-[![Build Status](https://travis-ci.com/JuliaRegistries/TagBot.svg?branch=master)](https://travis-ci.com/JuliaRegistries/TagBot)
-
 ## Setup
 
 Create a file at `.github/workflows/TagBot.yml` with the following contents:
