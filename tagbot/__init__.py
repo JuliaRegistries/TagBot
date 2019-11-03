@@ -116,6 +116,25 @@ def tag_exists(version: str) -> bool:
     return True
 
 
+def setup_gpg() -> None:
+    """Import a GPG key, and set it as the default key for Git."""
+    if not env.GPG_KEY:
+        info("No GPG key found")
+        return
+    _, path = tempfile.mkstemp()
+    with open(path, "w") as f:
+        f.write(env.GPG_KEY)
+    subprocess.run(["gpg", "--import", path], check=True)
+    key = (
+        subprocess.run(["gpg", "--list-keys"], capture_output=True)
+        .stdout.decode("utf-8")
+        .splitlines()[3]
+        .strip()
+    )
+    git("config", "user.signingKey", key)
+    os.unlink(path)
+
+
 def create_tag(version: str, sha: str) -> None:
     """Create and push a Git tag."""
     if tag_exists(version):
@@ -124,7 +143,11 @@ def create_tag(version: str, sha: str) -> None:
     info("Creating Git tag")
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
         die(error, "You must use the actions/checkout action prior to this one", 1)
-    git("tag", version, sha)
+    setup_gpg()
+    args = ["tag", version, sha]
+    if env.GPG_KEY:
+        args.append("-s")
+    git(*args)
     remote = f"https://oauth2:{env.TOKEN}@github.com/{env.REPO}"
     git("remote", "add", "with-token", remote)
     git("push", "with-token", "--tags")

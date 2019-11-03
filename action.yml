@@ -9,6 +9,9 @@ inputs:
     description: URL of the registry
     required: false
     default: https://github.com/JuliaRegistries/General
+  gpg_key:
+    description: GPG key for tag signing
+    required: false
 runs:
   using: docker
   image: Dockerfile
