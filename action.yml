@@ -5,6 +5,10 @@ inputs:
   token:
     description: GitHub API token
     required: true
+  registry:
+    description: URL of the registry
+    required: false
+    default: https://github.com/JuliaRegistries/General
 runs:
   using: docker
   image: Dockerfile

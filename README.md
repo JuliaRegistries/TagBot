@@ -1,5 +1,7 @@
 # <img src="logo.png" width="60"> Julia TagBot
 
+[![Build Status](https://travis-ci.com/JuliaRegistries/TagBot.svg?branch=master)](https://travis-ci.com/JuliaRegistries/TagBot)
+
 [![travis-img]][travis-link]
 
 ## Setup
@@ -8,8 +10,8 @@ Create a file at `.github/workflows/TagBot.yml` with the following contents:
 
 ```yml
 on:
-  issue_comment:
-    types: created
+  schedule:
+    - cron: 0 * * * *
 jobs:
   TagBot:
     runs-on: ubuntu-latest
@@ -22,5 +24,14 @@ jobs:
 
 No further action is required.
 
-[travis-img]: https://travis-ci.com/JuliaRegistries/TagBot.svg?branch=master
-[travis-link]: https://travis-ci.com/JuliaRegistries/TagBot
+### Custom Registries
+
+If you're using a custom registry, add the following input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  registry: https://github.com/MyOrg/MyRegistry
+```
+
+If your registry is private, you'll need to include authentication in the URL.
