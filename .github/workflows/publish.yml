@@ -1,0 +1,13 @@
+on:
+  release:
+    types: published
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - run: $GITHUB_WORKSPACE/bin/publish.py
+        with:
+          image: tagbot
+          username: degraafc
+          password: ${{ secrets.DOCKER_PASSWORD }}

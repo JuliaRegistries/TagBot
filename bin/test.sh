@@ -15,7 +15,7 @@ checked() {
 cd $(dirname "$0")/..
 
 checked pytest
-checked black --check tagbot test
-checked mypy tagbot test
+checked black --check bin tagbot test
+checked mypy bin tagbot test
 
 exit $exit
