@@ -9,7 +9,7 @@ inputs:
     description: URL of the registry
     required: false
     default: https://github.com/JuliaRegistries/General
-  gpg_key:
+  gpg-key:
     description: GPG key for tag signing
     required: false
 runs:

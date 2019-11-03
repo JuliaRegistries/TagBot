@@ -35,7 +35,7 @@ def push(version):
 
 def main():
     major, minor, patch = VERSION_RE.search(REF).groups()
-    versions = [f"{major}", f"{major}.{minor}", f"{major}.{minor}.{patch}"]
+    versions = ["latest", f"{major}", f"{major}.{minor}", f"{major}.{minor}.{patch}"]
     build()
     login()
     for version in versions:
