@@ -89,12 +89,11 @@ def release_exists(version: str) -> bool:
     """Check if a GitHub release already exists."""
     gh = Github(env.TOKEN)
     r = gh.get_repo(env.REPO, lazy=True)
-    # TODO: This should use a different endpoint:
-    # https://developer.github.com/v3/repos/releases/#get-a-release-by-tag-name
-    for rel in r.get_releases():
-        if rel.tag_name == version:
-            return True
-    return False
+    try:
+        r.get_release(version)
+    except UnknownObjectException:
+        return False
+    return True
 
 
 def commit_from_tree(tree: str) -> Optional[str]:
