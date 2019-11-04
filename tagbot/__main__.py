@@ -1,7 +1,10 @@
 from . import *
 
 versions = get_new_versions()
-for version, tree in versions:
+if not versions:
+    info("No new verions to release")
+for version, tree in versions.items():
+    version = f"v{version}"
     info(f"Processing version: {version}")
     sha = commit_from_tree(tree)
     if not sha:

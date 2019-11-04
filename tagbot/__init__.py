@@ -48,10 +48,10 @@ def git(*argv: str, root=env.REPO_DIR) -> str:
 
 def clone_registry() -> str:
     """Clone the registry."""
-    info("Cloning registry")
+    debug("Cloning registry")
     path = tempfile.mkdtemp()
     git("clone", env.REGISTRY, path, root=None)
-    info("Cloned registry")
+    debug("Cloned registry")
     return path
 
 
@@ -120,14 +120,14 @@ def tag_exists(version: str) -> bool:
 def setup_gpg() -> None:
     """Import a GPG key, and set it as the default key for Git."""
     if not env.GPG_KEY:
-        info("No GPG key found")
+        debug("No GPG key found")
         return
     _, path = tempfile.mkstemp()
     with open(path, "w") as f:
         f.write(env.GPG_KEY)
     subprocess.run(["gpg", "--import", path], check=True)
     key = (
-        subprocess.run(["gpg", "--list-keys"], capture_output=True)
+        subprocess.run(["gpg", "--list-keys"], capture_output=True, check=True)
         .stdout.decode("utf-8")
         .splitlines()[3]
         .strip()
@@ -145,10 +145,8 @@ def create_tag(version: str, sha: str) -> None:
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
         die(error, "You must use the actions/checkout action prior to this one", 1)
     setup_gpg()
-    args = ["tag", version, sha]
-    if env.GPG_KEY:
-        args.append("-s")
-    git(*args)
+    gpg = ["-s"] if env.GPG_KEY else []
+    git("tag", version, sha, "-m", "", *gpg)
     remote = f"https://oauth2:{env.TOKEN}@github.com/{env.REPO}"
     git("remote", "add", "with-token", remote)
     git("push", "with-token", "--tags")
@@ -161,6 +159,6 @@ def create_release(version: str, sha: str, message: Optional[str]) -> None:
     gh = Github(env.TOKEN)
     r = gh.get_repo(env.REPO, lazy=True)
     target = r.default_branch if git("rev-parse", "HEAD") == sha else sha
-    info(f"Target: {target}")
+    debug(f"Target: {target}")
     r.create_git_release(version, version, message or "", target_commitish=target)
     info("Created GitHub release")
