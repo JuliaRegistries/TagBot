@@ -12,6 +12,8 @@ from github import Github
 
 from . import env
 
+# https://github.com/github-changelog-generator/github-changelog-generator/blob/v1.15.0/lib/github_changelog_generator/generator/section.rb#L88-L102
+ESCAPED = ["\\", "<", ">", "*", "_", "(", ")", "[", "]", "#"]
 GCG_BIN = "github_changelog_generator"
 RE_ACK = re.compile(r"(?i).*this changelog was automatically generated.*")
 RE_COMPARE = re.compile(r"(?i)\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)")
@@ -104,6 +106,8 @@ def format_section(section: str) -> str:
     section = RE_NUMBER.sub("(#\\1)", section)
     section = RE_ACK.sub("", section)
     section = RE_COMPARE.sub("[Diff since \\2](\\1/compare/\\2...\\3)", section)
+    for e in ESCAPED:
+        section = section.replace(f"\\{e}", e)
     return section.strip()
 
 
