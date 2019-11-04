@@ -6,9 +6,9 @@ inputs:
     description: GitHub API token
     required: true
   registry:
-    description: URL of the registry
+    description: Owner/name of the registry repository
     required: false
-    default: https://github.com/JuliaRegistries/General
+    default: JuliaRegistries/General
   gpg-key:
     description: GPG key for tag signing
     required: false

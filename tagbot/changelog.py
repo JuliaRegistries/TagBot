@@ -49,11 +49,10 @@ def get_custom_release_notes(version: str) -> Optional[str]:
         project = toml.load(f)
     name = project["name"]
     uuid = project["uuid"]
-    owner = env.REGISTRY.split("/")[-2]
+    owner, _ = env.REGISTRY.split("/")
     head = f"{owner}:registrator/{name.lower()}/{uuid[:8]}/v{version}"
-    registry = "/".join(env.REGISTRY.split("/")[-2:])
     gh = Github(env.TOKEN)
-    r = gh.get_repo(registry)
+    r = gh.get_repo(env.REGISTRY)
     [p] = r.get_pulls(head=head, state="closed")
     m = RE_CUSTOM.search(p.body)
     return "\n".join(l[2:] for l in m[1].splitlines()).strip() if m else None

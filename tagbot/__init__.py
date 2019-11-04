@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 
+from datetime import datetime, timedelta
 from typing import Any, Dict, Callable, List, Optional
 
 import toml
@@ -46,42 +47,31 @@ def git(*argv: str, root=env.REPO_DIR) -> str:
     return out.strip()
 
 
-def clone_registry() -> str:
-    """Clone the registry."""
-    debug("Cloning registry")
-    path = tempfile.mkdtemp()
-    git("clone", env.REGISTRY, path, root=None)
-    debug("Cloned registry")
-    return path
-
-
-def get_versions(registry: str) -> Dict[str, str]:
-    """Get a mapping of version -> sha for each version in the registry."""
+def get_versions(days_ago: int = 0) -> Dict[str, str]:
+    """Get a mapping of version -> tree sha for each version in the registry."""
     with open(os.path.join(env.REPO_DIR, "Project.toml")) as f:
         project = toml.load(f)
     uuid = project["uuid"]
-    with open(os.path.join(registry, "Registry.toml")) as f:
-        reg = toml.load(f)
-    path = reg["packages"][uuid]["path"]
-    with open(os.path.join(registry, path, "Versions.toml")) as f:
-        versions = toml.load(f)
+    gh = Github(env.TOKEN)
+    r = gh.get_repo(env.REGISTRY)
+    registry_toml = r.get_contents("Registry.toml")
+    registry = toml.loads(registry_toml.decoded_content.decode("utf-8"))
+    path = registry["packages"][uuid]["path"]
+    if days_ago:
+        until = datetime.now() - timedelta(days=days_ago)
+        commits = r.get_commits(until=until)
+    else:
+        commits = r.get_commits()
+    sha = commits[0].commit.sha
+    versions_toml = r.get_contents(f"{path}/Versions.toml", ref=sha)
+    versions = toml.loads(versions_toml.decoded_content.decode("utf-8"))
     return {v: versions[v]["git-tree-sha1"] for v in versions}
 
 
-def rollback(repo: str, days: int = 3) -> None:
-    """Roll back a repo to a commit some time ago."""
-    # https://stackoverflow.com/a/20801396
-    spec = f"{days} days ago"
-    sha = git("rev-list", "-n", "1", "--before", spec, "master", root=repo)
-    git("checkout", sha, root=repo)
-
-
-def get_new_versions() -> Dict[str, str]:
+def get_new_versions(max_age: int = 3) -> Dict[str, str]:
     """Collect all new versions of the package."""
-    path = clone_registry()
-    current = get_versions(path)
-    rollback(path)
-    old = get_versions(path)
+    current = get_versions()
+    old = get_versions(days_ago=max_age)
     return {v: sha for v, sha in current.items() if v not in old}
 
 

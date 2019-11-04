@@ -50,10 +50,8 @@ If you're using a custom registry, add the `registry` input:
 ```yml
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
-  registry: https://github.com/MyOrg/MyRegistry
+  registry: MyOrg/MyRegistry
 ```
-
-If your registry is private, you'll need to include authentication in the URL.
 
 ### Signed Tags
 
