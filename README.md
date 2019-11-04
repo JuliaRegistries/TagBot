@@ -5,6 +5,7 @@
 Create a file at `.github/workflows/TagBot.yml` with the following contents:
 
 ```yml
+name: TagBot
 on:
   schedule:
     - cron: 0 * * * *
