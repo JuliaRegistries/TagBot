@@ -99,10 +99,10 @@ def release_exists(version: str) -> bool:
 
 def commit_from_tree(tree: str) -> Optional[str]:
     """Get the commit SHA that corresponds to a tree SHA."""
-    lines = git("log", "--format=raw").splitlines()
-    for i, line in enumerate(lines):
-        if line == f"tree {tree}" and lines[i - 1].startswith("commit "):
-            return lines[i - 1].split()[1]
+    for line in git("log", "--format=%H %T").splitlines():
+        c, t = line.split()
+        if t == tree:
+            return c
     return None
 
 
