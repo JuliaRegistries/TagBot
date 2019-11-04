@@ -1,15 +1,21 @@
 import itertools
+import os
 import re
 import subprocess
 import tempfile
 
 from typing import List, Optional
 
+import toml
+
+from github import Github
+
 from . import env
 
 GCG_BIN = "github_changelog_generator"
 RE_ACK = re.compile(r"(?i).*this changelog was automatically generated.*")
 RE_COMPARE = re.compile(r"(?i)\[full changelog\]\((.*)/compare/(.*)\.\.\.(.*)\)")
+RE_CUSTOM = re.compile("(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->")
 RE_NUMBER = re.compile(r"\[\\#(\d+)\]\(.+?\)")
 RE_SECTION_HEADER = re.compile(r"^## \[.*\]\(.*\) \(.*\)$")
 EXCLUDE_LABELS = [
@@ -25,11 +31,30 @@ EXCLUDE_LABELS = [
 
 def get_changelog(version: str) -> Optional[str]:
     """Generate a changelog for the new version."""
+    custom = get_custom_release_notes(version)
+    if custom:
+        return custom
     output = run_generator()
     section = find_section(output, version)
     if not section:
         return None
     return format_section(section)
+
+
+def get_custom_release_notes(version: str) -> Optional[str]:
+    """Look up a version's custom release notes."""
+    with open(os.path.join(env.REPO_DIR, "Project.toml")) as f:
+        project = toml.load(f)
+    name = project["name"]
+    uuid = project["uuid"]
+    owner = env.REGISTRY.split("/")[-2]
+    head = f"{owner}:registrator/{name.lower()}/{uuid[:8]}/v{version}"
+    registry = "/".join(env.REGISTRY.split("/")[-2:])
+    gh = Github(env.TOKEN)
+    r = gh.get_repo(registry)
+    [p] = r.get_pulls(head=head, state="closed")
+    m = RE_CUSTOM.search(p.body)
+    return "\n".join(l[2:] for l in m[1].splitlines()).strip() if m else None
 
 
 def run_generator() -> str:
