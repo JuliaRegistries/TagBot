@@ -108,13 +108,7 @@ def commit_from_tree(tree: str) -> Optional[str]:
 
 def tag_exists(version: str) -> bool:
     """Check if a Git tag already exists."""
-    gh = Github(env.TOKEN)
-    r = gh.get_repo(env.REPO, lazy=True)
-    try:
-        r.get_git_ref(f"tags/{version}")
-    except UnknownObjectException:
-        return False
-    return True
+    return bool(git("tag", "--list", version))
 
 
 def setup_gpg() -> None:
@@ -126,6 +120,7 @@ def setup_gpg() -> None:
     with open(path, "w") as f:
         f.write(env.GPG_KEY)
     subprocess.run(["gpg", "--import", path], check=True)
+    os.unlink(path)
     key = (
         subprocess.run(["gpg", "--list-keys"], capture_output=True, check=True)
         .stdout.decode("utf-8")
@@ -133,7 +128,6 @@ def setup_gpg() -> None:
         .strip()
     )
     git("config", "user.signingKey", key)
-    os.unlink(path)
 
 
 def create_tag(version: str, sha: str) -> None:
