@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, Callable, List, Optional
+from typing import Dict, Optional
 
 import toml
 
@@ -11,21 +11,7 @@ from github import Github, UnknownObjectException
 
 from . import env
 from .changelog import get_changelog
-
-
-def logger(level: str) -> Callable[[Any], None]:
-    return lambda msg: print(f"::{level} ::{msg}")
-
-
-debug = logger("debug")
-info = print
-warn = logger("warning")
-error = logger("error")
-
-
-def die(level: Callable[[Any], None], msg: str, status: int) -> None:
-    level(msg)
-    exit(status)
+from .util import *
 
 
 def git(*argv: str, root=env.REPO_DIR) -> str:
@@ -40,9 +26,9 @@ def git(*argv: str, root=env.REPO_DIR) -> str:
     out = p.stdout.decode("utf-8")
     if p.returncode:
         if out:
-            print(out)
+            info(out)
         if p.stderr:
-            print(p.stderr.decode("utf-8"))
+            info(p.stderr.decode("utf-8"))
         die(error, f"Git command '{cmd}' failed", 1)
     return out.strip()
 
@@ -52,7 +38,7 @@ def get_versions(days_ago: int = 0) -> Dict[str, str]:
     with open(os.path.join(env.REPO_DIR, "Project.toml")) as f:
         project = toml.load(f)
     uuid = project["uuid"]
-    gh = Github(env.TOKEN)
+    gh = client()
     r = gh.get_repo(env.REGISTRY)
     registry_toml = r.get_contents("Registry.toml")
     registry = toml.loads(registry_toml.decoded_content.decode("utf-8"))
@@ -139,7 +125,7 @@ def create_tag(version: str, sha: str) -> None:
 def create_release(version: str, sha: str, message: Optional[str]) -> None:
     """Create a GitHub release for the new version."""
     info("Creating GitHub release")
-    gh = Github(env.TOKEN)
+    gh = client()
     r = gh.get_repo(env.REPO, lazy=True)
     target = r.default_branch if git("rev-parse", "HEAD") == sha else sha
     debug(f"Target: {target}")

@@ -1,5 +1,11 @@
 import os
 
+if "GITHUB_ACTION" in os.environ:
+    GITHUB_SITE = os.getenv("INPUT_GITHUB-SITE", "")
+    GITHUB_API = os.getenv("INPUT_GITHUB-API", "")
+else:  # For dev (can't set environment variables with dashes).
+    GITHUB_SITE = os.getenv("GITHUB_SITE", "")
+    GITHUB_API = os.getenv("GITHUB_API", "")
 GPG_KEY = os.getenv("INPUT_GPG-KEY", "")
 REGISTRY = os.getenv("INPUT_REGISTRY", "")
 REPO = os.getenv("GITHUB_REPOSITORY", "")

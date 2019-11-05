@@ -67,3 +67,14 @@ with:
 ```
 
 The key must not be protected by a password.
+
+### Self-Hosted GitHub
+
+If your packages are hosted on a GitHub instance other than github.com, set the `github-site` and `github-api` inputs:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  github-site: https://github.example.com
+  github-api: https://api.github.example.com
+```
