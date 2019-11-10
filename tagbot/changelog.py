@@ -58,7 +58,12 @@ def get_custom_release_notes(version: str) -> Optional[str]:
     head = f"{owner}:registrator/{name.lower()}/{uuid[:8]}/v{version}"
     gh = client()
     r = gh.get_repo(env.REGISTRY)
-    [p] = r.get_pulls(head=head, state="closed")
+    ps = r.get_pulls(head=head, state="closed")
+    for p in ps:
+        break
+    else:
+        warn("No registry pull request was found for this version")
+        return None
     m = RE_CUSTOM.search(p.body)
     return "\n".join(l[2:] for l in m[1].splitlines()).strip() if m else None
 
