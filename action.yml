@@ -22,7 +22,7 @@ inputs:
     required: false
 runs:
   using: docker
-  image: docker://degraafc/tagbot:1
+  image: docker://degraafc/tagbot:debug
 branding:
   icon: tag
   color: red
