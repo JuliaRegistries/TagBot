@@ -1,5 +1,3 @@
-import tempfile
-
 from unittest.mock import call, patch
 
 import tagbot as tb
@@ -25,10 +23,10 @@ def test_git(run):
     run.return_value.returncode = 0
     assert tb.git("a", "b") == "hello"
     assert tb.git("c", "d", root=None) == "hello"
-    assert tb.git("e", "f", root=tempfile.gettempdir())
+    assert tb.git("e", "f", root="foo")
     calls = [
         call(["git", "-C", tb.env.REPO_DIR, "a", "b"], capture_output=True),
         call(["git", "c", "d"], capture_output=True),
-        call(["git", "-C", tempfile.gettempdir(), "e", "f"], capture_output=True),
+        call(["git", "-C", "foo", "e", "f"], capture_output=True),
     ]
     run.assert_has_calls(calls)
