@@ -145,8 +145,9 @@ def create_tag(version: str, sha: str) -> None:
     gpg = ["-s"] if env.GPG_KEY else []
     message = f"{env.GITHUB_SITE}/{env.REPO}/releases/{version}"
     git("tag", version, sha, "-m", message, *gpg)
-    remote = f"{scheme}://oauth2:{env.TOKEN}@{host}/{env.REPO}"
-    git("remote", "add", "with-token", remote)
+    if "with-token" not in git("remote").splitlines():
+        remote = f"{scheme}://oauth2:{env.TOKEN}@{host}/{env.REPO}"
+        git("remote", "add", "with-token", remote)
     git("push", "with-token", "--tags")
     info("Pushed Git tag")
 
