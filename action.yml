@@ -5,11 +5,11 @@ inputs:
   token:
     description: GitHub API token
     required: true
-  github-site:
+  gh-site:
     description: Base URL of the GitHub instance
     required: false
     default: https://github.com
-  github-api:
+  gh-api:
     description: Base URL of the GitHub instance's API
     required: false
     default: https://api.github.com
