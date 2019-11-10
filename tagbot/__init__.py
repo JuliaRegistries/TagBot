@@ -54,7 +54,11 @@ def get_versions(days_ago: int = 0) -> Dict[str, str]:
         if days_ago:
             until = datetime.now() - timedelta(days=days_ago)
             commits = r.get_commits(until=until)
-            ref = commits[0].commit.sha
+            for commit in commits:
+                ref = commit.commit.sha
+                break
+            else:
+                return {}
             versions_toml = r.get_contents(f"{path}/Versions.toml", ref=ref)
         else:
             versions_toml = r.get_contents(f"{path}/Versions.toml")
