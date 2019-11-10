@@ -131,6 +131,8 @@ def create_tag(version: str, sha: str) -> None:
     info("Creating Git tag")
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
         raise Abort("You must use the actions/checkout action prior to this one")
+    git("config", "user.name", "github-actions[bot]")
+    git("config", "user.email", "123+github-actions[bot]@users.noreply.github.com")
     setup_gpg()
     gpg = ["-s"] if env.GPG_KEY else []
     git("tag", version, sha, "-m", "", *gpg)
