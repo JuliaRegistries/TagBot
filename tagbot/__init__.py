@@ -4,6 +4,7 @@ import tempfile
 
 from datetime import datetime, timedelta
 from typing import Dict, Optional
+from urllib.parse import urlparse
 
 import toml
 
@@ -135,12 +136,16 @@ def create_tag(version: str, sha: str) -> None:
     info("Creating Git tag")
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
         raise Abort("You must use the actions/checkout action prior to this one")
+    url = urlparse(env.GITHUB_SITE)
+    host = url.hostname
+    scheme = url.scheme
     git("config", "user.name", "github-actions[bot]")
-    git("config", "user.email", "123+github-actions[bot]@users.noreply.github.com")
+    git("config", f"user.email", "123+github-actions[bot]@users.noreply.{host}")
     setup_gpg()
     gpg = ["-s"] if env.GPG_KEY else []
-    git("tag", version, sha, "-m", "", *gpg)
-    remote = f"https://oauth2:{env.TOKEN}@github.com/{env.REPO}"
+    message = f"{env.GITHUB_SITE}/{env.REPO}/releases/{version}"
+    git("tag", version, sha, "-m", message, *gpg)
+    remote = f"{scheme}://oauth2:{env.TOKEN}@{host}/{env.REPO}"
     git("remote", "add", "with-token", remote)
     git("push", "with-token", "--tags")
     info("Pushed Git tag")
