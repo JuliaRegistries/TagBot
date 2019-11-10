@@ -14,6 +14,10 @@ from .changelog import get_changelog
 from .util import *
 
 
+class Abort(Exception):
+    pass
+
+
 def git(*argv: str, root=env.REPO_DIR) -> str:
     """Run a Git command."""
     args = ["git"]
@@ -29,7 +33,7 @@ def git(*argv: str, root=env.REPO_DIR) -> str:
             info(out)
         if p.stderr:
             info(p.stderr.decode("utf-8"))
-        die(error, f"Git command '{cmd}' failed", 1)
+        raise Abort(f"Git command '{cmd}' failed")
     return out.strip()
 
 
@@ -86,6 +90,11 @@ def tag_exists(version: str) -> bool:
     return bool(git("tag", "--list", version))
 
 
+def tag_is_valid(version: str, sha: str) -> bool:
+    """Check if a tag points at the commit that we expect it to."""
+    return f"{sha} refs/tags/{version}^{{}}" in git("show-ref", "-d", version)
+
+
 def setup_gpg() -> None:
     """Import a GPG key, and set it as the default key for Git."""
     if not env.GPG_KEY:
@@ -108,11 +117,14 @@ def setup_gpg() -> None:
 def create_tag(version: str, sha: str) -> None:
     """Create and push a Git tag."""
     if tag_exists(version):
-        info("Git tag already exists")
-        return
+        if tag_is_valid(version, sha):
+            info("Git tag already exists")
+            return
+        else:
+            raise Abort(f"Git tag already exists but points at the wrong commit")
     info("Creating Git tag")
     if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
-        die(error, "You must use the actions/checkout action prior to this one", 1)
+        raise Abort("You must use the actions/checkout action prior to this one")
     setup_gpg()
     gpg = ["-s"] if env.GPG_KEY else []
     git("tag", version, sha, "-m", "", *gpg)
