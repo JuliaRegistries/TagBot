@@ -46,14 +46,20 @@ def get_versions(days_ago: int = 0) -> Dict[str, str]:
     r = gh.get_repo(env.REGISTRY)
     registry_toml = r.get_contents("Registry.toml")
     registry = toml.loads(registry_toml.decoded_content.decode("utf-8"))
-    path = registry["packages"][uuid]["path"]
-    if days_ago:
-        until = datetime.now() - timedelta(days=days_ago)
-        commits = r.get_commits(until=until)
-        ref = commits[0].commit.sha
-        versions_toml = r.get_contents(f"{path}/Versions.toml", ref=ref)
+    if uuid in registry["packages"]:
+        path = registry["packages"][uuid]["path"]
     else:
-        versions_toml = r.get_contents(f"{path}/Versions.toml")
+        return {}
+    try:
+        if days_ago:
+            until = datetime.now() - timedelta(days=days_ago)
+            commits = r.get_commits(until=until)
+            ref = commits[0].commit.sha
+            versions_toml = r.get_contents(f"{path}/Versions.toml", ref=ref)
+        else:
+            versions_toml = r.get_contents(f"{path}/Versions.toml")
+    except UnknownObjectException:
+        return {}
     versions = toml.loads(versions_toml.decoded_content.decode("utf-8"))
     return {v: versions[v]["git-tree-sha1"] for v in versions}
 
