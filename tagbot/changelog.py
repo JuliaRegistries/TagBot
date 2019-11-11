@@ -41,6 +41,7 @@ def get_changelog(version: str) -> Optional[str]:
         return custom
     debug("Running changelog generator")
     output = run_generator()
+    debug(f"Output:\n{output}")
     section = find_section(output, version)
     if not section:
         warn(f"Changelog generation failed (couldn't find section for {version})")
@@ -84,6 +85,7 @@ def run_generator() -> str:
     args.extend(["--security-labels", ""])
     args.extend(["--summary-labels", ""])
     args.extend(["--exclude-labels", exclude_labels()])
+    debug(f"Command: {GCG_BIN} {' '.join(args)}")
     subprocess.run([GCG_BIN, *args], check=True)
     with open(output) as f:
         return f.read()
