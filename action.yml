@@ -8,12 +8,15 @@ inputs:
   github-site:
     description: Base URL of the GitHub instance
     required: false
+    default: https://github.com
   github-api:
     description: Base URL of the GitHub instance's API
     required: false
+    default: https://api.github.com
   registry:
     description: Owner/name of the registry repository
     required: false
+    default: JuliaRegistries/General
   gpg-key:
     description: GPG key for tag signing
     required: false
