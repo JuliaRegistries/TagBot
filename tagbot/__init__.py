@@ -96,60 +96,10 @@ def commit_from_tree(tree: str) -> Optional[str]:
     return None
 
 
-def tag_exists(version: str) -> bool:
-    """Check if a Git tag already exists."""
-    return bool(git("tag", "--list", version))
-
-
-def tag_is_valid(version: str, sha: str) -> bool:
+def release_is_valid(version: str, sha: str) -> bool:
     """Check if a tag points at the commit that we expect it to."""
+    # TODO check release via API
     return f"{sha} refs/tags/{version}^{{}}" in git("show-ref", "-d", version)
-
-
-def setup_gpg() -> None:
-    """Import a GPG key, and set it as the default key for Git."""
-    if not env.GPG_KEY:
-        debug("No GPG key found")
-        return
-    _, path = tempfile.mkstemp()
-    with open(path, "w") as f:
-        f.write(env.GPG_KEY)
-    subprocess.run(["gpg", "--import", path], check=True)
-    os.unlink(path)
-    key = (
-        subprocess.run(["gpg", "--list-keys"], capture_output=True, check=True)
-        .stdout.decode("utf-8")
-        .splitlines()[3]
-        .strip()
-    )
-    git("config", "user.signingKey", key)
-
-
-def create_tag(version: str, sha: str) -> None:
-    """Create and push a Git tag."""
-    if tag_exists(version):
-        if tag_is_valid(version, sha):
-            info("Git tag already exists")
-            return
-        else:
-            raise Abort(f"Git tag already exists but points at the wrong commit")
-    info("Creating Git tag")
-    if not os.path.isdir(env.REPO_DIR) or not os.listdir(env.REPO_DIR):
-        raise Abort("You must use the actions/checkout action prior to this one")
-    url = urlparse(env.GITHUB_SITE)
-    host = url.hostname
-    scheme = url.scheme
-    git("config", "user.name", "github-actions[bot]")
-    git("config", f"user.email", "123+github-actions[bot]@users.noreply.{host}")
-    setup_gpg()
-    gpg = ["-s"] if env.GPG_KEY else []
-    message = f"{env.GITHUB_SITE}/{env.REPO}/releases/{version}"
-    git("tag", version, sha, "-m", message, *gpg)
-    if "with-token" not in git("remote").splitlines():
-        remote = f"{scheme}://oauth2:{env.TOKEN}@{host}/{env.REPO}"
-        git("remote", "add", "with-token", remote)
-    git("push", "with-token", "--tags")
-    info("Pushed Git tag")
 
 
 def create_release(version: str, sha: str, message: Optional[str]) -> None:

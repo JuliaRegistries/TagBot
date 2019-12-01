@@ -51,6 +51,7 @@ def get_changelog(version: str) -> Optional[str]:
 
 def get_custom_release_notes(version: str) -> Optional[str]:
     """Look up a version's custom release notes."""
+    # TODO this is not working, probably the branch name is wrong.
     with open(os.path.join(env.REPO_DIR, "Project.toml")) as f:
         project = toml.load(f)
     name = project["name"]

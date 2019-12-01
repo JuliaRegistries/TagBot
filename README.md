@@ -53,21 +53,6 @@ with:
   registry: MyOrg/MyRegistry
 ```
 
-### Signed Tags
-
-If you want your tags to be signed with GPG, you must provide your own key.
-First, export your private key with `gpg --export-secret-keys --armor <key-id>`.
-Then, use the output to create a new repository secret called `GPG_KEY` as instructed [here](https://help.github.com/en/github/automating-your-workflow-with-github-actions/virtual-environments-for-github-actions#creating-and-using-secrets-encrypted-variables).
-Finally, add the `gpg-key` input:
-
-```yml
-with:
-  token: ${{ secrets.GITHUB_TOKEN }}
-  gpg-key: ${{ secrets.GPG_KEY }}
-```
-
-The key must not be protected by a password.
-
 ### Self-Hosted GitHub
 
 If your packages are hosted on a GitHub instance other than github.com, set the `github-site` and `github-api` inputs:

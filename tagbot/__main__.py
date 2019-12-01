@@ -13,9 +13,12 @@ for version, tree in versions.items():
             warn(f"Version {version} doesn't seem to have a matching commit")
             continue
         if release_exists(version):
-            warn(f"Release {version} already exists")
-            continue
-        create_tag(version, sha)
+            if release_is_valid(version, sha):
+                info(f"Release {version} already exists")
+                continue
+            else:
+                msg = f"Release {version} already exists but points at the wrong commit"
+                raise Abort(msg)
         log = get_changelog(version)
         create_release(version, sha, log)
     except Abort as e:
