@@ -13,7 +13,6 @@ jobs:
   TagBot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,13 +52,26 @@ with:
   registry: MyOrg/MyRegistry
 ```
 
-### Self-Hosted GitHub
+### Pre-Release Hooks
 
-If your packages are hosted on a GitHub instance other than github.com, set the `github-site` and `github-api` inputs:
+If you want to make something happen just before releases are created, for example creating annotated, GPG-signed tags, you can do so with the `dispatch` input:
 
 ```yml
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
-  github-site: https://github.example.com
-  github-api: https://api.github.example.com
+  dispatch: true
 ```
+
+When you enable this option, a [repository dispatch event](https://developer.github.com/v3/activity/events/types/#repositorydispatchevent) is created before releases are created.
+This means that you can set up your own actions that perform any necessary pre-release tasks.
+These actions will have 5 minutes to run.
+
+The payload is an object mapping from version to commit SHA, which can contain multiple entries and looks like this:
+
+```json
+{
+  "v1.2.3": "abcdef0123456789abcdef0123456789abcdef01"
+}
+```
+
+To use this feature, you must provide your own personal access token instead of the default `secrets.GITHUB_TOKEN`, because that token does not have permission to trigger events.

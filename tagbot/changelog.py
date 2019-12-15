@@ -1,17 +1,15 @@
 import itertools
-import os
 import re
 import subprocess
-import tempfile
 
+from datetime import datetime
+from tempfile import mkstemp
 from typing import List, Optional
-
-import toml
 
 from github import Github
 
-from . import env
-from .util import *
+from . import DELTA, debug, info, warn
+
 
 # https://github.com/github-changelog-generator/github-changelog-generator/blob/v1.15.0/lib/github_changelog_generator/generator/section.rb#L88-L102
 ESCAPED = ["\\", "<", ">", "*", "_", "(", ")", "[", "]", "#"]
@@ -32,50 +30,56 @@ EXCLUDE_LABELS = [
 ]
 
 
-def get_changelog(version: str) -> Optional[str]:
+def get_changelog(
+    *, name: str, registry: str, repo: str, token: str, uuid: str, version: str
+) -> Optional[str]:
     """Generate a changelog for the new version."""
     debug("Looking up custom release notes")
-    custom = get_custom_release_notes(version)
+    custom = _custom_notes(
+        name=name, registry=registry, token=token, uuid=uuid, version=version
+    )
     if custom:
         info("Found custom release notes")
         return custom
     debug("Running changelog generator")
-    output = run_generator()
+    output = _run_generator(repo, token)
     debug(f"Output:\n{output}")
-    section = find_section(output, version)
+    section = _find_section(output, version)
     if not section:
         warn(f"Changelog generation failed (couldn't find section for {version})")
         return None
-    return format_section(section)
+    return _format_section(section)
 
 
-def get_custom_release_notes(version: str) -> Optional[str]:
+def _custom_notes(
+    *, name: str, registry: str, token: str, uuid: str, version: str
+) -> Optional[str]:
     """Look up a version's custom release notes."""
-    # TODO this is not working, probably the branch name is wrong.
-    with open(os.path.join(env.REPO_DIR, "Project.toml")) as f:
-        project = toml.load(f)
-    name = project["name"]
-    uuid = project["uuid"]
-    owner, _ = env.REGISTRY.split("/")
-    head = f"{owner}:registrator/{name.lower()}/{uuid[:8]}/v{version}"
-    gh = client()
-    r = gh.get_repo(env.REGISTRY)
-    ps = r.get_pulls(head=head, state="closed")
-    for p in ps:
-        break
-    else:
+    gh = Github(token)
+    r = gh.get_repo(registry, lazy=True)
+    prs = r.get_pulls(state="closed")
+    now = datetime.now()
+    head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
+    body = None
+    for pr in prs:
+        if pr.merged and pr.head.ref == head:
+            body = pr.body
+            break
+        if now - pr.closed_at > DELTA:
+            break
+    if not body:
         warn("No registry pull request was found for this version")
         return None
-    m = RE_CUSTOM.search(p.body)
+    m = RE_CUSTOM.search(body)
+    # Remove the '> ' at the beginning of each line.
     return "\n".join(l[2:] for l in m[1].splitlines()).strip() if m else None
 
 
-def run_generator() -> str:
+def _run_generator(repo: str, token: str) -> str:
     """Run the generator CLI."""
-    user, project = env.REPO.split("/")
-    args = ["--user", user, "--project", project, "--token", env.TOKEN]
-    args.extend(["--github-site", env.GITHUB_SITE, "--github-api", env.GITHUB_API])
-    _, output = tempfile.mkstemp()
+    user, project = repo.split("/")
+    args = ["--user", user, "--project", project, "--token", token]
+    _, output = mkstemp(prefix="tagbot_changelog_")
     args.extend(["--output", output])
     args.extend(["--header-label", ""])
     args.extend(["--breaking-labels", ""])
@@ -85,14 +89,14 @@ def run_generator() -> str:
     args.extend(["--removed-labels", ""])
     args.extend(["--security-labels", ""])
     args.extend(["--summary-labels", ""])
-    args.extend(["--exclude-labels", exclude_labels()])
+    args.extend(["--exclude-labels", _exclude_labels()])
     debug(f"Command: {GCG_BIN} {' '.join(args)}")
     subprocess.run([GCG_BIN, *args], check=True)
     with open(output) as f:
         return f.read()
 
 
-def find_section(output: str, version: str) -> Optional[str]:
+def _find_section(output: str, version: str) -> Optional[str]:
     """Search for a single release's section in the generated changelog."""
     lines = output.split("\n")
     start = None
@@ -109,12 +113,12 @@ def find_section(output: str, version: str) -> Optional[str]:
     else:
         stop = i
     if start is None:
-        print("Section was not found")
+        warn("Changelog section was not found")
         return None
     return "\n".join(lines[start:stop]).strip()
 
 
-def format_section(section: str) -> str:
+def _format_section(section: str) -> str:
     """Format the release changelog."""
     section = RE_NUMBER.sub("(#\\1)", section)
     section = RE_ACK.sub("", section)
@@ -124,13 +128,13 @@ def format_section(section: str) -> str:
     return section.strip()
 
 
-def exclude_labels() -> str:
+def _exclude_labels() -> str:
     """Compute the labels to be excluded from sections."""
-    perms = [permutations(s) for s in EXCLUDE_LABELS]
+    perms = [_permutations(s) for s in EXCLUDE_LABELS]
     return ",".join(set(itertools.chain.from_iterable(perms)))
 
 
-def permutations(s: str) -> List[str]:
+def _permutations(s: str) -> List[str]:
     """Compute a bunch of different forms of the same string."""
     s = " ".join(w.capitalize() for w in s.split())
     hyphens = s.replace(" ", "-")

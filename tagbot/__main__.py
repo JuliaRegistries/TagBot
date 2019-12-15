@@ -1,27 +1,34 @@
-from . import *
+import os
+import time
 
-status = 0
-versions = get_new_versions()
+from . import Abort, info, error
+from .repo import Repo
+
+repo_name = os.getenv("GITHUB_REPOSITORY", "")
+dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
+registry_name = os.getenv("INPUT_REGISTRY", "")
+token = os.getenv("INPUT_TOKEN", "")
+
+repo = Repo(repo_name, registry_name, token)
+versions = repo.new_versions()
+
 if not versions:
-    info("No new verions to release")
-for version, tree in versions.items():
+    info("No new versions to release")
+    exit(0)
+
+if dispatch:
+    repo.create_dispatch_event(versions)
+    info("Waiting 5 minutes for any dispatch handlers")
+    time.sleep(60 * 5)
+
+for version, sha in versions.items():
+    info(f"Processing version {version} ({sha})")
     try:
-        version = f"v{version}"
-        info(f"Processing version: {version}")
-        sha = commit_from_tree(tree)
-        if not sha:
-            warn(f"Version {version} doesn't seem to have a matching commit")
-            continue
-        if release_exists(version):
-            if release_is_valid(version, sha):
-                info(f"Release {version} already exists")
-                continue
-            else:
-                msg = f"Release {version} already exists but points at the wrong commit"
-                raise Abort(msg)
-        log = get_changelog(version)
-        create_release(version, sha, log)
+        log = repo.changelog(version)
+        repo.create_release(version, sha, log)
     except Abort as e:
         error(e.args[0])
-        status = 1
-exit(status)
+
+from . import STATUS
+
+exit(STATUS)
