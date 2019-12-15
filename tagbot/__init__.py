@@ -89,7 +89,7 @@ def release_exists(version: str) -> bool:
 
 def commit_from_tree(tree: str) -> Optional[str]:
     """Get the commit SHA that corresponds to a tree SHA."""
-    for line in git("log", "--branches=*", "--format=%H %T").splitlines():
+    for line in git("log", "--all", "--format=%H %T").splitlines():
         c, t = line.split()
         if t == tree:
             return c
