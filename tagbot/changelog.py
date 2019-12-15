@@ -57,17 +57,25 @@ def _custom_notes(
     """Look up a version's custom release notes."""
     gh = Github(token)
     r = gh.get_repo(registry, lazy=True)
-    prs = r.get_pulls(state="closed")
-    now = datetime.now()
     head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
-    body = None
+    now = datetime.now()
+    # Check for an owner's PR first, since this is way faster.
+    owner, _ = registry.split("/")
+    prs = r.get_pulls(head=f"{owner}:{head}", state="closed")
     for pr in prs:
-        if pr.merged and pr.head.ref == head:
+        if pr.merged and now - pr.merged_at < DELTA:
             body = pr.body
             break
-        if now - pr.closed_at > DELTA:
-            break
-    if not body:
+    else:
+        prs = r.get_pulls(state="closed")
+        body = None
+        for pr in prs:
+            if now - pr.closed_at > DELTA:
+                break
+            if pr.merged and pr.head.ref == head:
+                body = pr.body
+                break
+    if body is None:
         warn("No registry pull request was found for this version")
         return None
     m = RE_CUSTOM.search(body)
