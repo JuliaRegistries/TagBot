@@ -167,4 +167,4 @@ class Repo:
         else:
             target = sha
         info(f"Creating release {version} at {sha} (target {target})")
-        r.create_git_release(version, version, changelog or "", target)
+        r.create_git_release(version, version, changelog or "", target_commitish=target)
