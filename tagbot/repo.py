@@ -90,6 +90,7 @@ class Repo:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
         for version, tree in versions.items():
+            version = f"v{version}"
             sha = self._commit_from_tree(tree)
             if not sha:
                 warn(f"No matching commit was found for version {version} ({tree})")
@@ -102,7 +103,7 @@ class Repo:
             if self._release_exists(version):
                 info(f"Release {version} already exists")
                 continue
-            valid[f"v{version}"] = sha
+            valid[version] = sha
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
