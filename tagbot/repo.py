@@ -140,7 +140,7 @@ class Repo:
 
     def create_dispatch_event(self, payload: Dict[str, Any]) -> None:
         """Create a repository dispatch event."""
-        requests.post(
+        resp = requests.post(
             f"https://api.github.com/repos/{self.__name}/dispatches",
             headers={
                 "Accept": "application/vnd.github.everest-preview+json",
@@ -148,6 +148,7 @@ class Repo:
             },
             json={"event_type": "TagBot", "client_payload": payload},
         )
+        debug(f"Dispatch response code: {resp.status_code}")
 
     def changelog(self, version: str) -> Optional[str]:
         """Get the changelog for a new version."""
