@@ -42,11 +42,11 @@ def git(*argv: str, repo: Optional[str] = None) -> str:
     cmd = " ".join(args)
     debug(f"Running {cmd}")
     p = subprocess.run(args, capture_output=True)
-    out = p.stdout.decode("utf-8")
+    out = p.stdout.decode()
     if p.returncode:
         if out:
             info(out)
         if p.stderr:
-            info(p.stderr.decode("utf-8"))
+            info(p.stderr.decode())
         raise Abort(f"Git command '{cmd}' failed")
     return out.strip()

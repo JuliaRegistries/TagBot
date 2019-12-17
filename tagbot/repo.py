@@ -43,7 +43,7 @@ class Repo:
             return self.__registry_path
         r = self.__gh.get_repo(self.__registry)
         contents = r.get_contents("Registry.toml")
-        registry = toml.loads(contents.decoded_content.decode("utf-8"))
+        registry = toml.loads(contents.decoded_content.decode())
         uuid = self._project("uuid")
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
@@ -126,7 +126,7 @@ class Repo:
         except UnknownObjectException:
             debug("Versions.toml was not found")
             return {}
-        versions = toml.loads(contents.decoded_content.decode("utf-8"))
+        versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
     def new_versions(self) -> Dict[str, str]:
