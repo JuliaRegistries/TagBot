@@ -140,9 +140,11 @@ def test_versions(debug):
     delta = timedelta(days=3)
     assert r._versions(min_age=delta) == {"1.2.3": "abc", "2.3.4": "bcd"}
     gh_repo.get_commits.assert_called_once()
-    [call] = gh_repo.get_commits.mock_calls
-    assert not call.args and len(call.kwargs) == 1 and "until" in call.kwargs
-    assert isinstance(call.kwargs["until"], datetime)
+    assert len(gh_repo.get_commits.mock_calls) == 1
+    args, kwargs = gh_repo.get_commits.mock_calls[0][1:]
+    assert not args
+    assert len(kwargs) == 1 and "until" in kwargs
+    assert isinstance(kwargs["until"], datetime)
     gh_repo.get_contents.assert_called_with("path/Versions.toml", ref="abcdef")
     debug.assert_not_called()
     gh_repo.get_commits.return_value = []
