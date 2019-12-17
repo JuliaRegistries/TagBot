@@ -8,7 +8,9 @@ def test_loggers(print):
     tb.debug("a")
     tb.info("b")
     tb.warn("c")
+    assert tb.STATUS == 0
     tb.error("d")
+    assert tb.STATUS == 1
     calls = [call("::debug ::a"), call("b"), call("::warning ::c"), call("::error ::d")]
     print.assert_has_calls(calls)
 
