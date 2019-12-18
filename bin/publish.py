@@ -26,7 +26,7 @@ def tag(version):
 
 
 def login():
-    docker("login", "-u", USER, "--password-stdin", input=PASS.encode("utf-8"))
+    docker("login", "-u", USER, "--password-stdin", input=PASS.encode())
 
 
 def push(version):
