@@ -73,9 +73,11 @@ class Repo:
         """Check whether or not an existing tag points at the wrong commit."""
         if not git("tag", "--list", version, repo=self._dir()):
             return False
-        expected = f"{sha} refs/tags/{version}^{{}}"
         lines = git("show-ref", "-d", version, repo=self._dir()).splitlines()
-        return expected not in lines
+        # For annotated tags, there are two entries.
+        # The one with the ^{} suffix uses the commit hash.
+        expected = f"{sha} refs/tags/{version}"
+        return expected not in lines and f"{expected}^{{}}" not in lines
 
     def _release_exists(self, version) -> bool:
         """Check whether or not a GitHub release exists."""

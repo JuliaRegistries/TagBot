@@ -63,6 +63,8 @@ def test_commit_from_tree(git):
         "fedcba refs/tags/v2.3.4^{}",
         "v3.4.5",
         "abcdef refs/tags/v3.4.5^{}",
+        "v4.5.6",
+        "abcdef refs/tags/v4.5.6",
     ],
 )
 def test_invalid_tag_exists(git):
@@ -82,6 +84,13 @@ def test_invalid_tag_exists(git):
         [
             call("tag", "--list", "v3.4.5", repo="dir"),
             call("show-ref", "-d", "v3.4.5", repo="dir"),
+        ]
+    )
+    assert not r._invalid_tag_exists("v4.5.6", "abcdef")
+    git.assert_has_calls(
+        [
+            call("tag", "--list", "v4.5.6", repo="dir"),
+            call("show-ref", "-d", "v4.5.6", repo="dir"),
         ]
     )
 
