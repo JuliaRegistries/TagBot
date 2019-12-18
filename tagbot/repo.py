@@ -68,6 +68,10 @@ class Repo:
                 return c
         return None
 
+    def _branch_exists(self, branch: str) -> bool:
+        """Check whether or not a branch exists locally."""
+        return bool(git("branch", "--list", branch, repo=self._dir()))
+
     def _tag_exists(self, version: str) -> bool:
         """Check whether or not a tag exists locally."""
         return bool(git("tag", "--list", version, repo=self._dir()))
@@ -132,6 +136,27 @@ class Repo:
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
+    def _can_fast_forward(self, master: str, branch: str) -> bool:
+        """Check whether master can be fast-forwarded to branch."""
+        try:  # TODO: Having to use try here is ugly.
+            git("merge-base", "--is-ancestor", master, branch, repo=self._dir())
+            return True
+        except Abort:
+            return False
+
+    def _merge_and_delete_branch(self, master: str, branch: str) -> None:
+        """Merge a branch into master and delete the branch."""
+        git("checkout", master, repo=self._dir())
+        git("merge", branch, repo=self._dir())
+        git("push", "origin", master, repo=self._dir())
+        git("push", "-d", "origin", branch, repo=self._dir())
+
+    def _create_release_branch_pr(self, version: str, master: str, branch: str) -> None:
+        """Create a pull request for the release branch."""
+        self.__repo.create_pull(
+            title=f"Merge release branch for {version}", head=branch, base=master,
+        )
+
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
@@ -152,6 +177,20 @@ class Repo:
             json={"event_type": "TagBot", "client_payload": payload},
         )
         debug(f"Dispatch response code: {resp.status_code}")
+
+    def handle_release_branch(self, version: str) -> None:
+        """Merge an existing release branch or create a PR to merge it."""
+        branch = f"release-{version[1:]}"
+        if not self._branch_exists(branch):
+            info(f"Release branch {branch} does not exist")
+            return
+        master = self.__repo.default_branch
+        if self._can_fast_forward(master, branch):
+            info("Release branch can be fast-forwarded")
+            self._merge_and_delete_branch(master, branch)
+        else:
+            info("Release branch cannot be fast-forwarded, creating pull reque")
+            self._create_release_branch_pr(version, master, branch)
 
     def changelog(self, version: str) -> Optional[str]:
         """Get the changelog for a new version."""

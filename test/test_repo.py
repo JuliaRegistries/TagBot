@@ -6,7 +6,7 @@ from unittest.mock import Mock, call, patch
 
 from github import UnknownObjectException
 
-from tagbot.repo import Repo
+from tagbot.repo import Abort, Repo
 
 
 @patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
@@ -54,6 +54,16 @@ def test_commit_from_tree(git):
     assert r._commit_from_tree("b") == "a"
     assert r._commit_from_tree("e") == "d"
     assert r._commit_from_tree("c") is None
+
+
+@patch("tagbot.repo.git", side_effect=["foo", ""])
+def test_branch_exists(git):
+    r = Repo("", "", "")
+    r._dir = lambda: "dir"
+    assert r._branch_exists("foo")
+    git.assert_called_with("branch", "--list", "foo", repo="dir")
+    assert not r._branch_exists("bar")
+    git.assert_called_with("branch", "--list", "bar", repo="dir")
 
 
 @patch("tagbot.repo.git", side_effect=["v1.2.3", ""])
@@ -155,6 +165,44 @@ def test_versions(debug, Github):
     debug.assert_called_with("Versions.toml was not found")
 
 
+@patch("tagbot.repo.git", side_effect=[1, Abort])
+def test_can_fast_forward(git):
+    r = Repo("", "", "")
+    r._dir = lambda: "dir"
+    assert r._can_fast_forward("master1", "branch1")
+    git.assert_called_with(
+        "merge-base", "--is-ancestor", "master1", "branch1", repo="dir"
+    )
+    assert not r._can_fast_forward("master2", "branch2")
+    git.assert_called_with(
+        "merge-base", "--is-ancestor", "master2", "branch2", repo="dir"
+    )
+
+
+@patch("tagbot.repo.git")
+def test_merge_and_delete_branch(git):
+    r = Repo("", "", "")
+    r._dir = lambda: "dir"
+    r._merge_and_delete_branch("master", "branch")
+    git.assert_has_calls(
+        [
+            call("checkout", "master", repo="dir"),
+            call("merge", "branch", repo="dir"),
+            call("push", "origin", "master", repo="dir"),
+            call("push", "-d", "origin", "branch", repo="dir"),
+        ]
+    )
+
+
+@patch("tagbot.repo.Github")
+def test_create_release_branch_pr(Github):
+    r = Repo("", "", "")
+    r._create_release_branch_pr("v1.2.3", "master", "branch")
+    r._Repo__repo.create_pull.assert_called_once_with(
+        title="Merge release branch for v1.2.3", head="branch", base="master"
+    )
+
+
 def test_new_versions():
     r = Repo("", "", "")
     r._versions = (
@@ -164,6 +212,24 @@ def test_new_versions():
     )
     r._filter_map_versions = lambda vs: vs
     assert r.new_versions() == {"2.3.4": "bcd"}
+
+
+@patch("tagbot.repo.Github")
+def test_handle_release_branch(Github):
+    r = Repo("", "", "")
+    r._Repo__repo.default_branch = "master"
+    r._branch_exists = Mock(side_effect=[False, True, True])
+    r._can_fast_forward = Mock(side_effect=[True, False])
+    r._merge_and_delete_branch = Mock()
+    r._create_release_branch_pr = Mock()
+    r.handle_release_branch("v1.2.3")
+    r._branch_exists.assert_called_with("release-1.2.3")
+    r.handle_release_branch("v2.3.4")
+    r._merge_and_delete_branch.assert_called_once_with("master", "release-2.3.4")
+    r.handle_release_branch("v3.4.5")
+    r._create_release_branch_pr.assert_called_once_with(
+        "v3.4.5", "master", "release-3.4.5"
+    )
 
 
 @patch("tagbot.repo.Github")
