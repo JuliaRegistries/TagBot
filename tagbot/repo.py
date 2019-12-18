@@ -17,10 +17,10 @@ class Repo:
     """A Repo has access to its Git repository and registry metadata."""
 
     def __init__(self, name: str, registry: str, token: str):
-        self.__name = name
-        self.__registry = registry
         self.__token = token
         self.__gh = Github(self.__token)
+        self.__repo = self.__gh.get_repo(name, lazy=True)
+        self.__registry = self.__gh.get_repo(registry, lazy=True)
         self.__dir: Optional[str] = None
         self.__project: Optional[MutableMapping[str, Any]] = None
         self.__registry_path: Optional[str] = None
@@ -41,8 +41,7 @@ class Repo:
         """Get the package's path in the registry repo."""
         if self.__registry_path is not None:
             return self.__registry_path
-        r = self.__gh.get_repo(self.__registry)
-        contents = r.get_contents("Registry.toml")
+        contents = self.__registry.get_contents("Registry.toml")
         registry = toml.loads(contents.decoded_content.decode())
         uuid = self._project("uuid")
         if uuid in registry["packages"]:
@@ -54,7 +53,7 @@ class Repo:
         """Get the repository clone location (cloning if necessary)."""
         if self.__dir is not None:
             return self.__dir
-        url = f"https://oauth2:{self.__token}@github.com/{self.__name}"
+        url = f"https://oauth2:{self.__token}@github.com/{self.__repo.full_name}"
         dest = mkdtemp(prefix="tagbot_repo_")
         git("clone", url, dest)
         self.__dir = dest
@@ -69,24 +68,27 @@ class Repo:
                 return c
         return None
 
+    def _tag_exists(self, version: str) -> bool:
+        """Check whether or not a tag exists locally."""
+        return bool(git("tag", "--list", version, repo=self._dir()))
+
+    def _release_exists(self, version) -> bool:
+        """Check whether or not a GitHub release exists."""
+        try:
+            self.__repo.get_release(version)
+            return True
+        except UnknownObjectException:
+            return False
+
     def _invalid_tag_exists(self, version: str, sha: str) -> bool:
         """Check whether or not an existing tag points at the wrong commit."""
-        if not git("tag", "--list", version, repo=self._dir()):
+        if not self._tag_exists(version):
             return False
         lines = git("show-ref", "-d", version, repo=self._dir()).splitlines()
         # For annotated tags, there are two entries.
         # The one with the ^{} suffix uses the commit hash.
         expected = f"{sha} refs/tags/{version}"
         return expected not in lines and f"{expected}^{{}}" not in lines
-
-    def _release_exists(self, version) -> bool:
-        """Check whether or not a GitHub release exists."""
-        r = self.__gh.get_repo(self.__name, lazy=True)
-        try:
-            r.get_release(version)
-            return True
-        except UnknownObjectException:
-            return False
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -110,12 +112,11 @@ class Repo:
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Get all package versions from the registry."""
-        r = self.__gh.get_repo(self.__registry)
         kwargs = {}
         if min_age:
             # Get the most recent commit from before min_age.
             until = datetime.now() - min_age
-            commits = r.get_commits(until=until)
+            commits = self.__registry.get_commits(until=until)
             for commit in commits:
                 kwargs["ref"] = commit.commit.sha
                 break
@@ -124,7 +125,7 @@ class Repo:
                 return {}
         root = self._registry_path()
         try:
-            contents = r.get_contents(f"{root}/Versions.toml", **kwargs)
+            contents = self.__registry.get_contents(f"{root}/Versions.toml", **kwargs)
         except UnknownObjectException:
             debug("Versions.toml was not found")
             return {}
@@ -143,7 +144,7 @@ class Repo:
     def create_dispatch_event(self, payload: Dict[str, Any]) -> None:
         """Create a repository dispatch event."""
         resp = requests.post(
-            f"https://api.github.com/repos/{self.__name}/dispatches",
+            f"https://api.github.com/repos/{self.__repo.full_name}/dispatches",
             headers={
                 "Accept": "application/vnd.github.everest-preview+json",
                 "Authorization": f"token {self.__token}",
@@ -156,8 +157,8 @@ class Repo:
         """Get the changelog for a new version."""
         return get_changelog(
             name=self._project("name"),
-            registry=self.__registry,
-            repo=self.__name,
+            registry=self.__registry.full_name,
+            repo=self.__repo.full_name,
             token=self.__token,
             uuid=self._project("uuid"),
             version=version,
@@ -165,10 +166,11 @@ class Repo:
 
     def create_release(self, version: str, sha: str, changelog: Optional[str]) -> None:
         """Create a GitHub release."""
-        r = self.__gh.get_repo(self.__name, lazy=True)
         if git("rev-parse", "HEAD", repo=self._dir()) == sha:
-            target = r.default_branch
+            target = self.__repo.default_branch
         else:
             target = sha
         info(f"Creating release {version} at {sha} (target {target})")
-        r.create_git_release(version, version, changelog or "", target_commitish=target)
+        self.__repo.create_git_release(
+            version, version, changelog or "", target_commitish=target
+        )
