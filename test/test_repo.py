@@ -1,19 +1,21 @@
-import tagbot
-
 from datetime import datetime, timedelta
 from io import StringIO
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 from github import UnknownObjectException
 
 from tagbot.repo import Repo
 
 
+def _repo(*, name="", registry="", token="", changelog=""):
+    return Repo(name, registry, token, changelog)
+
+
 @patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
 @patch("os.path.isfile", return_value=True)
 def test_project(isfile, open):
-    r = Repo("", "", "")
-    r._dir = lambda: ""
+    r = _repo()
+    r._Repo__dir = ""
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
     assert r._project("name") == "FooBar"
@@ -22,35 +24,35 @@ def test_project(isfile, open):
 
 @patch("tagbot.repo.Github")
 def test_registry_path(Github):
-    r = Repo("", "", "")
-    r._Repo__registry.get_contents.return_value.decoded_content = b"""
+    r = _repo()
+    r._registry.get_contents.return_value.decoded_content = b"""
     [packages]
     abc-def = { path = "B/Bar" }
     """
     r._project = lambda _k: "abc-ddd"
-    assert r._registry_path() is None
+    assert r._registry_path is None
     r._project = lambda _k: "abc-def"
-    assert r._registry_path() == "B/Bar"
-    assert r._registry_path() == "B/Bar"
-    assert r._Repo__registry.get_contents.call_count == 2
+    assert r._registry_path == "B/Bar"
+    assert r._registry_path == "B/Bar"
+    assert r._registry.get_contents.call_count == 2
 
 
 @patch("tagbot.repo.Github")
 @patch("tagbot.repo.mkdtemp", return_value="dest")
 @patch("tagbot.repo.git")
 def test_dir(git, mkdtemp, Github):
-    r = Repo("", "", "x")
-    r._Repo__repo.full_name = "Foo/Bar"
-    assert r._dir() == "dest"
-    assert r._dir() == "dest"
+    r = _repo(token="x")
+    r._repo.full_name = "Foo/Bar"
+    assert r._dir == "dest"
+    assert r._dir == "dest"
     mkdtemp.assert_called_once()
     git.assert_called_once_with("clone", "https://oauth2:x@github.com/Foo/Bar", "dest")
 
 
 @patch("tagbot.repo.git", return_value="a b\n c d\n d e\n")
 def test_commit_from_tree(git):
-    r = Repo("", "", "")
-    r._dir = lambda: "dir"
+    r = _repo()
+    r._Repo__dir = "dir"
     assert r._commit_from_tree("b") == "a"
     assert r._commit_from_tree("e") == "d"
     assert r._commit_from_tree("c") is None
@@ -58,8 +60,8 @@ def test_commit_from_tree(git):
 
 @patch("tagbot.repo.git", side_effect=["v1.2.3", ""])
 def test_tag_exists(git):
-    r = Repo("", "", "")
-    r._dir = lambda: "dir"
+    r = _repo()
+    r._Repo__dir = "dir"
     assert r._tag_exists("v1.2.3")
     git.assert_called_with("tag", "--list", "v1.2.3", repo="dir")
     assert not r._tag_exists("v3.2.1")
@@ -68,12 +70,12 @@ def test_tag_exists(git):
 
 @patch("tagbot.repo.Github")
 def test_release_exists(Github):
-    r = Repo("", "", "")
-    r._Repo__repo.get_release.side_effect = [1, UnknownObjectException(0, 0)]
+    r = _repo()
+    r._repo.get_release.side_effect = [1, UnknownObjectException(0, 0)]
     assert r._release_exists("v1.2.3")
-    r._Repo__repo.get_release.assert_called_with("v1.2.3")
+    r._repo.get_release.assert_called_with("v1.2.3")
     assert not r._release_exists("v3.2.1")
-    r._Repo__repo.get_release.assert_called_with("v3.2.1")
+    r._repo.get_release.assert_called_with("v3.2.1")
 
 
 @patch(
@@ -85,8 +87,8 @@ def test_release_exists(Github):
     ],
 )
 def test_invalid_tag_exists(git):
-    r = Repo("", "", "")
-    r._dir = lambda: "dir"
+    r = _repo()
+    r._Repo__dir = "dir"
     r._tag_exists = lambda _v: False
     assert not r._invalid_tag_exists("v1.2.3", "abcdef")
     r._tag_exists = lambda _v: True
@@ -102,7 +104,7 @@ def test_invalid_tag_exists(git):
 @patch("tagbot.repo.warn")
 @patch("tagbot.repo.info")
 def test_filter_map_versions(info, warn, error):
-    r = Repo("", "", "")
+    r = _repo()
     r._commit_from_tree = lambda tree: None if tree == "abc" else "sha"
     r._invalid_tag_exists = lambda v, _sha: v == "v2.3.4"
     r._release_exists = lambda v: v == "v3.4.5"
@@ -120,11 +122,9 @@ def test_filter_map_versions(info, warn, error):
 @patch("tagbot.repo.Github")
 @patch("tagbot.repo.debug")
 def test_versions(debug, Github):
-    r = Repo("", "", "")
-    r._filter_map_versions = lambda vs: vs
-    r._registry_path = lambda: "path"
-    registry = r._Repo__registry
-    registry.get_contents.return_value.decoded_content = b"""
+    r = _repo()
+    r._Repo__registry_path = "path"
+    r._registry.get_contents.return_value.decoded_content = b"""
     ["1.2.3"]
     git-tree-sha1 = "abc"
 
@@ -132,31 +132,31 @@ def test_versions(debug, Github):
     git-tree-sha1 = "bcd"
     """
     assert r._versions() == {"1.2.3": "abc", "2.3.4": "bcd"}
-    registry.get_contents.assert_called_with("path/Versions.toml")
+    r._registry.get_contents.assert_called_with("path/Versions.toml")
     debug.assert_not_called()
     commit = Mock()
     commit.commit.sha = "abcdef"
-    registry.get_commits.return_value = [commit]
+    r._registry.get_commits.return_value = [commit]
     delta = timedelta(days=3)
     assert r._versions(min_age=delta) == {"1.2.3": "abc", "2.3.4": "bcd"}
-    registry.get_commits.assert_called_once()
-    assert len(registry.get_commits.mock_calls) == 1
-    args, kwargs = registry.get_commits.mock_calls[0][1:]
+    r._registry.get_commits.assert_called_once()
+    assert len(r._registry.get_commits.mock_calls) == 1
+    args, kwargs = r._registry.get_commits.mock_calls[0][1:]
     assert not args
     assert len(kwargs) == 1 and "until" in kwargs
     assert isinstance(kwargs["until"], datetime)
-    registry.get_contents.assert_called_with("path/Versions.toml", ref="abcdef")
+    r._registry.get_contents.assert_called_with("path/Versions.toml", ref="abcdef")
     debug.assert_not_called()
-    registry.get_commits.return_value = []
+    r._registry.get_commits.return_value = []
     assert r._versions(min_age=delta) == {}
     debug.assert_called_with("No registry commits were found")
-    registry.get_contents.side_effect = UnknownObjectException(0, 0)
+    r._registry.get_contents.side_effect = UnknownObjectException(0, 0)
     assert r._versions() == {}
     debug.assert_called_with("Versions.toml was not found")
 
 
 def test_new_versions():
-    r = Repo("", "", "")
+    r = _repo()
     r._versions = (
         lambda min_age=None: {"1.2.3": "abc"}
         if min_age
@@ -169,8 +169,8 @@ def test_new_versions():
 @patch("tagbot.repo.Github")
 @patch("requests.post")
 def test_create_dispatch_event(post, Github):
-    r = Repo("", "", "x")
-    r._Repo__repo.full_name = "Foo/Bar"
+    r = _repo(token="x")
+    r._repo.full_name = "Foo/Bar"
     r.create_dispatch_event({"a": "b", "c": "d"})
     post.assert_called_once_with(
         "https://api.github.com/repos/Foo/Bar/dispatches",
@@ -182,38 +182,26 @@ def test_create_dispatch_event(post, Github):
     )
 
 
-@patch("tagbot.repo.Github")
-@patch("tagbot.repo.get_changelog")
-def test_changelog(get_changelog, Github):
-    Github.return_value.get_repo.side_effect = Mock
-    r = Repo("", "", "x")
-    r._Repo__repo.full_name = "Foo/Bar"
-    r._Repo__registry.full_name = "Bar/Baz"
-    r._project = lambda k: k
+def test_changelog():
+    r = _repo()
+    r._changelog = Mock()
     r.changelog("v1.2.3")
-    get_changelog.assert_called_once_with(
-        name="name",
-        registry="Bar/Baz",
-        repo="Foo/Bar",
-        token="x",
-        uuid="uuid",
-        version="v1.2.3",
-    )
+    r._changelog.get.assert_called_once_with("v1.2.3")
 
 
 @patch("tagbot.repo.Github")
 @patch("tagbot.repo.git")
 def test_create_release(git, Github):
-    r = Repo("Foo/Bar", "", "")
-    r._dir = lambda: "dir"
-    r._Repo__repo.default_branch = "master"
+    r = _repo(name="Foo/Bar")
+    r._Repo__dir = "dir"
+    r._repo.default_branch = "master"
     git.return_value = "abcdef"
     r.create_release("v1.2.3", "abcdef", "hi")
-    r._Repo__repo.create_git_release.assert_called_once_with(
+    r._repo.create_git_release.assert_called_once_with(
         "v1.2.3", "v1.2.3", "hi", target_commitish="master"
     )
     git.return_value = "aaaaaa"
     r.create_release("v3.2.1", "abcdef", None)
-    r._Repo__repo.create_git_release.assert_called_with(
+    r._repo.create_git_release.assert_called_with(
         "v3.2.1", "v3.2.1", "", target_commitish="abcdef"
     )

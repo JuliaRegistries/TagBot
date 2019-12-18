@@ -5,11 +5,12 @@ from . import Abort, info, error
 from .repo import Repo
 
 repo_name = os.getenv("GITHUB_REPOSITORY", "")
+changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
 token = os.getenv("INPUT_TOKEN", "")
 
-repo = Repo(repo_name, registry_name, token)
+repo = Repo(repo_name, registry_name, token, changelog)
 versions = repo.new_versions()
 
 if not versions:

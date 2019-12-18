@@ -13,6 +13,10 @@ inputs:
     description: Whether or not to create a repository dispatch event prior to making releases
     required: false
     default: false
+  changelog:
+    description: Custom changelog template
+    required: false
+    default: {{ default }}
 runs:
   using: docker
   image: docker://degraafc/tagbot:1
