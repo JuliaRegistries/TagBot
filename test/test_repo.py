@@ -1,5 +1,3 @@
-import tagbot
-
 from datetime import datetime, timedelta
 from io import StringIO
 from unittest.mock import Mock, call, patch
@@ -56,14 +54,16 @@ def test_commit_from_tree(git):
     assert r._commit_from_tree("c") is None
 
 
-@patch("tagbot.repo.git", side_effect=["foo", ""])
-def test_branch_exists(git):
+@patch("tagbot.repo.git", side_effect=[1, 1, Abort()])
+def test_fetch_branch(git):
     r = Repo("", "", "")
     r._dir = lambda: "dir"
-    assert r._branch_exists("foo")
-    git.assert_called_with("branch", "--list", "foo", repo="dir")
-    assert not r._branch_exists("bar")
-    git.assert_called_with("branch", "--list", "bar", repo="dir")
+    assert r._fetch_branch("master", "foo")
+    git.assert_has_calls(
+        [call("checkout", "foo", repo="dir"), call("checkout", "master", repo="dir")]
+    )
+    assert not r._fetch_branch("master", "bar")
+    git.assert_called_with("checkout", "bar", repo="dir")
 
 
 @patch("tagbot.repo.git", side_effect=["v1.2.3", ""])
@@ -218,12 +218,12 @@ def test_new_versions():
 def test_handle_release_branch(Github):
     r = Repo("", "", "")
     r._Repo__repo.default_branch = "master"
-    r._branch_exists = Mock(side_effect=[False, True, True])
+    r._fetch_branch = Mock(side_effect=[False, True, True])
     r._can_fast_forward = Mock(side_effect=[True, False])
     r._merge_and_delete_branch = Mock()
     r._create_release_branch_pr = Mock()
     r.handle_release_branch("v1.2.3")
-    r._branch_exists.assert_called_with("release-1.2.3")
+    r._fetch_branch.assert_called_with("master", "release-1.2.3")
     r.handle_release_branch("v2.3.4")
     r._merge_and_delete_branch.assert_called_once_with("master", "release-2.3.4")
     r.handle_release_branch("v3.4.5")

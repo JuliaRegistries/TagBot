@@ -68,9 +68,15 @@ class Repo:
                 return c
         return None
 
-    def _branch_exists(self, branch: str) -> bool:
-        """Check whether or not a branch exists locally."""
-        return bool(git("branch", "--list", branch, repo=self._dir()))
+    def _fetch_branch(self, master: str, branch: str) -> bool:
+        """Try to checkout a remote branch, and return whether or not it succeeded."""
+        try:
+            git("checkout", branch, repo=self._dir())
+        except Abort:
+            return False
+        else:
+            git("checkout", master, repo=self._dir())
+            return True
 
     def _tag_exists(self, version: str) -> bool:
         """Check whether or not a tag exists locally."""
@@ -180,16 +186,16 @@ class Repo:
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
+        master = self.__repo.default_branch
         branch = f"release-{version[1:]}"
-        if not self._branch_exists(branch):
+        if not self._fetch_branch(master, branch):
             info(f"Release branch {branch} does not exist")
             return
-        master = self.__repo.default_branch
         if self._can_fast_forward(master, branch):
             info("Release branch can be fast-forwarded")
             self._merge_and_delete_branch(master, branch)
         else:
-            info("Release branch cannot be fast-forwarded, creating pull reque")
+            info("Release branch cannot be fast-forwarded, creating pull request")
             self._create_release_branch_pr(version, master, branch)
 
     def changelog(self, version: str) -> Optional[str]:
