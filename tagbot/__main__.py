@@ -25,7 +25,7 @@ if dispatch:
 for version, sha in versions.items():
     info(f"Processing version {version} ({sha})")
     try:
-        log = repo.changelog(version)
+        log = repo.changelog(version, sha)
         repo.create_release(version, sha, log)
     except Abort as e:
         error(e.args[0])

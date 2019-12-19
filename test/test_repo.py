@@ -11,6 +11,14 @@ def _repo(*, name="", registry="", token="", changelog=""):
     return Repo(name, registry, token, changelog)
 
 
+@patch("tagbot.repo.git", return_value="out")
+def test_git(git):
+    r = _repo()
+    r._Repo__dir = "dir"
+    assert r._git("a", "b") == "out"
+    git.assert_called_once_with("a", "b", repo="dir")
+
+
 @patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
 @patch("os.path.isfile", return_value=True)
 def test_project(isfile, open):
@@ -184,8 +192,8 @@ def test_create_dispatch_event(post, Github):
 def test_changelog():
     r = _repo()
     r._changelog = Mock()
-    r.changelog("v1.2.3")
-    r._changelog.get.assert_called_once_with("v1.2.3")
+    r.changelog("v1.2.3", "abcdef")
+    r._changelog.get.assert_called_once_with("v1.2.3", "abcdef")
 
 
 @patch("tagbot.repo.Github")

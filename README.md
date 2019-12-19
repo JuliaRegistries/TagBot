@@ -20,27 +20,66 @@ jobs:
 
 No further action is required.
 
+### Changelogs
 
-### Release Notes
+TagBot creates a changelog for each release based on the issues that have been closed and the pull requests that have been merged.
+Additionally, you can write custom release notes in the same place that you register your packages.
+See [Registrator](https://github.com/JuliaRegistries/Registrator.jl/#release-notes) or [PkgDev](https://github.com/JuliaLang/PkgDev.jl) for specifics.
 
-TagBot allows you to write your release notes in the same place that you trigger Registrator (see the [Registrator](https://github.com/JuliaRegistries/Registrator.jl) README for specifics), but you don't have to if you're feeling lazy.
-When release notes are provided, they are copied into the GitHub release.
-If you do not write any notes, a changelog is automatically generated from closed issues and merged pull requests.
+The changelog is completely customizable with the [Jinja](https://jinja.palletsprojects.com) templating engine.
+To supply your own template, use the `changelog` input:
 
-When using the automatic changelog, you can ensure that certain issues or pull requests are not included.
-These might include usage questions or typo fixes that aren't worth mentioning.
-To exclude an issue or PR, add a label to it with one of the following values:
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  changelog: |
+    This is release {{ version }} of {{ package }}.
+    {% if custom %}
+    Here are my release notes!
+    {{ custom }}
+    {% endif %}
+```
 
-- `changelog skip`
-- `duplicate`
-- `exclude from changelog`
-- `invalid`
-- `no changelog`
-- `question`
-- `wont fix`
+The data available to you looks like this:
 
-You can spell these in a few different ways.
-For example, `no changelog` could be `nochangelog`, `no-changelog`, `no_changelog`, `No Changelog`, `NoChangelog`, `No-Changelog`, or `No_Changelog`.
+```json
+{
+  "compare_url": "https://github.com/Owner/Repo/compare/previous_version...current_version",
+  "custom": "your custom release notes",
+  "issues": [
+    {
+      "author": {
+        "name": "Real Name",
+        "url": "https://github.com/username",
+        "username" "their login"
+      },
+      "body": "issue body",
+      "labels": ["label1", "label2"],
+      "merger": {"same format as": "issue author"},
+      "number": 123,
+      "title": "issue title",
+      "url": "https://github.com/Owner/Repo/issues/123"
+    }
+  ],
+  "package": "PackageName",
+  "previous_release": "v1.2.2",
+  "pulls": [
+    {
+      "author": {"same format as": "issue author"},
+      "body": "pull request body",
+      "labels": ["label1", "label2"],
+      "merger": {"same format as": "issue author"},
+      "number": 123,
+      "title": "pull request title",
+      "url": "https://github.com/Owner/Repo/pull/123"
+    }
+  ],
+  "version": "v1.2.3",
+  "version_url": "https://github.com/Owner/Repo/tree/v1.2.3"
+}
+```
+
+You can see the default template in [`action.yml`](action.yml).
 
 ### Custom Registries
 

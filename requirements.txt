@@ -1,2 +1,4 @@
+Jinja2==2.10.3
 PyGithub==1.44
+semver==2.9.0
 toml==0.10

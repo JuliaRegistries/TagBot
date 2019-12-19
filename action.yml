@@ -14,9 +14,30 @@ inputs:
     required: false
     default: false
   changelog:
-    description: Custom changelog template
+    description: Changelog template
     required: false
-    default: {{ default }}
+    default: |
+      ## {{ package }} {{ version }}
+
+      [Diff since {{ previous_release }}]({{ compare_url }})
+
+      {% if custom %}
+      {{ custom }}
+      {% endif %}
+
+      {%if issues %}
+      **Closed issues:**
+      {% for issue in issues %}
+      - {{ issue.title }} (#{{ issue.number }})
+      {% endfor %}
+      {% endif %}
+
+      {%if pulls %}
+      **Merged pull requests:**
+      {% for pull in pulls %}
+      - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
+      {% endfor %}
+      {% endif %}
 runs:
   using: docker
   image: docker://degraafc/tagbot:1

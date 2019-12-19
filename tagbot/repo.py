@@ -26,6 +26,9 @@ class Repo:
         self.__project: Optional[MutableMapping[str, Any]] = None
         self.__registry_path: Optional[str] = None
 
+    def _git(self, *args: str) -> str:
+        return git(*args, repo=self._dir)
+
     def _project(self, k) -> str:
         """Get a value from the Project.toml."""
         if self.__project is not None:
@@ -64,7 +67,7 @@ class Repo:
 
     def _commit_from_tree(self, tree: str) -> Optional[str]:
         """Get the commit SHA that corresponds to a tree SHA."""
-        lines = git("log", "--all", "--format=%H %T", repo=self._dir).splitlines()
+        lines = self._git("log", "--all", "--format=%H %T").splitlines()
         for line in lines:
             c, t = line.split()
             if t == tree:
@@ -73,7 +76,7 @@ class Repo:
 
     def _tag_exists(self, version: str) -> bool:
         """Check whether or not a tag exists locally."""
-        return bool(git("tag", "--list", version, repo=self._dir))
+        return bool(self._git("tag", "--list", version))
 
     def _release_exists(self, version) -> bool:
         """Check whether or not a GitHub release exists."""
@@ -87,7 +90,7 @@ class Repo:
         """Check whether or not an existing tag points at the wrong commit."""
         if not self._tag_exists(version):
             return False
-        lines = git("show-ref", "-d", version, repo=self._dir).splitlines()
+        lines = self._git("show-ref", "-d", version).splitlines()
         # For annotated tags, there are two entries.
         # The one with the ^{} suffix uses the commit hash.
         expected = f"{sha} refs/tags/{version}"
@@ -156,13 +159,13 @@ class Repo:
         )
         debug(f"Dispatch response code: {resp.status_code}")
 
-    def changelog(self, version: str) -> Optional[str]:
+    def changelog(self, version: str, sha: str) -> Optional[str]:
         """Get the changelog for a new version."""
-        return self._changelog.get(version)
+        return self._changelog.get(version, sha)
 
     def create_release(self, version: str, sha: str, changelog: Optional[str]) -> None:
         """Create a GitHub release."""
-        if git("rev-parse", "HEAD", repo=self._dir) == sha:
+        if self._git("rev-parse", "HEAD") == sha:
             target = self._repo.default_branch
         else:
             target = sha
