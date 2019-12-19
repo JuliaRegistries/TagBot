@@ -23,18 +23,17 @@ class Changelog:
     )
 
     def __init__(self, repo: "repo.Repo", template: str):
-        self.__repo = repo
-        self.__template = Template(template.strip())
-        self.__template = Template(template, trim_blocks=True)
+        self._repo = repo
+        self._template = Template(template, trim_blocks=True)
+        self._range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
-        self.__range: Optional[Tuple[datetime, datetime]] = None
 
     def _previous_release(self, version: str) -> Optional[GitRelease]:
         """Get the release before the current one."""
         current = semver.parse_version_info(version[1:])
         prev_ver = semver.parse_version_info("0.0.0")
         prev_rel = None
-        for r in self.__repo._repo.get_releases():
+        for r in self._repo._repo.get_releases():
             if not r.tag_name.startswith("v"):
                 continue
             try:
@@ -50,7 +49,7 @@ class Changelog:
 
     def _version_end(self, sha: str) -> datetime:
         """Get the end of the interval for collecting issues and pull requests."""
-        ts = self.__repo._git("show", "-s", "--format=%cI", sha)
+        ts = self._repo._git("show", "-s", "--format=%cI", sha)
         dt = datetime.fromisoformat(ts)
         # Convert to UTC and then remove TZ info altogether.
         offset = dt.utcoffset()
@@ -60,14 +59,14 @@ class Changelog:
 
     def _first_sha(self) -> str:
         """Get the repository's first commit."""
-        return self.__repo._git("log", "--format=%H").splitlines()[-1]
+        return self._repo._git("log", "--format=%H").splitlines()[-1]
 
     def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
-        if self.__issues_and_pulls is not None and self.__range == (start, end):
+        if self.__issues_and_pulls is not None and self._range == (start, end):
             return self.__issues_and_pulls
         xs = []
-        for x in self.__repo._repo.get_issues(state="closed", since=start):
+        for x in self._repo._repo.get_issues(state="closed", since=start):
             if x.closed_at < start or x.closed_at > end:
                 continue
             if x.pull_request:
@@ -77,7 +76,7 @@ class Changelog:
             else:
                 xs.append(x)
         xs.reverse()
-        self.__range = (start, end)
+        self._range = (start, end)
         self.__issues_and_pulls = xs
         return self.__issues_and_pulls
 
@@ -94,13 +93,13 @@ class Changelog:
     def _custom_release_notes(self, version: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         debug("Looking up custom release notes")
-        name = self.__repo._project("name")
-        uuid = self.__repo._project("uuid")
+        name = self._repo._project("name")
+        uuid = self._repo._project("uuid")
         head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
         debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster.
-        registry = self.__repo._registry
+        registry = self._repo._registry
         owner = registry.owner.login
         debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
@@ -171,14 +170,14 @@ class Changelog:
         pulls = self._pulls(start, end)
         old = previous.tag_name if previous else self._first_sha()
         data = {
-            "compare_url": f"{self.__repo._repo.html_url}/compare/{old}...{version}",
+            "compare_url": f"{self._repo._repo.html_url}/compare/{old}...{version}",
             "custom": self._custom_release_notes(version),
             "issues": [self._format_issue(i) for i in issues],
-            "package": self.__repo._project("name"),
+            "package": self._repo._project("name"),
             "previous_release": old,
             "pulls": [self._format_pull(p) for p in pulls],
             "version": version,
-            "version_url": f"{self.__repo._repo.html_url}/tree/{version}",
+            "version_url": f"{self._repo._repo.html_url}/tree/{version}",
         }
         debug(f"Changelog data: {json.dumps(data, indent=2)}")
-        return self.__template.render(data).strip()
+        return self._template.render(data).strip()
