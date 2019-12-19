@@ -26,7 +26,7 @@ class Changelog:
         self.__repo = repo
         self.__template = Template(template.strip())
         self.__template = Template(template, trim_blocks=True)
-        self.__issues_and_prs: Optional[List[Union[Issue, PullRequest]]] = None
+        self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
         self.__range: Optional[Tuple[datetime, datetime]] = None
 
     def _previous_release(self, version: str) -> Optional[GitRelease]:
@@ -51,8 +51,8 @@ class Changelog:
     def _version_end(self, sha: str) -> datetime:
         """Get the end of the interval for collecting issues and pull requests."""
         ts = self.__repo._git("show", "-s", "--format=%cI", sha)
-        # Convert to UTC and then remove TZ info altogether.
         dt = datetime.fromisoformat(ts)
+        # Convert to UTC and then remove TZ info altogether.
         offset = dt.utcoffset()
         if offset:
             dt -= offset
@@ -62,10 +62,10 @@ class Changelog:
         """Get the repository's first commit."""
         return self.__repo._git("log", "--format=%H").splitlines()[-1]
 
-    def _issues_and_prs(self, start: datetime, end: datetime) -> List[Issue]:
+    def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
-        if self.__issues_and_prs is not None and self.__range == (start, end):
-            return self.__issues_and_prs
+        if self.__issues_and_pulls is not None and self.__range == (start, end):
+            return self.__issues_and_pulls
         xs = []
         for x in self.__repo._repo.get_issues(state="closed", since=start):
             if x.closed_at < start or x.closed_at > end:
@@ -78,17 +78,17 @@ class Changelog:
                 xs.append(x)
         xs.reverse()
         self.__range = (start, end)
-        self.__issues_and_prs = xs
-        return self.__issues_and_prs
+        self.__issues_and_pulls = xs
+        return self.__issues_and_pulls
 
     def _issues(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect just issues in the interval."""
-        return [i for i in self._issues_and_prs(start, end) if isinstance(i, Issue)]
+        return [i for i in self._issues_and_pulls(start, end) if isinstance(i, Issue)]
 
     def _pulls(self, start: datetime, end: datetime) -> List[PullRequest]:
         """Collect just pull requests in the interval."""
         return [
-            i for i in self._issues_and_prs(start, end) if isinstance(i, PullRequest)
+            i for i in self._issues_and_pulls(start, end) if isinstance(i, PullRequest)
         ]
 
     def _custom_release_notes(self, version: str) -> Optional[str]:
@@ -128,7 +128,7 @@ class Changelog:
         debug("No custom release notes were found")
         return None
 
-    def _map_user(self, user: NamedUser) -> Dict[str, Any]:
+    def _format_user(self, user: NamedUser) -> Dict[str, Any]:
         """Format a user for the template."""
         return {
             "name": user.name,
@@ -136,23 +136,23 @@ class Changelog:
             "username": user.login,
         }
 
-    def _map_issue(self, issue: Issue) -> Dict[str, Any]:
+    def _format_issue(self, issue: Issue) -> Dict[str, Any]:
         return {
-            "author": self._map_user(issue.user),
+            "author": self._format_user(issue.user),
             "body": issue.body,
-            "closer": self._map_user(issue.closed_by),
+            "closer": self._format_user(issue.closed_by),
             "labels": [label.name for label in issue.labels],
             "number": issue.number,
             "title": issue.title,
             "url": issue.html_url,
         }
 
-    def _map_pull(self, pull: PullRequest) -> Dict[str, Any]:
+    def _format_pull(self, pull: PullRequest) -> Dict[str, Any]:
         return {
-            "author": self._map_user(pull.user),
+            "author": self._format_user(pull.user),
             "body": pull.body,
             "labels": [label.name for label in pull.labels],
-            "merger": self._map_user(pull.merged_by),
+            "merger": self._format_user(pull.merged_by),
             "number": pull.number,
             "title": pull.title,
             "url": pull.html_url,
@@ -173,10 +173,10 @@ class Changelog:
         data = {
             "compare_url": f"{self.__repo._repo.html_url}/compare/{old}...{version}",
             "custom": self._custom_release_notes(version),
-            "issues": [self._map_issue(i) for i in issues],
+            "issues": [self._format_issue(i) for i in issues],
             "package": self.__repo._project("name"),
             "previous_release": old,
-            "pulls": [self._map_pull(p) for p in pulls],
+            "pulls": [self._format_pull(p) for p in pulls],
             "version": version,
             "version_url": f"{self.__repo._repo.html_url}/tree/{version}",
         }
