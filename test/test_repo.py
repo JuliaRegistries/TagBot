@@ -141,10 +141,9 @@ def test_versions(debug, Github):
     assert r._versions(min_age=delta) == {"1.2.3": "abc", "2.3.4": "bcd"}
     r._registry.get_commits.assert_called_once()
     assert len(r._registry.get_commits.mock_calls) == 1
-    args, kwargs = r._registry.get_commits.mock_calls[0][1:]
-    assert not args
-    assert len(kwargs) == 1 and "until" in kwargs
-    assert isinstance(kwargs["until"], datetime)
+    [c] = r._registry.get_commits.mock_calls
+    assert not c.args and len(c.kwargs) == 1 and "until" in c.kwargs
+    assert isinstance(c.kwargs["until"], datetime)
     r._registry.get_contents.assert_called_with("path/Versions.toml", ref="abcdef")
     debug.assert_not_called()
     r._registry.get_commits.return_value = []
