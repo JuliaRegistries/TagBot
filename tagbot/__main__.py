@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 from . import Abort, info, error
@@ -15,7 +16,7 @@ versions = repo.new_versions()
 
 if not versions:
     info("No new versions to release")
-    exit(0)
+    sys.exit(0)
 
 if dispatch:
     repo.create_dispatch_event(versions)
@@ -32,4 +33,4 @@ for version, sha in versions.items():
 
 from . import STATUS
 
-exit(STATUS)
+sys.exit(STATUS)
