@@ -50,3 +50,12 @@ def git(*argv: str, repo: Optional[str] = None) -> str:
             info(p.stderr.decode())
         raise Abort(f"Git command '{cmd}' failed")
     return out.strip()
+
+
+def git_check(*argv: str, repo: Optional[str] = None) -> bool:
+    """Run a Git command that can fail."""
+    try:
+        git(*argv, repo=repo)
+        return True
+    except Abort:
+        return False

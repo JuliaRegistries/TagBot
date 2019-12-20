@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from io import StringIO
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from github import UnknownObjectException
 
@@ -64,6 +64,18 @@ def test_commit_from_tree():
     assert r._commit_from_tree("b") == "a"
     assert r._commit_from_tree("e") == "d"
     assert r._commit_from_tree("c") is None
+
+
+@patch("tagbot.repo.git_check", side_effect=[True, False])
+@patch("tagbot.repo.git", return_value="")
+def test_fetch_branch(git, git_check):
+    r = _repo()
+    r._Repo__dir = "dir"
+    assert r._fetch_branch("master", "foo")
+    git_check.assert_called_with("checkout", "foo", repo="dir")
+    git.assert_called_with("checkout", "master", repo="dir")
+    assert not r._fetch_branch("master", "bar")
+    git_check.assert_called_with("checkout", "bar", repo="dir")
 
 
 def test_tag_exists():
@@ -161,6 +173,44 @@ def test_versions(debug):
     debug.assert_called_with("Versions.toml was not found")
 
 
+@patch("tagbot.repo.git_check", side_effect=[True, False])
+def test_can_fast_forward(git_check):
+    r = _repo()
+    r._Repo__dir = "dir"
+    assert r._can_fast_forward("master1", "branch1")
+    git_check.assert_called_with(
+        "merge-base", "--is-ancestor", "master1", "branch1", repo="dir"
+    )
+    assert not r._can_fast_forward("master2", "branch2")
+    git_check.assert_called_with(
+        "merge-base", "--is-ancestor", "master2", "branch2", repo="dir",
+    )
+
+
+@patch("tagbot.repo.git")
+def test_merge_and_delete_branch(git):
+    r = _repo()
+    r._Repo__dir = "dir"
+    r._merge_and_delete_branch("master", "branch")
+    git.assert_has_calls(
+        [
+            call("checkout", "master", repo="dir"),
+            call("merge", "branch", repo="dir"),
+            call("push", "origin", "master", repo="dir"),
+            call("push", "-d", "origin", "branch", repo="dir"),
+        ]
+    )
+
+
+@patch("tagbot.repo.Github")
+def test_create_release_branch_pr(Github):
+    r = _repo()
+    r._create_release_branch_pr("v1.2.3", "master", "branch")
+    r._repo.create_pull.assert_called_once_with(
+        title="Merge release branch for v1.2.3", body="", head="branch", base="master",
+    )
+
+
 def test_new_versions():
     r = _repo()
     r._versions = (
@@ -172,11 +222,27 @@ def test_new_versions():
     assert r.new_versions() == {"2.3.4": "bcd"}
 
 
+def test_handle_release_branch():
+    r = _repo()
+    r._repo = Mock(default_branch="master")
+    r._fetch_branch = Mock(side_effect=[False, True, True])
+    r._can_fast_forward = Mock(side_effect=[True, False])
+    r._merge_and_delete_branch = Mock()
+    r._create_release_branch_pr = Mock()
+    r.handle_release_branch("v1.2.3")
+    r._fetch_branch.assert_called_with("master", "release-1.2.3")
+    r.handle_release_branch("v2.3.4")
+    r._merge_and_delete_branch.assert_called_once_with("master", "release-2.3.4")
+    r.handle_release_branch("v3.4.5")
+    r._create_release_branch_pr.assert_called_once_with(
+        "v3.4.5", "master", "release-3.4.5"
+    )
+
+
 @patch("requests.post")
 def test_create_dispatch_event(post):
     r = _repo(token="x")
-    r._repo = Mock()
-    r._repo.full_name = "Foo/Bar"
+    r._repo = Mock(full_name="Foo/Bar")
     r.create_dispatch_event({"a": "b", "c": "d"})
     post.assert_called_once_with(
         "https://api.github.com/repos/Foo/Bar/dispatches",

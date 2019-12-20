@@ -91,6 +91,17 @@ with:
   registry: MyOrg/MyRegistry
 ```
 
+### Release Branch Management
+
+If you're using [PkgDev](https://github.com/JuliaLang/PkgDev.jl) to release your packages, TagBot can manage the merging and deletion of the release branches that it creates.
+To enable this feature, use the `branches` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  branches: true
+```
+
 ### Pre-Release Hooks
 
 If you want to make something happen just before releases are created, for example creating annotated, GPG-signed tags, you can do so with the `dispatch` input:

@@ -6,6 +6,7 @@ from . import Abort, info, error
 from .repo import Repo
 
 repo_name = os.getenv("GITHUB_REPOSITORY", "")
+branches = os.getenv("INPUT_BRANCHES", "false") == "true"
 changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
@@ -26,6 +27,9 @@ if dispatch:
 for version, sha in versions.items():
     info(f"Processing version {version} ({sha})")
     try:
+
+        if branches:
+            repo.handle_release_branch(version)
         log = repo.changelog(version, sha)
         repo.create_release(version, sha, log)
     except Abort as e:
@@ -33,4 +37,5 @@ for version, sha in versions.items():
 
 from . import STATUS
 
+info(f"Exiting with status {STATUS}")
 sys.exit(STATUS)

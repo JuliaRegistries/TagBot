@@ -9,7 +9,7 @@ from typing import Any, Dict, MutableMapping, Optional
 from github import Github, UnknownObjectException
 from github.Requester import requests
 
-from . import DELTA, Abort, git, debug, info, warn, error
+from . import DELTA, Abort, git, git_check, debug, info, warn, error
 from .changelog import Changelog
 
 
@@ -73,6 +73,13 @@ class Repo:
             if t == tree:
                 return c
         return None
+
+    def _fetch_branch(self, master: str, branch: str) -> bool:
+        """Try to checkout a remote branch, and return whether or not it succeeded."""
+        if not git_check("checkout", branch, repo=self._dir):
+            return False
+        git("checkout", master, repo=self._dir)
+        return True
 
     def _tag_exists(self, version: str) -> bool:
         """Check whether or not a tag exists locally."""
@@ -138,6 +145,26 @@ class Repo:
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
+    def _can_fast_forward(self, master: str, branch: str) -> bool:
+        """Check whether master can be fast-forwarded to branch."""
+        return git_check("merge-base", "--is-ancestor", master, branch, repo=self._dir)
+
+    def _merge_and_delete_branch(self, master: str, branch: str) -> None:
+        """Merge a branch into master and delete the branch."""
+        git("checkout", master, repo=self._dir)
+        git("merge", branch, repo=self._dir)
+        git("push", "origin", master, repo=self._dir)
+        git("push", "-d", "origin", branch, repo=self._dir)
+
+    def _create_release_branch_pr(self, version: str, master: str, branch: str) -> None:
+        """Create a pull request for the release branch."""
+        self._repo.create_pull(
+            title=f"Merge release branch for {version}",
+            body="",
+            head=branch,
+            base=master,
+        )
+
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
@@ -158,6 +185,20 @@ class Repo:
             json={"event_type": "TagBot", "client_payload": payload},
         )
         debug(f"Dispatch response code: {resp.status_code}")
+
+    def handle_release_branch(self, version: str) -> None:
+        """Merge an existing release branch or create a PR to merge it."""
+        master = self._repo.default_branch
+        branch = f"release-{version[1:]}"
+        if not self._fetch_branch(master, branch):
+            info(f"Release branch {branch} does not exist")
+            return
+        if self._can_fast_forward(master, branch):
+            info("Release branch can be fast-forwarded")
+            self._merge_and_delete_branch(master, branch)
+        else:
+            info("Release branch cannot be fast-forwarded, creating pull request")
+            self._create_release_branch_pr(version, master, branch)
 
     def changelog(self, version: str, sha: str) -> Optional[str]:
         """Get the changelog for a new version."""
