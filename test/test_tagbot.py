@@ -1,4 +1,4 @@
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 import tagbot as tb
 
@@ -15,11 +15,8 @@ def test_loggers(print):
     print.assert_has_calls(calls)
 
 
-@patch("subprocess.run")
+@patch("subprocess.run", return_value=Mock(stdout=b"hello\n", stderr=b"", returncode=0))
 def test_git(run):
-    run.return_value.stdout = b"hello\n"
-    run.return_value.stderr = b""
-    run.return_value.returncode = 0
     assert tb.git("a", "b") == "hello"
     assert tb.git("c", "d", repo=None) == "hello"
     assert tb.git("e", "f", repo="foo")
@@ -29,3 +26,11 @@ def test_git(run):
         call(["git", "-C", "foo", "e", "f"], capture_output=True),
     ]
     run.assert_has_calls(calls)
+
+
+@patch("tagbot.git", side_effect=["", tb.Abort()])
+def test_git_check(git):
+    assert tb.git_check("a") is True
+    git.assert_called_with("a", repo=None)
+    assert tb.git_check("b", repo="dir") is False
+    git.assert_called_with("b", repo="dir")

@@ -9,6 +9,10 @@ inputs:
     description: Owner/name of the registry repository
     required: false
     default: JuliaRegistries/General
+  branches:
+    description: Whether or not to merge release branches
+    required: false
+    default: false
   dispatch:
     description: Whether or not to create a repository dispatch event prior to making releases
     required: false
