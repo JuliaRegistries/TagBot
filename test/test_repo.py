@@ -235,7 +235,7 @@ def test_handle_release_branch():
     r._merge_and_delete_branch.assert_called_once_with("master", "release-2.3.4")
     r.handle_release_branch("v3.4.5")
     r._create_release_branch_pr.assert_called_once_with(
-        "v3.4.5", "master", "release-3.4.5"
+        "v3.4.5", "master", "release-3.4.5",
     )
 
 
@@ -268,9 +268,9 @@ def test_create_release():
     r._git = Mock(side_effect=["abcdef", "aaaaaa"])
     r.create_release("v1.2.3", "abcdef", "hi")
     r._repo.create_git_release.assert_called_once_with(
-        "v1.2.3", "v1.2.3", "hi", target_commitish="master"
+        "v1.2.3", "v1.2.3", "hi", target_commitish="master",
     )
     r.create_release("v3.2.1", "abcdef", None)
     r._repo.create_git_release.assert_called_with(
-        "v3.2.1", "v3.2.1", "", target_commitish="abcdef"
+        "v3.2.1", "v3.2.1", "", target_commitish="abcdef",
     )

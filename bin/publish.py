@@ -10,7 +10,7 @@ REPO = os.environ["GITHUB_WORKSPACE"]
 IMAGE = os.environ["DOCKER_IMAGE"]
 USER = os.environ["DOCKER_USERNAME"]
 PASS = os.environ["DOCKER_PASSWORD"]
-VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+VERSION_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
 
 def docker(*args, **kwargs):

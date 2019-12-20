@@ -27,7 +27,12 @@ class Repo:
         self.__registry_path: Optional[str] = None
 
     def _git(self, *args: str) -> str:
+        """Run git in this repo."""
         return git(*args, repo=self._dir)
+
+    def _git_check(self, *args: str) -> bool:
+        """Run git_check in this repo."""
+        return git_check(*args, repo=self._dir)
 
     def _project(self, k) -> str:
         """Get a value from the Project.toml."""
@@ -76,9 +81,9 @@ class Repo:
 
     def _fetch_branch(self, master: str, branch: str) -> bool:
         """Try to checkout a remote branch, and return whether or not it succeeded."""
-        if not git_check("checkout", branch, repo=self._dir):
+        if not self._git_check("checkout", branch):
             return False
-        git("checkout", master, repo=self._dir)
+        self._git("checkout", master)
         return True
 
     def _tag_exists(self, version: str) -> bool:
@@ -113,9 +118,8 @@ class Repo:
                 warn(f"No matching commit was found for version {version} ({tree})")
                 continue
             if self._invalid_tag_exists(version, sha):
-                error(
-                    f"Existing tag {version} points at the wrong commit (expected {sha})"
-                )
+                msg = f"Existing tag {version} points at the wrong commit (expected {sha})"  # noqa: E501
+                error(msg)
                 continue
             if self._release_exists(version):
                 info(f"Release {version} already exists")
@@ -147,7 +151,7 @@ class Repo:
 
     def _can_fast_forward(self, master: str, branch: str) -> bool:
         """Check whether master can be fast-forwarded to branch."""
-        return git_check("merge-base", "--is-ancestor", master, branch, repo=self._dir)
+        return self._git_check("merge-base", "--is-ancestor", master, branch)
 
     def _merge_and_delete_branch(self, master: str, branch: str) -> None:
         """Merge a branch into master and delete the branch."""

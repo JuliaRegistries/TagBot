@@ -16,6 +16,7 @@ cd $(dirname "$0")/..
 
 checked pytest
 checked black --check bin tagbot test
+checked flake8 bin tagbot test
 checked mypy bin tagbot test
 
 exit $exit

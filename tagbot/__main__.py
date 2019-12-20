@@ -35,7 +35,7 @@ for version, sha in versions.items():
     except Abort as e:
         error(e.args[0])
 
-from . import STATUS
+from . import STATUS  # noqa: E402
 
 info(f"Exiting with status {STATUS}")
 sys.exit(STATUS)

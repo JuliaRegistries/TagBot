@@ -4,7 +4,7 @@ import re
 import semver
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from github.Issue import Issue
 from github.NamedUser import NamedUser
@@ -12,7 +12,10 @@ from github.PullRequest import PullRequest
 from github.GitRelease import GitRelease
 from jinja2 import Template
 
-from . import DELTA, debug, info, warn, repo
+from . import DELTA, debug, info, warn
+
+if TYPE_CHECKING:
+    from .repo import Repo
 
 
 class Changelog:
@@ -22,7 +25,7 @@ class Changelog:
         "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->"
     )
 
-    def __init__(self, repo: "repo.Repo", template: str):
+    def __init__(self, repo: "Repo", template: str):
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
         self._range: Optional[Tuple[datetime, datetime]] = None
@@ -30,7 +33,7 @@ class Changelog:
 
     def _previous_release(self, version: str) -> Optional[GitRelease]:
         """Get the release before the current one."""
-        current = semver.parse_version_info(version[1:])
+        cur_ver = semver.parse_version_info(version[1:])
         prev_ver = semver.parse_version_info("0.0.0")
         prev_rel = None
         for r in self._repo._repo.get_releases():
@@ -42,7 +45,7 @@ class Changelog:
                 continue
             if ver.prerelease or ver.build:
                 continue
-            if ver < current and ver > prev_ver:
+            if ver < cur_ver and ver > prev_ver:
                 prev_ver = ver
                 prev_rel = r
         return prev_rel
