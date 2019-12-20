@@ -9,7 +9,7 @@ from typing import Any, Dict, MutableMapping, Optional
 from github import Github, UnknownObjectException
 from github.Requester import requests
 
-from . import DELTA, Abort, git, debug, info, warn, error
+from . import DELTA, Abort, git, git_check, debug, info, warn, error
 from .changelog import get_changelog
 
 
@@ -70,13 +70,10 @@ class Repo:
 
     def _fetch_branch(self, master: str, branch: str) -> bool:
         """Try to checkout a remote branch, and return whether or not it succeeded."""
-        try:
-            git("checkout", branch, repo=self._dir())
-        except Abort:
+        if not git_check("checkout", branch, repo=self._dir()):
             return False
-        else:
-            git("checkout", master, repo=self._dir())
-            return True
+        git("checkout", master, repo=self._dir())
+        return True
 
     def _tag_exists(self, version: str) -> bool:
         """Check whether or not a tag exists locally."""
@@ -144,11 +141,9 @@ class Repo:
 
     def _can_fast_forward(self, master: str, branch: str) -> bool:
         """Check whether master can be fast-forwarded to branch."""
-        try:  # TODO: Having to use try here is ugly.
-            git("merge-base", "--is-ancestor", master, branch, repo=self._dir())
-            return True
-        except Abort:
-            return False
+        return git_check(
+            "merge-base", "--is-ancestor", master, branch, repo=self._dir()
+        )
 
     def _merge_and_delete_branch(self, master: str, branch: str) -> None:
         """Merge a branch into master and delete the branch."""

@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 
 from github import UnknownObjectException
 
-from tagbot.repo import Abort, Repo
+from tagbot.repo import Repo
 
 
 @patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
@@ -54,16 +54,16 @@ def test_commit_from_tree(git):
     assert r._commit_from_tree("c") is None
 
 
-@patch("tagbot.repo.git", side_effect=[1, 1, Abort()])
-def test_fetch_branch(git):
+@patch("tagbot.repo.git_check", side_effect=[True, False])
+@patch("tagbot.repo.git", return_value="")
+def test_fetch_branch(git, git_check):
     r = Repo("", "", "")
     r._dir = lambda: "dir"
     assert r._fetch_branch("master", "foo")
-    git.assert_has_calls(
-        [call("checkout", "foo", repo="dir"), call("checkout", "master", repo="dir")]
-    )
+    git_check.assert_called_with("checkout", "foo", repo="dir")
+    git.assert_called_with("checkout", "master", repo="dir")
     assert not r._fetch_branch("master", "bar")
-    git.assert_called_with("checkout", "bar", repo="dir")
+    git_check.assert_called_with("checkout", "bar", repo="dir")
 
 
 @patch("tagbot.repo.git", side_effect=["v1.2.3", ""])
@@ -165,17 +165,17 @@ def test_versions(debug, Github):
     debug.assert_called_with("Versions.toml was not found")
 
 
-@patch("tagbot.repo.git", side_effect=[1, Abort])
-def test_can_fast_forward(git):
+@patch("tagbot.repo.git_check", side_effect=[True, False])
+def test_can_fast_forward(git_check):
     r = Repo("", "", "")
     r._dir = lambda: "dir"
     assert r._can_fast_forward("master1", "branch1")
-    git.assert_called_with(
+    git_check.assert_called_with(
         "merge-base", "--is-ancestor", "master1", "branch1", repo="dir"
     )
     assert not r._can_fast_forward("master2", "branch2")
-    git.assert_called_with(
-        "merge-base", "--is-ancestor", "master2", "branch2", repo="dir"
+    git_check.assert_called_with(
+        "merge-base", "--is-ancestor", "master2", "branch2", repo="dir",
     )
 
 
