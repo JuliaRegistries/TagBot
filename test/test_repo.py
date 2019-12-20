@@ -199,7 +199,7 @@ def test_create_release_branch_pr(Github):
     r = Repo("", "", "")
     r._create_release_branch_pr("v1.2.3", "master", "branch")
     r._Repo__repo.create_pull.assert_called_once_with(
-        title="Merge release branch for v1.2.3", head="branch", base="master"
+        title="Merge release branch for v1.2.3", body="", head="branch", base="master",
     )
 
 

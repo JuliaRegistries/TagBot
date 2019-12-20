@@ -155,7 +155,10 @@ class Repo:
     def _create_release_branch_pr(self, version: str, master: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self.__repo.create_pull(
-            title=f"Merge release branch for {version}", head=branch, base=master,
+            title=f"Merge release branch for {version}",
+            body="",
+            head=branch,
+            base=master,
         )
 
     def new_versions(self) -> Dict[str, str]:
