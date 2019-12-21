@@ -90,12 +90,11 @@ class Changelog:
     def _pulls(self, start: datetime, end: datetime) -> List[PullRequest]:
         """Collect just pull requests in the interval."""
         return [
-            i for i in self._issues_and_pulls(start, end) if isinstance(i, PullRequest)
+            p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _custom_release_notes(self, version: str) -> Optional[str]:
-        """Look up a version's custom release notes."""
-        debug("Looking up custom release notes")
+    def _registry_pr(self, version: str) -> Optional[PullRequest]:
+        """Look up a merged registry pull request for this version."""
         name = self._repo._project("name")
         uuid = self._repo._project("uuid")
         head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
@@ -106,24 +105,29 @@ class Changelog:
         owner = registry.owner.login
         debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
+        print("owner:", prs)
         for pr in prs:
             if pr.merged and now - pr.merged_at < DELTA:
-                body = pr.body
-                break
+                return pr
         else:
             debug("Did not find registry PR by registry owner")
             prs = registry.get_pulls(state="closed")
-            body = None
+            print(prs)
             for pr in prs:
                 if now - pr.closed_at > DELTA:
                     break
                 if pr.merged and pr.head.ref == head:
-                    body = pr.body
-                    break
-        if body is None:
+                    return pr
+        return None
+
+    def _custom_release_notes(self, version: str) -> Optional[str]:
+        """Look up a version's custom release notes."""
+        debug("Looking up custom release notes")
+        pr = self._registry_pr(version)
+        if pr is None:
             warn("No registry pull request was found for this version")
             return None
-        m = self._CUSTOM.search(body)
+        m = self._CUSTOM.search(pr.body)
         if m:
             # Remove the '> ' at the beginning of each line.
             return "\n".join(l[2:] for l in m[1].splitlines()).strip()
@@ -139,6 +143,7 @@ class Changelog:
         }
 
     def _format_issue(self, issue: Issue) -> Dict[str, Any]:
+        """Format an issue for the template."""
         return {
             "author": self._format_user(issue.user),
             "body": issue.body,
@@ -150,6 +155,7 @@ class Changelog:
         }
 
     def _format_pull(self, pull: PullRequest) -> Dict[str, Any]:
+        """Format a pull request for the template."""
         return {
             "author": self._format_user(pull.user),
             "body": pull.body,
@@ -160,9 +166,8 @@ class Changelog:
             "url": pull.html_url,
         }
 
-    def get(self, version: str, sha: str) -> str:
-        """Get the changelog for a specific version."""
-        info(f"Generating changelog for version {version} ({sha})")
+    def _collect_data(self, version: str, sha: str) -> Dict[str, Any]:
+        """Collect data needed to create the changelog."""
         previous = self._previous_release(version)
         debug(f"Previous version: {previous.tag_name if previous else None}")
         start = previous.created_at if previous else datetime(1, 1, 1)
@@ -172,7 +177,7 @@ class Changelog:
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
         old = previous.tag_name if previous else self._first_sha()
-        data = {
+        return {
             "compare_url": f"{self._repo._repo.html_url}/compare/{old}...{version}",
             "custom": self._custom_release_notes(version),
             "issues": [self._format_issue(i) for i in issues],
@@ -182,5 +187,14 @@ class Changelog:
             "version": version,
             "version_url": f"{self._repo._repo.html_url}/tree/{version}",
         }
-        debug(f"Changelog data: {json.dumps(data, indent=2)}")
+
+    def _render(self, data: Dict[str, Any]) -> str:
+        """Render the template."""
         return self._template.render(data).strip()
+
+    def get(self, version: str, sha: str) -> str:
+        """Get the changelog for a specific version."""
+        info(f"Generating changelog for version {version} ({sha})")
+        data = self._collect_data(version, sha)
+        debug(f"Changelog data: {json.dumps(data, indent=2)}")
+        return self._render(data)
