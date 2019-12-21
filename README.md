@@ -80,6 +80,7 @@ The data available to you looks like this:
 ```
 
 You can see the default template in [`action.yml`](action.yml).
+It also allows you to exclude issues and pull requests from the changelog by adding the `changelog-skip` label to them.
 
 ### Custom Registries
 

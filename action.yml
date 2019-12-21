@@ -29,17 +29,21 @@ inputs:
       {{ custom }}
       {% endif %}
 
-      {%if issues %}
+      {% if issues %}
       **Closed issues:**
       {% for issue in issues %}
+      {% if "changelog-skip" not in issue.labels %}
       - {{ issue.title }} (#{{ issue.number }})
+      {% endif %}
       {% endfor %}
       {% endif %}
 
-      {%if pulls %}
+      {% if pulls %}
       **Merged pull requests:**
       {% for pull in pulls %}
+      {% if "changelog-skip" not in pull.labels %}
       - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
+      {% endif %}
       {% endfor %}
       {% endif %}
 runs:
