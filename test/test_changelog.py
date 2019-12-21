@@ -36,13 +36,6 @@ def test_version_end():
     c._repo._git.assert_called_once_with("show", "-s", "--format=%cI", "abcdef")
 
 
-def test_first_sha():
-    c = _changelog()
-    c._repo._git = Mock(return_value="abc\ndef\nghi")
-    assert c._first_sha() == "ghi"
-    c._repo._git.assert_called_once_with("log", "--format=%H")
-
-
 def test_issues_and_pulls():
     pass
 
@@ -157,7 +150,28 @@ def test_format_issue_pull():
 
 
 def test_collect_data():
-    pass
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._previous_release = Mock(side_effect=[Mock(tag_name="v1.2.2"), None])
+    c._version_end = Mock(datetime.now())
+    c._issues = Mock(return_value=[])
+    c._pulls = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value="custom")
+    assert c._collect_data("v1.2.3", "abcdef") == {
+        "compare_url": "https://github.com/A/B.jl/compare/v1.2.2...v1.2.3",
+        "custom": "custom",
+        "issues": [],
+        "package": "B",
+        "previous_release": "v1.2.2",
+        "pulls": [],
+        "sha": "abcdef",
+        "version": "v1.2.3",
+        "version_url": "https://github.com/A/B.jl/tree/v1.2.3",
+    }
+    data = c._collect_data("v2.3.4", "bcdefa")
+    assert data["compare_url"] is None
+    assert data["previous_release"] is None
 
 
 def test_render():
@@ -210,6 +224,8 @@ def test_render():
     assert "**Merged pull requests:**" not in c._render(data)
     del data["issues"]
     assert "**Closed issues:**" not in c._render(data)
+    data["previous_release"] = None
+    assert "Diff since" not in c._render(data)
 
 
 def test_get():

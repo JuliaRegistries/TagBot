@@ -44,7 +44,7 @@ The data available to you looks like this:
 
 ```json
 {
-  "compare_url": "https://github.com/Owner/Repo/compare/previous_version...current_version",
+  "compare_url": "https://github.com/Owner/Repo/compare/previous_version...current_version (or null for first release)",
   "custom": "your custom release notes",
   "issues": [
     {
@@ -62,7 +62,7 @@ The data available to you looks like this:
     }
   ],
   "package": "PackageName",
-  "previous_release": "v1.2.2",
+  "previous_release": "v1.1.2 (or null for first release)",
   "pulls": [
     {
       "author": {"same format as": "issue author"},
@@ -74,6 +74,7 @@ The data available to you looks like this:
       "url": "https://github.com/Owner/Repo/pull/123"
     }
   ],
+  "sha": "commit SHA",
   "version": "v1.2.3",
   "version_url": "https://github.com/Owner/Repo/tree/v1.2.3"
 }

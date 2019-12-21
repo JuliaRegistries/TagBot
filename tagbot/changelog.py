@@ -60,10 +60,6 @@ class Changelog:
             dt -= offset
         return dt.replace(tzinfo=None)
 
-    def _first_sha(self) -> str:
-        """Get the repository's first commit."""
-        return self._repo._git("log", "--format=%H").splitlines()[-1]
-
     def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
         if self.__issues_and_pulls is not None and self._range == (start, end):
@@ -176,14 +172,19 @@ class Changelog:
         debug(f"End date: {end}")
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
-        old = previous.tag_name if previous else self._first_sha()
+        compare = None
+        old = None
+        if previous:
+            old = previous.tag_name
+            compare = f"{self._repo._repo.html_url}/compare/{old}...{version}"
         return {
-            "compare_url": f"{self._repo._repo.html_url}/compare/{old}...{version}",
+            "compare_url": compare,
             "custom": self._custom_release_notes(version),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": old,
             "pulls": [self._format_pull(p) for p in pulls],
+            "sha": sha,
             "version": version,
             "version_url": f"{self._repo._repo.html_url}/tree/{version}",
         }
