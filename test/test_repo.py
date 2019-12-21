@@ -270,7 +270,3 @@ def test_create_release():
     r._repo.create_git_release.assert_called_once_with(
         "v1.2.3", "v1.2.3", "hi", target_commitish="master",
     )
-    r.create_release("v3.2.1", "abcdef", None)
-    r._repo.create_git_release.assert_called_with(
-        "v3.2.1", "v3.2.1", "", target_commitish="abcdef",
-    )
