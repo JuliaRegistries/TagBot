@@ -17,27 +17,50 @@ def _changelog(*, name="", registry="", token="", template=""):
     return r._changelog
 
 
-def test_previous_release():
-    c = _changelog()
-    mocks = []
-    c._repo._repo.get_releases = lambda: mocks
-    for t in ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]:
-        mocks.append(Mock(tag_name=t))
-    assert c._previous_release("v1.0.0") is None
-    assert c._previous_release("v1.0.2") is None
-    assert c._previous_release("v1.2.5").tag_name == "v1.2.3"
-    assert c._previous_release("v1.0.3").tag_name == "v1.0.2"
+def test_time_of_commit():
+    pass
 
 
-def test_version_end():
+def test_time_of_tag():
+    pass
+
+
+def test_previous_tag():
     c = _changelog()
-    c._repo._git = Mock(return_value="2019-10-05T13:45:17+07:00")
-    assert c._version_end("abcdef") == datetime(2019, 10, 5, 6, 45, 17)
-    c._repo._git.assert_called_once_with("show", "-s", "--format=%cI", "abcdef")
+    tags = ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]
+    now = datetime.now()
+    c._repo._git = Mock(return_value="\n".join(tags))
+    c._time_of_tag = Mock(return_value=now)
+    assert c._previous_tag("v1.0.0") == (None, None)
+    assert c._previous_tag("v1.0.2") == (None, None)
+    assert c._previous_tag("v1.2.5") == ("v1.2.3", now)
+    c._time_of_tag.assert_called_with("v1.2.3")
+    assert c._previous_tag("v1.0.3") == ("v1.0.2", now)
+    c._time_of_tag.assert_called_with("v1.0.2")
 
 
 def test_issues_and_pulls():
-    pass
+    c = _changelog()
+    now = datetime.now()
+    start = now - timedelta(days=10)
+    end = now
+    c._repo._repo.get_issues = Mock(return_value=[])
+    assert c._issues_and_pulls(end, end) == []
+    assert c._issues_and_pulls(end, end) == []
+    c._repo._repo.get_issues.assert_called_once_with(state="closed", since=end)
+    assert c._issues_and_pulls(end, end) == []
+    c._repo._repo.get_issues.assert_called_with(state="closed", since=end)
+    n = 1
+    for days in [-1, 0, 5, 10, 11]:
+        i = Mock(closed_at=end - timedelta(days=days), n=n, pull_request=False)
+        p = Mock(
+            closed_at=end - timedelta(days=days),
+            pull_request=True,
+            as_pull_request=Mock(return_value=Mock(merged=days % 2 == 0, n=n + 1)),
+        )
+        n += 2
+        c._repo._repo.get_issues.return_value.extend([i, p])
+    assert [x.n for x in c._issues_and_pulls(start, end)] == [8, 7, 5, 4, 3]
 
 
 def test_issues_pulls():
@@ -153,8 +176,8 @@ def test_collect_data():
     c = _changelog()
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
-    c._previous_release = Mock(side_effect=[Mock(tag_name="v1.2.2"), None])
-    c._version_end = Mock(datetime.now())
+    c._previous_tag = Mock(side_effect=[("v1.2.2", datetime.now()), (None, None)])
+    c._time_of_commit = Mock(return_value=datetime.now())
     c._issues = Mock(return_value=[])
     c._pulls = Mock(return_value=[])
     c._custom_release_notes = Mock(return_value="custom")

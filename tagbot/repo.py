@@ -86,10 +86,6 @@ class Repo:
         self._git("checkout", master)
         return True
 
-    def _tag_exists(self, version: str) -> bool:
-        """Check whether or not a tag exists locally."""
-        return bool(self._git("tag", "--list", version))
-
     def _release_exists(self, version) -> bool:
         """Check whether or not a GitHub release exists."""
         try:
@@ -98,15 +94,19 @@ class Repo:
         except UnknownObjectException:
             return False
 
+    def _commit_of_tag(self, version: str) -> str:
+        lines = self._git("show-ref", "-d", version).splitlines()
+        # The output looks like this: <sha> refs/tags/<version>.
+        # For lightweight tags, there's just one line which has the commit SHA.
+        # For annotaetd tags, there is a second entry where the ref has a ^{} suffix.
+        # That line's SHA is that of the commit rather than that of the tag object.
+        return max(lines, key=len).split()[0]
+
     def _invalid_tag_exists(self, version: str, sha: str) -> bool:
         """Check whether or not an existing tag points at the wrong commit."""
-        if not self._tag_exists(version):
+        if not self._git("tag", "--list", version):
             return False
-        lines = self._git("show-ref", "-d", version).splitlines()
-        # For annotated tags, there are two entries.
-        # The one with the ^{} suffix uses the commit hash.
-        expected = f"{sha} refs/tags/{version}"
-        return expected not in lines and f"{expected}^{{}}" not in lines
+        return self._commit_of_tag(version) != sha
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""

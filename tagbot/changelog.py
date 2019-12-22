@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from github.Issue import Issue
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
-from github.GitRelease import GitRelease
 from jinja2 import Template
 
 from . import DELTA, debug, info, warn
@@ -28,43 +27,56 @@ class Changelog:
     def __init__(self, repo: "Repo", template: str):
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
-        self._range: Optional[Tuple[datetime, datetime]] = None
+        self.__range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
 
-    def _previous_release(self, version: str) -> Optional[GitRelease]:
-        """Get the release before the current one."""
-        cur_ver = semver.parse_version_info(version[1:])
-        prev_ver = semver.parse_version_info("0.0.0")
-        prev_rel = None
-        for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith("v"):
-                continue
-            try:
-                ver = semver.parse_version_info(r.tag_name[1:])
-            except ValueError:
-                continue
-            if ver.prerelease or ver.build:
-                continue
-            if ver < cur_ver and ver > prev_ver:
-                prev_ver = ver
-                prev_rel = r
-        return prev_rel
-
-    def _version_end(self, sha: str) -> datetime:
-        """Get the end of the interval for collecting issues and pull requests."""
-        ts = self._repo._git("show", "-s", "--format=%cI", sha)
-        dt = datetime.fromisoformat(ts)
-        # Convert to UTC and then remove TZ info altogether.
+    def _time_of_commit(self, sha: str) -> datetime:
+        """Get the time that a commit was made."""
+        date = self._repo._git("show", "-s", "--format=%cI", sha)
+        dt = datetime.fromisoformat(date)
+        # Convert to UTC and remove time zone information.
         offset = dt.utcoffset()
         if offset:
             dt -= offset
         return dt.replace(tzinfo=None)
 
+    def _time_of_tag(self, version: str) -> datetime:
+        """Get the time that the commit pointed to by a tag was made."""
+        sha = self._repo._commit_of_tag(version)
+        return self._time_of_commit(sha)
+
+    def _previous_tag(
+        self, version: str,
+    ) -> Union[Tuple[str, datetime], Tuple[None, None]]:
+        """Get the release name and date before the current one."""
+        cur_ver = semver.parse_version_info(version[1:])
+        prev_ver = semver.parse_version_info("0.0.0")
+        prev_tag = None
+        for tag in self._repo._git("tag").splitlines():
+            if not tag.startswith("v"):
+                continue
+            try:
+                ver = semver.parse_version_info(tag[1:])
+            except ValueError:
+                continue
+            if ver.prerelease or ver.build:
+                continue
+            # Get the highest version that is not greater than the current one.
+            # That means if we're creating a backport v1.1, an already existing v2.0,
+            # despite being newer than v1.0, will not be selected.
+            if ver < cur_ver and ver > prev_ver:
+                prev_tag = tag
+                prev_ver = ver
+        return (prev_tag, self._time_of_tag(prev_tag)) if prev_tag else (None, None)
+
     def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
-        if self.__issues_and_pulls is not None and self._range == (start, end):
+        # Even if we've previously cached some data,
+        # only return it if the interval is the same.
+        if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
         xs = []
+        # Get all closed issues and merged PRs that were closed merged in the interval.
         for x in self._repo._repo.get_issues(state="closed", since=start):
             if x.closed_at < start or x.closed_at > end:
                 continue
@@ -74,8 +86,8 @@ class Changelog:
                     xs.append(pr)
             else:
                 xs.append(x)
-        xs.reverse()
-        self._range = (start, end)
+        xs.reverse()  # Sort in chronological order.
+        self.__range = (start, end)
         self.__issues_and_pulls = xs
         return self.__issues_and_pulls
 
@@ -93,34 +105,32 @@ class Changelog:
         """Look up a merged registry pull request for this version."""
         name = self._repo._project("name")
         uuid = self._repo._project("uuid")
+        # This is the format used by Registrator/PkgDev.
         head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
         debug(f"Looking for PR from branch {head}")
         now = datetime.now()
-        # Check for an owner's PR first, since this is way faster.
+        # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._repo._registry
         owner = registry.owner.login
         debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
-        print("owner:", prs)
         for pr in prs:
             if pr.merged and now - pr.merged_at < DELTA:
                 return pr
-        else:
-            debug("Did not find registry PR by registry owner")
-            prs = registry.get_pulls(state="closed")
-            print(prs)
-            for pr in prs:
-                if now - pr.closed_at > DELTA:
-                    break
-                if pr.merged and pr.head.ref == head:
-                    return pr
+        debug("Did not find registry PR by registry owner")
+        prs = registry.get_pulls(state="closed")
+        for pr in prs:
+            if now - pr.closed_at > DELTA:
+                break
+            if pr.merged and pr.head.ref == head:
+                return pr
         return None
 
     def _custom_release_notes(self, version: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         debug("Looking up custom release notes")
         pr = self._registry_pr(version)
-        if pr is None:
+        if not pr:
             warn("No registry pull request was found for this version")
             return None
         m = self._CUSTOM.search(pr.body)
@@ -164,25 +174,24 @@ class Changelog:
 
     def _collect_data(self, version: str, sha: str) -> Dict[str, Any]:
         """Collect data needed to create the changelog."""
-        previous = self._previous_release(version)
-        debug(f"Previous version: {previous.tag_name if previous else None}")
-        start = previous.created_at if previous else datetime(1, 1, 1)
+        prev_tag, start = self._previous_tag(version)
+        compare = None
+        if prev_tag:
+            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
+        if not start:
+            start = datetime(1, 1, 1)
+        end = self._time_of_commit(sha)
+        debug(f"Previous version: {prev_tag}")
         debug(f"Start date: {start}")
-        end = self._version_end(sha)
         debug(f"End date: {end}")
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
-        compare = None
-        old = None
-        if previous:
-            old = previous.tag_name
-            compare = f"{self._repo._repo.html_url}/compare/{old}...{version}"
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
-            "previous_release": old,
+            "previous_release": prev_tag,
             "pulls": [self._format_pull(p) for p in pulls],
             "sha": sha,
             "version": version,

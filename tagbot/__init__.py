@@ -3,8 +3,8 @@ import subprocess
 from datetime import timedelta
 from typing import Optional
 
-DELTA = timedelta(days=3)
-STATUS = 0
+DELTA = timedelta(days=3)  # Maximum age of new versions/merged registry PRs.
+STATUS = 0  # Exit status for the main script.
 
 
 class Abort(Exception):

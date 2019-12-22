@@ -78,16 +78,6 @@ def test_fetch_branch(git, git_check):
     git_check.assert_called_with("checkout", "bar", repo="dir")
 
 
-def test_tag_exists():
-    r = _repo()
-    r._git = Mock(side_effect=["v1.2.3", ""])
-    r._Repo__dir = "dir"
-    assert r._tag_exists("v1.2.3")
-    r._git.assert_called_with("tag", "--list", "v1.2.3")
-    assert not r._tag_exists("v3.2.1")
-    r._git.assert_called_with("tag", "--list", "v3.2.1")
-
-
 def test_release_exists():
     r = _repo()
     r._repo = Mock()
@@ -100,23 +90,11 @@ def test_release_exists():
 
 def test_invalid_tag_exists():
     r = _repo()
-    r._git = Mock(
-        side_effect=[
-            "fedcba refs/tags/v2.3.4^{}",
-            "abcdef refs/tags/v3.4.5^{}",
-            "abcdef refs/tags/v4.5.6",
-        ]
-    )
-    r._Repo__dir = "dir"
-    r._tag_exists = lambda _v: False
+    r._git = Mock(side_effect=["", "v2.3.4", "v3.4.5"])
+    r._commit_of_tag = Mock(return_value="abcdef")
     assert not r._invalid_tag_exists("v1.2.3", "abcdef")
-    r._tag_exists = lambda _v: True
-    assert r._invalid_tag_exists("v2.3.4", "abcdef")
-    r._git.assert_called_with("show-ref", "-d", "v2.3.4")
-    assert not r._invalid_tag_exists("v3.4.5", "abcdef")
-    r._git.assert_called_with("show-ref", "-d", "v3.4.5")
-    assert not r._invalid_tag_exists("v4.5.6", "abcdef")
-    r._git.assert_called_with("show-ref", "-d", "v4.5.6")
+    assert not r._invalid_tag_exists("v2.3.4", "abcdef")
+    assert r._invalid_tag_exists("v3.4.5", "aaaaaa")
 
 
 @patch("tagbot.repo.error")

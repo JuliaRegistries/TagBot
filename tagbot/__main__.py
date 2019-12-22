@@ -12,6 +12,10 @@ dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
 token = os.getenv("INPUT_TOKEN", "")
 
+if not token:
+    error("No GitHub API token supplied")
+    sys.exit(1)
+
 repo = Repo(repo_name, registry_name, token, changelog)
 versions = repo.new_versions()
 
@@ -27,7 +31,6 @@ if dispatch:
 for version, sha in versions.items():
     info(f"Processing version {version} ({sha})")
     try:
-
         if branches:
             repo.handle_release_branch(version)
         log = repo.changelog(version, sha)
