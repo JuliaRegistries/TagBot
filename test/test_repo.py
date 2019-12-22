@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from io import StringIO
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 from github import UnknownObjectException
 
@@ -11,23 +11,16 @@ def _repo(*, name="", registry="", token="", changelog=""):
     return Repo(name, registry, token, changelog)
 
 
-@patch("tagbot.repo.git", return_value="out")
-def test_git(git):
-    r = _repo()
-    r._Repo__dir = "dir"
-    assert r._git("a", "b") == "out"
-    git.assert_called_once_with("a", "b", repo="dir")
-
-
 @patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
 @patch("os.path.isfile", return_value=True)
 def test_project(isfile, open):
     r = _repo()
-    r._Repo__dir = ""
+    r._git.path = Mock(return_value="path")
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
     assert r._project("name") == "FooBar"
-    isfile.assert_called_once()
+    r._git.path.assert_called_once_with("Project.toml")
+    isfile.assert_called_once_with("path")
 
 
 def test_registry_path():
@@ -45,39 +38,6 @@ def test_registry_path():
     assert r._registry.get_contents.call_count == 2
 
 
-@patch("tagbot.repo.mkdtemp", return_value="dest")
-@patch("tagbot.repo.git")
-def test_dir(git, mkdtemp):
-    r = _repo(token="x")
-    r._repo = Mock()
-    r._repo.full_name = "Foo/Bar"
-    assert r._dir == "dest"
-    assert r._dir == "dest"
-    mkdtemp.assert_called_once()
-    git.assert_called_once_with("clone", "https://oauth2:x@github.com/Foo/Bar", "dest")
-
-
-def test_commit_from_tree():
-    r = _repo()
-    r._git = Mock(return_value="a b\n c d\n d e\n")
-    r._Repo__dir = "dir"
-    assert r._commit_from_tree("b") == "a"
-    assert r._commit_from_tree("e") == "d"
-    assert r._commit_from_tree("c") is None
-
-
-@patch("tagbot.repo.git_check", side_effect=[True, False])
-@patch("tagbot.repo.git", return_value="")
-def test_fetch_branch(git, git_check):
-    r = _repo()
-    r._Repo__dir = "dir"
-    assert r._fetch_branch("master", "foo")
-    git_check.assert_called_with("checkout", "foo", repo="dir")
-    git.assert_called_with("checkout", "master", repo="dir")
-    assert not r._fetch_branch("master", "bar")
-    git_check.assert_called_with("checkout", "bar", repo="dir")
-
-
 def test_release_exists():
     r = _repo()
     r._repo = Mock()
@@ -88,13 +48,13 @@ def test_release_exists():
     r._repo.get_release.assert_called_with("v3.2.1")
 
 
-def test_invalid_tag_exists():
+def test_create_release_branch_pr():
     r = _repo()
-    r._git = Mock(side_effect=["", "v2.3.4", "v3.4.5"])
-    r._commit_of_tag = Mock(return_value="abcdef")
-    assert not r._invalid_tag_exists("v1.2.3", "abcdef")
-    assert not r._invalid_tag_exists("v2.3.4", "abcdef")
-    assert r._invalid_tag_exists("v3.4.5", "aaaaaa")
+    r._repo = Mock(default_branch="default")
+    r._create_release_branch_pr("v1.2.3", "branch")
+    r._repo.create_pull.assert_called_once_with(
+        title="Merge release branch for v1.2.3", body="", head="branch", base="default",
+    )
 
 
 @patch("tagbot.repo.error")
@@ -102,8 +62,8 @@ def test_invalid_tag_exists():
 @patch("tagbot.repo.info")
 def test_filter_map_versions(info, warn, error):
     r = _repo()
-    r._commit_from_tree = lambda tree: None if tree == "abc" else "sha"
-    r._invalid_tag_exists = lambda v, _sha: v == "v2.3.4"
+    r._git.commit_sha_of_tree = lambda tree: None if tree == "abc" else "sha"
+    r._git.invalid_tag_exists = lambda v, _sha: v == "v2.3.4"
     r._release_exists = lambda v: v == "v3.4.5"
     versions = {"1.2.3": "abc", "2.3.4": "bcd", "3.4.5": "cde", "4.5.6": "def"}
     assert r._filter_map_versions(versions) == {"v4.5.6": "sha"}
@@ -151,44 +111,6 @@ def test_versions(debug):
     debug.assert_called_with("Versions.toml was not found")
 
 
-@patch("tagbot.repo.git_check", side_effect=[True, False])
-def test_can_fast_forward(git_check):
-    r = _repo()
-    r._Repo__dir = "dir"
-    assert r._can_fast_forward("master1", "branch1")
-    git_check.assert_called_with(
-        "merge-base", "--is-ancestor", "master1", "branch1", repo="dir"
-    )
-    assert not r._can_fast_forward("master2", "branch2")
-    git_check.assert_called_with(
-        "merge-base", "--is-ancestor", "master2", "branch2", repo="dir",
-    )
-
-
-@patch("tagbot.repo.git")
-def test_merge_and_delete_branch(git):
-    r = _repo()
-    r._Repo__dir = "dir"
-    r._merge_and_delete_branch("master", "branch")
-    git.assert_has_calls(
-        [
-            call("checkout", "master", repo="dir"),
-            call("merge", "branch", repo="dir"),
-            call("push", "origin", "master", repo="dir"),
-            call("push", "-d", "origin", "branch", repo="dir"),
-        ]
-    )
-
-
-@patch("tagbot.repo.Github")
-def test_create_release_branch_pr(Github):
-    r = _repo()
-    r._create_release_branch_pr("v1.2.3", "master", "branch")
-    r._repo.create_pull.assert_called_once_with(
-        title="Merge release branch for v1.2.3", body="", head="branch", base="master",
-    )
-
-
 def test_new_versions():
     r = _repo()
     r._versions = (
@@ -198,23 +120,6 @@ def test_new_versions():
     )
     r._filter_map_versions = lambda vs: vs
     assert r.new_versions() == {"2.3.4": "bcd"}
-
-
-def test_handle_release_branch():
-    r = _repo()
-    r._repo = Mock(default_branch="master")
-    r._fetch_branch = Mock(side_effect=[False, True, True])
-    r._can_fast_forward = Mock(side_effect=[True, False])
-    r._merge_and_delete_branch = Mock()
-    r._create_release_branch_pr = Mock()
-    r.handle_release_branch("v1.2.3")
-    r._fetch_branch.assert_called_with("master", "release-1.2.3")
-    r.handle_release_branch("v2.3.4")
-    r._merge_and_delete_branch.assert_called_once_with("master", "release-2.3.4")
-    r.handle_release_branch("v3.4.5")
-    r._create_release_branch_pr.assert_called_once_with(
-        "v3.4.5", "master", "release-3.4.5",
-    )
 
 
 @patch("requests.post")
@@ -232,6 +137,26 @@ def test_create_dispatch_event(post):
     )
 
 
+def test_handle_release_branch():
+    r = _repo()
+    r._create_release_branch_pr = Mock()
+    r._git = Mock(
+        fetch_branch=Mock(side_effect=[False, True, True]),
+        can_fast_forward=Mock(side_effect=[True, False]),
+    )
+    r.handle_release_branch("v1")
+    r._git.fetch_branch.assert_called_with("release-1")
+    r._git.can_fast_forward.assert_not_called()
+    r.handle_release_branch("v2")
+    r._git.fetch_branch.assert_called_with("release-2")
+    r._git.can_fast_forward.assert_called_with("release-2")
+    r._git.merge_and_delete_branch.assert_called_with("release-2")
+    r.handle_release_branch("v3")
+    r._git.fetch_branch.assert_called_with("release-3")
+    r._git.can_fast_forward.assert_called_with("release-3")
+    r._create_release_branch_pr.assert_called_with("v3", "release-3")
+
+
 def test_changelog():
     r = _repo()
     r._changelog = Mock()
@@ -241,10 +166,13 @@ def test_changelog():
 
 def test_create_release():
     r = _repo()
-    r._repo = Mock()
-    r._repo.default_branch = "master"
-    r._git = Mock(side_effect=["abcdef", "aaaaaa"])
-    r.create_release("v1.2.3", "abcdef", "hi")
-    r._repo.create_git_release.assert_called_once_with(
-        "v1.2.3", "v1.2.3", "hi", target_commitish="master",
+    r._git.commit_sha_of_default = Mock(return_value="a")
+    r._repo = Mock(default_branch="default")
+    r.create_release("v1.2.3", "a", "hi")
+    r._repo.create_git_release.assert_called_with(
+        "v1.2.3", "v1.2.3", "hi", target_commitish="default",
+    )
+    r.create_release("v1.2.3", "b", "hi")
+    r._repo.create_git_release.assert_called_with(
+        "v1.2.3", "v1.2.3", "hi", target_commitish="b",
     )

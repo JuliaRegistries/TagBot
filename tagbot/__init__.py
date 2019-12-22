@@ -1,7 +1,4 @@
-import subprocess
-
 from datetime import timedelta
-from typing import Optional
 
 DELTA = timedelta(days=3)  # Maximum age of new versions/merged registry PRs.
 STATUS = 0  # Exit status for the main script.
@@ -31,31 +28,3 @@ def error(msg: str) -> None:
     global STATUS
     STATUS += 1
     print(f"::error ::{msg}")
-
-
-def git(*argv: str, repo: Optional[str] = None) -> str:
-    """Run a Git command."""
-    args = ["git"]
-    if repo:
-        args.extend(["-C", repo])
-    args.extend(argv)
-    cmd = " ".join(args)
-    debug(f"Running {cmd}")
-    p = subprocess.run(args, capture_output=True)
-    out = p.stdout.decode()
-    if p.returncode:
-        if out:
-            info(out)
-        if p.stderr:
-            info(p.stderr.decode())
-        raise Abort(f"Git command '{cmd}' failed")
-    return out.strip()
-
-
-def git_check(*argv: str, repo: Optional[str] = None) -> bool:
-    """Run a Git command that can fail."""
-    try:
-        git(*argv, repo=repo)
-        return True
-    except Abort:
-        return False

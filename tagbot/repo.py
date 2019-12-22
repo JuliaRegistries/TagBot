@@ -3,43 +3,35 @@ import os
 import toml
 
 from datetime import datetime, timedelta
-from tempfile import mkdtemp
 from typing import Any, Dict, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
 from github.Requester import requests
 
-from . import DELTA, Abort, git, git_check, debug, info, warn, error
+from . import DELTA, Abort, debug, info, warn, error
 from .changelog import Changelog
+from .git import Git
 
 
 class Repo:
     """A Repo has access to its Git repository and registry metadata."""
 
     def __init__(self, name: str, registry: str, token: str, changelog: str):
+        gh = Github(token)
+        self._repo = gh.get_repo(name, lazy=True)
+        self._registry = gh.get_repo(registry, lazy=True)
         self._token = token
-        self._gh = Github(self._token)
-        self._repo = self._gh.get_repo(name, lazy=True)
-        self._registry = self._gh.get_repo(registry, lazy=True)
         self._changelog = Changelog(self, changelog)
-        self.__dir: Optional[str] = None
+        self._git = Git(name, token)
         self.__project: Optional[MutableMapping[str, Any]] = None
         self.__registry_path: Optional[str] = None
-
-    def _git(self, *args: str) -> str:
-        """Run git in this repo."""
-        return git(*args, repo=self._dir)
-
-    def _git_check(self, *args: str) -> bool:
-        """Run git_check in this repo."""
-        return git_check(*args, repo=self._dir)
 
     def _project(self, k) -> str:
         """Get a value from the Project.toml."""
         if self.__project is not None:
             return self.__project[k]
         for name in ["Project.toml", "JuliaProject.toml"]:
-            path = os.path.join(self._dir, name)
+            path = self._git.path(name)
             if os.path.isfile(path):
                 with open(path) as f:
                     self.__project = toml.load(f)
@@ -59,33 +51,6 @@ class Repo:
             return self.__registry_path
         return None
 
-    @property
-    def _dir(self) -> str:
-        """Get the repository clone location (cloning if necessary)."""
-        if self.__dir is not None:
-            return self.__dir
-        url = f"https://oauth2:{self._token}@github.com/{self._repo.full_name}"
-        dest = mkdtemp(prefix="tagbot_repo_")
-        git("clone", url, dest)
-        self.__dir = dest
-        return self.__dir
-
-    def _commit_from_tree(self, tree: str) -> Optional[str]:
-        """Get the commit SHA that corresponds to a tree SHA."""
-        lines = self._git("log", "--all", "--format=%H %T").splitlines()
-        for line in lines:
-            c, t = line.split()
-            if t == tree:
-                return c
-        return None
-
-    def _fetch_branch(self, master: str, branch: str) -> bool:
-        """Try to checkout a remote branch, and return whether or not it succeeded."""
-        if not self._git_check("checkout", branch):
-            return False
-        self._git("checkout", master)
-        return True
-
     def _release_exists(self, version) -> bool:
         """Check whether or not a GitHub release exists."""
         try:
@@ -94,30 +59,25 @@ class Repo:
         except UnknownObjectException:
             return False
 
-    def _commit_of_tag(self, version: str) -> str:
-        lines = self._git("show-ref", "-d", version).splitlines()
-        # The output looks like this: <sha> refs/tags/<version>.
-        # For lightweight tags, there's just one line which has the commit SHA.
-        # For annotaetd tags, there is a second entry where the ref has a ^{} suffix.
-        # That line's SHA is that of the commit rather than that of the tag object.
-        return max(lines, key=len).split()[0]
-
-    def _invalid_tag_exists(self, version: str, sha: str) -> bool:
-        """Check whether or not an existing tag points at the wrong commit."""
-        if not self._git("tag", "--list", version):
-            return False
-        return self._commit_of_tag(version) != sha
+    def _create_release_branch_pr(self, version: str, branch: str) -> None:
+        """Create a pull request for the release branch."""
+        self._repo.create_pull(
+            title=f"Merge release branch for {version}",
+            body="",
+            head=branch,
+            base=self._repo.default_branch,
+        )
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
         for version, tree in versions.items():
             version = f"v{version}"
-            sha = self._commit_from_tree(tree)
+            sha = self._git.commit_sha_of_tree(tree)
             if not sha:
                 warn(f"No matching commit was found for version {version} ({tree})")
                 continue
-            if self._invalid_tag_exists(version, sha):
+            if self._git.invalid_tag_exists(version, sha):
                 msg = f"Existing tag {version} points at the wrong commit (expected {sha})"  # noqa: E501
                 error(msg)
                 continue
@@ -149,26 +109,6 @@ class Repo:
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
-    def _can_fast_forward(self, master: str, branch: str) -> bool:
-        """Check whether master can be fast-forwarded to branch."""
-        return self._git_check("merge-base", "--is-ancestor", master, branch)
-
-    def _merge_and_delete_branch(self, master: str, branch: str) -> None:
-        """Merge a branch into master and delete the branch."""
-        git("checkout", master, repo=self._dir)
-        git("merge", branch, repo=self._dir)
-        git("push", "origin", master, repo=self._dir)
-        git("push", "-d", "origin", branch, repo=self._dir)
-
-    def _create_release_branch_pr(self, version: str, master: str, branch: str) -> None:
-        """Create a pull request for the release branch."""
-        self._repo.create_pull(
-            title=f"Merge release branch for {version}",
-            body="",
-            head=branch,
-            base=master,
-        )
-
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
@@ -192,17 +132,16 @@ class Repo:
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
-        master = self._repo.default_branch
         branch = f"release-{version[1:]}"
-        if not self._fetch_branch(master, branch):
+        if not self._git.fetch_branch(branch):
             info(f"Release branch {branch} does not exist")
             return
-        if self._can_fast_forward(master, branch):
+        if self._git.can_fast_forward(branch):
             info("Release branch can be fast-forwarded")
-            self._merge_and_delete_branch(master, branch)
+            self._git.merge_and_delete_branch(branch)
         else:
             info("Release branch cannot be fast-forwarded, creating pull request")
-            self._create_release_branch_pr(version, master, branch)
+            self._create_release_branch_pr(version, branch)
 
     def changelog(self, version: str, sha: str) -> str:
         """Get the changelog for a new version."""
@@ -210,11 +149,10 @@ class Repo:
 
     def create_release(self, version: str, sha: str, changelog: str) -> None:
         """Create a GitHub release."""
-        if self._git("rev-parse", "HEAD") == sha:
+        target = sha
+        if self._git.commit_sha_of_default() == sha:
             target = self._repo.default_branch
-        else:
-            target = sha
         info(f"Creating release {version} at {sha} (target {target})")
         self._repo.create_git_release(
-            version, version, changelog, target_commitish=target
+            version, version, changelog, target_commitish=target,
         )

@@ -17,26 +17,18 @@ def _changelog(*, name="", registry="", token="", template=""):
     return r._changelog
 
 
-def test_time_of_commit():
-    pass
-
-
-def test_time_of_tag():
-    pass
-
-
 def test_previous_tag():
     c = _changelog()
     tags = ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]
     now = datetime.now()
-    c._repo._git = Mock(return_value="\n".join(tags))
-    c._time_of_tag = Mock(return_value=now)
+    c._repo._git.tags = Mock(return_value=tags)
+    c._repo._git.time_of_tag = Mock(return_value=now)
     assert c._previous_tag("v1.0.0") == (None, None)
     assert c._previous_tag("v1.0.2") == (None, None)
     assert c._previous_tag("v1.2.5") == ("v1.2.3", now)
-    c._time_of_tag.assert_called_with("v1.2.3")
+    c._repo._git.time_of_tag.assert_called_with("v1.2.3")
     assert c._previous_tag("v1.0.3") == ("v1.0.2", now)
-    c._time_of_tag.assert_called_with("v1.0.2")
+    c._repo._git.time_of_tag.assert_called_with("v1.0.2")
 
 
 def test_issues_and_pulls():
@@ -177,7 +169,8 @@ def test_collect_data():
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
     c._previous_tag = Mock(side_effect=[("v1.2.2", datetime.now()), (None, None)])
-    c._time_of_commit = Mock(return_value=datetime.now())
+    c._repo._git.time_of_commit = Mock(return_value=datetime.now())
+    # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
     c._pulls = Mock(return_value=[])
     c._custom_release_notes = Mock(return_value="custom")

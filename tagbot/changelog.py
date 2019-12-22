@@ -30,21 +30,6 @@ class Changelog:
         self.__range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
 
-    def _time_of_commit(self, sha: str) -> datetime:
-        """Get the time that a commit was made."""
-        date = self._repo._git("show", "-s", "--format=%cI", sha)
-        dt = datetime.fromisoformat(date)
-        # Convert to UTC and remove time zone information.
-        offset = dt.utcoffset()
-        if offset:
-            dt -= offset
-        return dt.replace(tzinfo=None)
-
-    def _time_of_tag(self, version: str) -> datetime:
-        """Get the time that the commit pointed to by a tag was made."""
-        sha = self._repo._commit_of_tag(version)
-        return self._time_of_commit(sha)
-
     def _previous_tag(
         self, version: str,
     ) -> Union[Tuple[str, datetime], Tuple[None, None]]:
@@ -52,7 +37,7 @@ class Changelog:
         cur_ver = semver.parse_version_info(version[1:])
         prev_ver = semver.parse_version_info("0.0.0")
         prev_tag = None
-        for tag in self._repo._git("tag").splitlines():
+        for tag in self._repo._git.tags():
             if not tag.startswith("v"):
                 continue
             try:
@@ -67,7 +52,10 @@ class Changelog:
             if ver < cur_ver and ver > prev_ver:
                 prev_tag = tag
                 prev_ver = ver
-        return (prev_tag, self._time_of_tag(prev_tag)) if prev_tag else (None, None)
+        if prev_tag:
+            return prev_tag, self._repo._git.time_of_tag(prev_tag)
+        else:
+            return None, None
 
     def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
@@ -180,7 +168,7 @@ class Changelog:
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
         if not start:
             start = datetime(1, 1, 1)
-        end = self._time_of_commit(sha)
+        end = self._repo._git.time_of_commit(sha)
         debug(f"Previous version: {prev_tag}")
         debug(f"Start date: {start}")
         debug(f"End date: {end}")
