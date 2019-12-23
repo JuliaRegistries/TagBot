@@ -23,8 +23,10 @@ def test_previous_release():
     c._repo._repo.get_releases = Mock(return_value=[Mock(tag_name=t) for t in tags])
     assert c._previous_release("v1.0.0") is None
     assert c._previous_release("v1.0.2") is None
-    assert c._previous_release("v1.2.5").tag_name == "v1.2.3"
-    assert c._previous_release("v1.0.3").tag_name == "v1.0.2"
+    rel = c._previous_release("v1.2.5")
+    assert rel and rel.tag_name == "v1.2.3"
+    rel = c._previous_release("v1.0.3")
+    assert rel and rel.tag_name == "v1.0.2"
 
 
 def test_issues_and_pulls():
@@ -58,10 +60,12 @@ def test_issues_pulls():
         mocks.append(Mock(spec=Issue, number=i))
         mocks.append(Mock(spec=PullRequest, number=i + 1))
     c._issues_and_pulls = Mock(return_value=mocks)
-    assert all(isinstance(x, Issue) and not x.number % 2 for x in c._issues(0, 1))
-    c._issues_and_pulls.assert_called_with(0, 1)
-    assert all(isinstance(x, PullRequest) and x.number % 2 for x in c._pulls(2, 3))
-    c._issues_and_pulls.assert_called_with(2, 3)
+    a = datetime(1, 1, 1)
+    b = datetime(2, 2, 2)
+    assert all(isinstance(x, Issue) and not x.number % 2 for x in c._issues(a, b))
+    c._issues_and_pulls.assert_called_with(a, b)
+    assert all(isinstance(x, PullRequest) and x.number % 2 for x in c._pulls(b, a))
+    c._issues_and_pulls.assert_called_with(b, a)
 
 
 def test_registry_pr():

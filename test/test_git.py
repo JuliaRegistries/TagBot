@@ -19,13 +19,13 @@ def _git(
     g = Git(repo, token)
     if command:
         # https://github.com/python/mypy/issues/708
-        m = g.command = Mock()  # type: ignore
+        m = g.command = Mock()
         if isinstance(command, list):
             m.side_effect = command
         else:
             m.return_value = command
     if check:
-        m = g.check = Mock()  # type: ignore
+        m = g.check = Mock()
         if isinstance(check, list):
             m.side_effect = check
         else:

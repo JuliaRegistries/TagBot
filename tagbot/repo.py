@@ -26,16 +26,16 @@ class Repo:
         self.__project: Optional[MutableMapping[str, Any]] = None
         self.__registry_path: Optional[str] = None
 
-    def _project(self, k) -> str:
+    def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""
         if self.__project is not None:
-            return self.__project[k]
+            return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             path = self._git.path(name)
             if os.path.isfile(path):
                 with open(path) as f:
                     self.__project = toml.load(f)
-                return self.__project[k]
+                return str(self.__project[k])
         raise Abort("Project file was not found")
 
     @property
@@ -51,7 +51,7 @@ class Repo:
             return self.__registry_path
         return None
 
-    def _release_exists(self, version) -> bool:
+    def _release_exists(self, version: str) -> bool:
         """Check whether or not a GitHub release exists."""
         try:
             self._repo.get_release(version)
