@@ -143,16 +143,11 @@ class Repo:
             info("Release branch cannot be fast-forwarded, creating pull request")
             self._create_release_branch_pr(version, branch)
 
-    def changelog(self, version: str, sha: str) -> str:
-        """Get the changelog for a new version."""
-        return self._changelog.get(version, sha)
-
-    def create_release(self, version: str, sha: str, changelog: str) -> None:
+    def create_release(self, version: str, sha: str) -> None:
         """Create a GitHub release."""
         target = sha
         if self._git.commit_sha_of_default() == sha:
             target = self._repo.default_branch
         info(f"Creating release {version} at {sha} (target {target})")
-        self._repo.create_git_release(
-            version, version, changelog, target_commitish=target,
-        )
+        log = self._changelog.get(version, sha)
+        self._repo.create_git_release(version, version, log, target_commitish=target)

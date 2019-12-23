@@ -157,22 +157,16 @@ def test_handle_release_branch():
     r._create_release_branch_pr.assert_called_with("v3", "release-3")
 
 
-def test_changelog():
-    r = _repo()
-    r._changelog = Mock()
-    r.changelog("v1.2.3", "abcdef")
-    r._changelog.get.assert_called_once_with("v1.2.3", "abcdef")
-
-
 def test_create_release():
     r = _repo()
     r._git.commit_sha_of_default = Mock(return_value="a")
     r._repo = Mock(default_branch="default")
-    r.create_release("v1.2.3", "a", "hi")
+    r._changelog.get = Mock(return_value="log")
+    r.create_release("v1.2.3", "a")
     r._repo.create_git_release.assert_called_with(
-        "v1.2.3", "v1.2.3", "hi", target_commitish="default",
+        "v1.2.3", "v1.2.3", "log", target_commitish="default",
     )
-    r.create_release("v1.2.3", "b", "hi")
+    r.create_release("v1.2.3", "b")
     r._repo.create_git_release.assert_called_with(
-        "v1.2.3", "v1.2.3", "hi", target_commitish="b",
+        "v1.2.3", "v1.2.3", "log", target_commitish="b",
     )

@@ -33,8 +33,7 @@ for version, sha in versions.items():
     try:
         if branches:
             repo.handle_release_branch(version)
-        log = repo.changelog(version, sha)
-        repo.create_release(version, sha, log)
+        repo.create_release(version, sha)
     except Abort as e:
         error(e.args[0])
 
