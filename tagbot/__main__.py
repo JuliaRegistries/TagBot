@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 from . import Abort, info, error
@@ -6,16 +7,21 @@ from .repo import Repo
 
 repo_name = os.getenv("GITHUB_REPOSITORY", "")
 branches = os.getenv("INPUT_BRANCHES", "false") == "true"
+changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
 token = os.getenv("INPUT_TOKEN", "")
 
-repo = Repo(repo_name, registry_name, token)
+if not token:
+    error("No GitHub API token supplied")
+    sys.exit(1)
+
+repo = Repo(repo_name, registry_name, token, changelog)
 versions = repo.new_versions()
 
 if not versions:
     info("No new versions to release")
-    exit(0)
+    sys.exit(0)
 
 if dispatch:
     repo.create_dispatch_event(versions)
@@ -27,13 +33,11 @@ for version, sha in versions.items():
     try:
         if branches:
             repo.handle_release_branch(version)
-        log = repo.changelog(version)
-        repo.create_release(version, sha, log)
+        repo.create_release(version, sha)
     except Abort as e:
         error(e.args[0])
 
-from . import STATUS
+from . import STATUS  # noqa: E402
 
 info(f"Exiting with status {STATUS}")
-
-exit(STATUS)
+sys.exit(STATUS)

@@ -14,8 +14,10 @@ checked() {
 
 cd $(dirname "$0")/..
 
-checked pytest
+checked pytest --cov tagbot
 checked black --check bin tagbot test
-checked mypy bin tagbot test
+checked flake8 bin tagbot test
+# The test code monkey patches methods a lot, and mypy doesn't like that.
+checked mypy --strict bin tagbot
 
-exit $exit
+exit "$exit"
