@@ -149,19 +149,3 @@ def test_time_of_commit():
     g = _git(command="2019-12-22T12:49:26+07:00")
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 5, 49, 26)
     g.command.assert_called_with("show", "-s", "--format=%cI", "a")
-
-
-def test_time_of_tag():
-    g = _git()
-    now = datetime.now()
-    g.commit_sha_of_tag = Mock(return_value="a")
-    g.time_of_commit = Mock(return_value=now)
-    assert g.time_of_tag("v1") == now
-    g.commit_sha_of_tag.assert_called_with("v1")
-    g.time_of_commit.assert_called_with("a")
-
-
-def test_tags():
-    g = _git(command="v1\nv2\nv3")
-    assert g.tags() == ["v1", "v2", "v3"]
-    g.command.assert_called_with("tag")

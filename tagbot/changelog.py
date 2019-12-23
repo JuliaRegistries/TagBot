@@ -6,6 +6,7 @@ import semver
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+from github.GitRelease import GitRelease
 from github.Issue import Issue
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
@@ -30,18 +31,16 @@ class Changelog:
         self.__range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
 
-    def _previous_tag(
-        self, version: str,
-    ) -> Union[Tuple[str, datetime], Tuple[None, None]]:
-        """Get the release name and date before the current one."""
+    def _previous_release(self, version: str) -> Optional[GitRelease]:
+        """Get the release previous to the current one (according to SemVer)."""
         cur_ver = semver.parse_version_info(version[1:])
         prev_ver = semver.parse_version_info("0.0.0")
-        prev_tag = None
-        for tag in self._repo._git.tags():
-            if not tag.startswith("v"):
+        prev_rel = None
+        for r in self._repo._repo.get_releases():
+            if not r.tag_name.startswith("v"):
                 continue
             try:
-                ver = semver.parse_version_info(tag[1:])
+                ver = semver.parse_version_info(r.tag_name[1:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -50,12 +49,9 @@ class Changelog:
             # That means if we're creating a backport v1.1, an already existing v2.0,
             # despite being newer than v1.0, will not be selected.
             if ver < cur_ver and ver > prev_ver:
-                prev_tag = tag
+                prev_rel = r
                 prev_ver = ver
-        if prev_tag:
-            return prev_tag, self._repo._git.time_of_tag(prev_tag)
-        else:
-            return None, None
+        return prev_rel
 
     def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
         """Collect issues and pull requests that were closed in the interval."""
@@ -66,7 +62,10 @@ class Changelog:
         xs = []
         # Get all closed issues and merged PRs that were closed merged in the interval.
         for x in self._repo._repo.get_issues(state="closed", since=start):
-            if x.closed_at < start or x.closed_at > end:
+            # If a previous release's last commit closed an issue, then that issue
+            # should be included in the previous release's changelog and not this one.
+            # The interval includes the endpoint for this same reason.
+            if x.closed_at <= start or x.closed_at > end:
                 continue
             if x.pull_request:
                 pr = x.as_pull_request()
@@ -131,7 +130,7 @@ class Changelog:
     def _format_user(self, user: NamedUser) -> Dict[str, Any]:
         """Format a user for the template."""
         return {
-            "name": user.name,
+            "name": user.name or user.login,
             "url": user.html_url,
             "username": user.login,
         }
@@ -162,12 +161,14 @@ class Changelog:
 
     def _collect_data(self, version: str, sha: str) -> Dict[str, Any]:
         """Collect data needed to create the changelog."""
-        prev_tag, start = self._previous_tag(version)
+        previous = self._previous_release(version)
+        start = datetime(1, 1, 1)
+        prev_tag = None
         compare = None
-        if prev_tag:
+        if previous:
+            start = previous.created_at
+            prev_tag = previous.tag_name
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
-        if not start:
-            start = datetime(1, 1, 1)
         end = self._repo._git.time_of_commit(sha)
         debug(f"Previous version: {prev_tag}")
         debug(f"Start date: {start}")

@@ -3,7 +3,7 @@ import subprocess
 
 from datetime import datetime
 from tempfile import mkdtemp
-from typing import List, Optional
+from typing import Optional
 
 from . import Abort, debug, info
 
@@ -113,12 +113,3 @@ class Git:
         if offset:
             dt -= offset
         return dt.replace(tzinfo=None)
-
-    def time_of_tag(self, version: str) -> datetime:
-        """Get the time that the commit pointed to by a tag was made."""
-        sha = self.commit_sha_of_tag(version)
-        return self.time_of_commit(sha)
-
-    def tags(self) -> List[str]:
-        """Get the names of all the tags in the repo."""
-        return self.command("tag").splitlines()
