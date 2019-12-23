@@ -17,7 +17,7 @@ class Repo:
     """A Repo has access to its Git repository and registry metadata."""
 
     def __init__(self, name: str, registry: str, token: str, changelog: str):
-        gh = Github(token)
+        gh = Github(token, per_page=100)
         self._repo = gh.get_repo(name, lazy=True)
         self._registry = gh.get_repo(registry, lazy=True)
         self._token = token
