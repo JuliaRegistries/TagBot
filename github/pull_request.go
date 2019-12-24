@@ -55,6 +55,13 @@ PR Body:
 
 	r := parseBody(PreprocessBody(pr.GetBody()))
 
+	if ok, err := IsActionEnabled(r.User, r.Repo, r.Commit); err != nil {
+		fmt.Println("Checking for GitHub Action failed:", err)
+	} else if ok {
+		fmt.Println("TagBot as a GitHub Action is enabled, skipping")
+		return nil
+	}
+
 	client, err := GetInstallationClient(r.User, r.Repo)
 	if err != nil {
 		if err == ErrRepoNotEnabled {
@@ -173,6 +180,7 @@ func SendComment(pr *github.PullRequest, id, body string) {
 	}
 
 	body += fmt.Sprintf("\n<!-- %s -->", id)
+	body += "\n\n" + DeprecationNotice
 	c := &github.IssueComment{Body: &body}
 	if _, _, err := client.Issues.CreateComment(Ctx, owner, name, num, c); err != nil {
 		fmt.Println("Creating comment:", err)
