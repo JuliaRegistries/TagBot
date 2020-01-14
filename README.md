@@ -24,11 +24,11 @@ No further action is required.
 
 ## Setup using custom token
 
-This approach uses a custom token that you provide.
+This approach uses a custom token that you provide. This is necessary in order to trigger GitHub actions CI from a tagbot tag, in order to build documentation for tagged versions of your package.
 
-**Step 1:** Generate a GitHub personal access token.
+**Step 1:** Generate a GitHub personal access token. To do so, go to <https://github.com/settings/tokens/new>, name it anything you wish, and select either `repo` or `public_repo`, depending on whether or not you will use tagbot with private repositories. Save this somewhere secret, like a password, so you can reuse the same token for each tagbot workflow deployment you make.
 
-**Step 2:** Go to `https://github.com/MY_USERNAME/MY_REPOSITORY/settings/secrets`, click on `Add a new secret`, enter `MY_TOKEN` for `Name`, enter the token into the `Value` field, and then click the green `Add secret` button.
+**Step 2:** Go to `https://github.com/MY_USERNAME/MY_REPOSITORY/settings/secrets`, click on `Add a new secret`, enter `TAGBOT_TOKEN` for `Name`, enter the token into the `Value` field, and then click the green `Add secret` button.
 
 **Step 3:** Create a file at `.github/workflows/TagBot.yml` with the following contents:
 
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: JuliaRegistries/TagBot@v1
         with:
-          token: ${{ secrets.MY_TOKEN }}
+          token: ${{ secrets.TAGBOT_TOKEN }}
 ```
 
 No further action is required.
