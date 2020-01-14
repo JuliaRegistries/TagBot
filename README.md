@@ -26,9 +26,11 @@ No further action is required.
 
 This approach uses a custom token that you provide.
 
-**Step 1:** Go to `https://github.com/MY_USERNAME/MY_REPOSITORY/settings/secrets`, click on `Add a new secret`, enter `MY_TOKEN` for `Name`, enter the token into the `Value` field, and then click the green `Add secret` button.
+**Step 1:** Generate a GitHub personal access token.
 
-**Step 2:** Create a file at `.github/workflows/TagBot.yml` with the following contents:
+**Step 2:** Go to `https://github.com/MY_USERNAME/MY_REPOSITORY/settings/secrets`, click on `Add a new secret`, enter `MY_TOKEN` for `Name`, enter the token into the `Value` field, and then click the green `Add secret` button.
+
+**Step 3:** Create a file at `.github/workflows/TagBot.yml` with the following contents:
 
 ```yml
 name: TagBot
