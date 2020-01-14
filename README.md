@@ -1,8 +1,10 @@
 # <img src="logo.png" width="60"> Julia TagBot
 
-## Setup
+## Setup using default `GITHUB_TOKEN` (recommended)
 
-Create a file at `.github/workflows/TagBot.yml` with the following contents:
+The recommended approach uses the default `GITHUB_TOKEN` provided by GitHub Actions. This will work for most users.
+
+**Step 1:** Create a file at `.github/workflows/TagBot.yml` with the following contents:
 
 ```yml
 name: TagBot
@@ -16,6 +18,30 @@ jobs:
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+No further action is required.
+
+## Setup using custom token
+
+This approach uses a custom token that you provide.
+
+**Step 1:** Go to `https://github.com/MY_USERNAME/MY_REPOSITORY/settings/secrets`, click on `Add a new secret`, enter `MY_TOKEN` for `Name`, enter the token into the `Value` field, and then click the green `Add secret` button.
+
+**Step 2:** Create a file at `.github/workflows/TagBot.yml` with the following contents:
+
+```yml
+name: TagBot
+on:
+  schedule:
+    - cron: 0 * * * *
+jobs:
+  TagBot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.MY_TOKEN }}
 ```
 
 No further action is required.
