@@ -5,7 +5,7 @@ import toml
 from datetime import datetime, timedelta
 from stat import S_IREAD
 from tempfile import mkstemp
-from typing import Any, Dict, MutableMapping, Optional
+from typing import Dict, Mapping, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
 from github.Requester import requests
@@ -20,7 +20,7 @@ class Repo:
 
     def __init__(
         self, *, repo: str, registry: str, token: str, changelog: str, ssh: bool,
-    ):
+    ) -> None:
         gh = Github(token, per_page=100)
         self._repo = gh.get_repo(repo, lazy=True)
         self._registry = gh.get_repo(registry, lazy=True)
@@ -28,7 +28,7 @@ class Repo:
         self._changelog = Changelog(self, changelog)
         self._ssh = ssh
         self._git = Git(repo, token)
-        self.__project: Optional[MutableMapping[str, Any]] = None
+        self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
     def _project(self, k: str) -> str:
@@ -123,7 +123,7 @@ class Repo:
         versions = {k: v for k, v in current.items() if k not in old}
         return self._filter_map_versions(versions)
 
-    def create_dispatch_event(self, payload: Dict[str, Any]) -> None:
+    def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
         resp = requests.post(
             f"https://api.github.com/repos/{self._repo.full_name}/dispatches",

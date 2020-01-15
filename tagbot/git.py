@@ -11,7 +11,7 @@ from . import Abort, debug, info
 class Git:
     """Provides access to a local Git repository."""
 
-    def __init__(self, repo: str, token: str):
+    def __init__(self, repo: str, token: str) -> None:
         self._repo = repo
         self._token = token
         self._default_branch = ""
