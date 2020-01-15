@@ -18,7 +18,6 @@ def _git(
 ) -> Git:
     g = Git(repo, token)
     if command:
-        # https://github.com/python/mypy/issues/708
         m = g.command = Mock()
         if isinstance(command, list):
             m.side_effect = command
@@ -113,6 +112,25 @@ def test_invalid_tag_exists():
     assert not g.invalid_tag_exists("v2", "b")
     g.commit_sha_of_tag.assert_called_with("v2")
     assert g.invalid_tag_exists("v2", "d")
+
+
+def test_set_remote_url():
+    g = _git(command="hi")
+    g.set_remote_url("url")
+    g.command.assert_called_with("remote", "set-url", "origin", "url")
+
+
+def test_config():
+    g = _git(command="ok")
+    g.config("a", "b")
+    g.command.assert_called_with("config", "a", "b")
+
+
+def test_create_tag():
+    g = _git(command=["", ""])
+    g.create_tag("v1.2.3", "abcdef")
+    calls = [call("tag", "v1.2.3", "abcdef"), call("push", "origin", "v1.2.3")]
+    g.command.assert_has_calls(calls)
 
 
 def test_fetch_branch():

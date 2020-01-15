@@ -3,6 +3,8 @@ import os
 import toml
 
 from datetime import datetime, timedelta
+from stat import S_IREAD
+from tempfile import mkstemp
 from typing import Any, Dict, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
@@ -16,13 +18,16 @@ from .git import Git
 class Repo:
     """A Repo has access to its Git repository and registry metadata."""
 
-    def __init__(self, name: str, registry: str, token: str, changelog: str):
+    def __init__(
+        self, *, repo: str, registry: str, token: str, changelog: str, ssh: bool,
+    ):
         gh = Github(token, per_page=100)
-        self._repo = gh.get_repo(name, lazy=True)
+        self._repo = gh.get_repo(repo, lazy=True)
         self._registry = gh.get_repo(registry, lazy=True)
         self._token = token
         self._changelog = Changelog(self, changelog)
-        self._git = Git(name, token)
+        self._ssh = ssh
+        self._git = Git(repo, token)
         self.__project: Optional[MutableMapping[str, Any]] = None
         self.__registry_path: Optional[str] = None
 
@@ -130,6 +135,16 @@ class Repo:
         )
         debug(f"Dispatch response code: {resp.status_code}")
 
+    def configure_ssh(self, key: str) -> None:
+        """Configure the repo to use an SSH key for authentication."""
+        self._git.set_remote_url(self._repo.ssh_url)
+        _, path = mkstemp(prefix="tagbot_key_")
+        debug(f"Writing SSH key to {path}")
+        with open(path, "w") as f:
+            f.write(key)
+        os.chmod(path, S_IREAD)
+        self._git.config("core.sshCommand", f"ssh -i {path}")
+
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
         branch = f"release-{version[1:]}"
@@ -148,6 +163,9 @@ class Repo:
         target = sha
         if self._git.commit_sha_of_default() == sha:
             target = self._repo.default_branch
-        info(f"Creating release {version} at {sha} (target {target})")
         log = self._changelog.get(version, sha)
+        info(f"Creating release {version} at {sha} (target {target})")
+        if self._ssh:
+            info("Using SSH key to create a tag")
+            self._git.create_tag(version, sha)
         self._repo.create_git_release(version, version, log, target_commitish=target)

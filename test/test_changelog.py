@@ -12,8 +12,8 @@ from github.PullRequest import PullRequest
 from tagbot.repo import Repo
 
 
-def _changelog(*, name="", registry="", token="", template=""):
-    r = Repo(name, registry, token, template)
+def _changelog(*, repo="", registry="", token="", template="", ssh=False):
+    r = Repo(repo=repo, registry=registry, token=token, changelog=template, ssh=ssh)
     return r._changelog
 
 

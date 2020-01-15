@@ -1,22 +1,23 @@
 from datetime import datetime, timedelta
-from io import StringIO
-from unittest.mock import Mock, patch
+from stat import S_IREAD
+from unittest.mock import Mock, mock_open, patch
 
 from github import UnknownObjectException
 
 from tagbot.repo import Repo
 
 
-def _repo(*, name="", registry="", token="", changelog=""):
-    return Repo(name, registry, token, changelog)
+def _repo(*, repo="", registry="", token="", changelog="", ssh=False):
+    return Repo(repo=repo, registry=registry, token=token, changelog=changelog, ssh=ssh)
 
 
-@patch("builtins.open", return_value=StringIO("""name = "FooBar"\nuuid="abc-def"\n"""))
 @patch("os.path.isfile", return_value=True)
-def test_project(isfile, open):
+def test_project(isfile):
     r = _repo()
     r._git.path = Mock(return_value="path")
-    assert r._project("name") == "FooBar"
+    open = mock_open(read_data="""name = "FooBar"\nuuid="abc-def"\n""")
+    with patch("builtins.open", open):
+        assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
     assert r._project("name") == "FooBar"
     r._git.path.assert_called_once_with("Project.toml")
@@ -137,6 +138,23 @@ def test_create_dispatch_event(post):
     )
 
 
+@patch("tagbot.repo.mkstemp", return_value=(0, "abc"))
+@patch("os.chmod", return_value=(0, "abc"))
+def test_configure_ssh(chmod, mkstemp):
+    r = _repo(repo="foo")
+    r._repo = Mock(ssh_url="sshurl")
+    r._git.set_remote_url = Mock()
+    r._git.config = Mock()
+    open = mock_open()
+    with patch("builtins.open", open):
+        r.configure_ssh("sshkey")
+    r._git.set_remote_url.assert_called_with("sshurl")
+    open.assert_called_with("abc", "w")
+    open.return_value.write.assert_called_with("sshkey")
+    chmod.assert_called_with("abc", S_IREAD)
+    r._git.config.assert_called_with("core.sshCommand", "ssh -i abc")
+
+
 def test_handle_release_branch():
     r = _repo()
     r._create_release_branch_pr = Mock()
@@ -162,6 +180,7 @@ def test_create_release():
     r._git.commit_sha_of_default = Mock(return_value="a")
     r._repo = Mock(default_branch="default")
     r._changelog.get = Mock(return_value="log")
+    r._git.create_tag = Mock()
     r.create_release("v1.2.3", "a")
     r._repo.create_git_release.assert_called_with(
         "v1.2.3", "v1.2.3", "log", target_commitish="default",
@@ -169,4 +188,11 @@ def test_create_release():
     r.create_release("v1.2.3", "b")
     r._repo.create_git_release.assert_called_with(
         "v1.2.3", "v1.2.3", "log", target_commitish="b",
+    )
+    r._git.create_tag.assert_not_called()
+    r._ssh = True
+    r.create_release("v1.2.3", "c")
+    r._git.create_tag.assert_called_with("v1.2.3", "c")
+    r._repo.create_git_release.assert_called_with(
+        "v1.2.3", "v1.2.3", "log", target_commitish="c",
     )
