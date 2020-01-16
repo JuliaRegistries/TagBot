@@ -11,7 +11,7 @@ from . import Abort, debug, info
 class Git:
     """Provides access to a local Git repository."""
 
-    def __init__(self, repo: str, token: str):
+    def __init__(self, repo: str, token: str) -> None:
         self._repo = repo
         self._token = token
         self._default_branch = ""
@@ -85,6 +85,19 @@ class Git:
         if not self.command("tag", "--list", version):
             return False
         return self.commit_sha_of_tag(version) != sha
+
+    def set_remote_url(self, url: str) -> None:
+        """Update the origin remote URL."""
+        self.command("remote", "set-url", "origin", url)
+
+    def config(self, key: str, val: str) -> None:
+        """Configure a repository."""
+        self.command("config", key, val)
+
+    def create_tag(self, version: str, sha: str) -> None:
+        """Create and push a Git tag."""
+        self.command("tag", version, sha)
+        self.command("push", "origin", version)
 
     def fetch_branch(self, branch: str) -> bool:
         """Try to checkout a remote branch, and return whether or not it succeeded."""

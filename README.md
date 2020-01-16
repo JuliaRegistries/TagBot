@@ -20,6 +20,41 @@ jobs:
 
 No further action is required.
 
+### Personal Access Tokens
+
+It's sometimes better to use a GitHub personal access token instead of the default `secrets.GITHUB_TOKEN`.
+The most notable reason is that the default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
+To use a personal access token:
+
+- Create a token by following the instructions [here](https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line#creating-a-token).
+- Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
+  Use whatever you like as the name, such as `TAGBOT_PAT`.
+  Use the new personal access token as the value.
+- Replace the `token` input's value with the name of your secret, like so:
+
+```yml
+with:
+  token: ${{ secrets.TAGBOT_PAT }}
+```
+
+### SSH Deploy Keys
+
+Using personal access tokens works around the default token's limitations, but they have access to all of your repositories.
+To reduce the consequences of a secret being leaked, you can instead use an SSH deploy key that only has permissions for a single repository.
+To use an SSH deploy key:
+
+- Create an SSH key and add it to your repository by following the instructions [here](https://developer.github.com/v3/guides/managing-deploy-keys/#setup-2).
+- Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
+  Use whatever you like as the name, such as `DEPLOY_KEY`.
+  Use the private key contents as the value.
+- Add the `ssh` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  ssh: ${{ secrets.DEPLOY_KEY }}
+```
+
 ### Changelogs
 
 TagBot creates a changelog for each release based on the issues that have been closed and the pull requests that have been merged.
@@ -126,4 +161,5 @@ The payload is an object mapping from version to commit SHA, which can contain m
 }
 ```
 
-To use this feature, you must provide your own personal access token instead of the default `secrets.GITHUB_TOKEN`, because that token does not have permission to trigger events.
+To use this feature, you must provide your own personal access token.
+For more details, see [Personal Accesss Tokens](#personal-access-tokens).

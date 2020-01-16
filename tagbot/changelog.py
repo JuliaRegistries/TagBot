@@ -4,7 +4,7 @@ import re
 import semver
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from github.GitRelease import GitRelease
 from github.Issue import Issue
@@ -25,7 +25,7 @@ class Changelog:
         "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->"
     )
 
-    def __init__(self, repo: "Repo", template: str):
+    def __init__(self, repo: "Repo", template: str) -> None:
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
         self.__range: Optional[Tuple[datetime, datetime]] = None
@@ -127,7 +127,7 @@ class Changelog:
         debug("No custom release notes were found")
         return None
 
-    def _format_user(self, user: NamedUser) -> Dict[str, Any]:
+    def _format_user(self, user: NamedUser) -> Dict[str, object]:
         """Format a user for the template."""
         return {
             "name": user.name or user.login,
@@ -135,7 +135,7 @@ class Changelog:
             "username": user.login,
         }
 
-    def _format_issue(self, issue: Issue) -> Dict[str, Any]:
+    def _format_issue(self, issue: Issue) -> Dict[str, object]:
         """Format an issue for the template."""
         return {
             "author": self._format_user(issue.user),
@@ -147,7 +147,7 @@ class Changelog:
             "url": issue.html_url,
         }
 
-    def _format_pull(self, pull: PullRequest) -> Dict[str, Any]:
+    def _format_pull(self, pull: PullRequest) -> Dict[str, object]:
         """Format a pull request for the template."""
         return {
             "author": self._format_user(pull.user),
@@ -159,7 +159,7 @@ class Changelog:
             "url": pull.html_url,
         }
 
-    def _collect_data(self, version: str, sha: str) -> Dict[str, Any]:
+    def _collect_data(self, version: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
         previous = self._previous_release(version)
         start = datetime(1, 1, 1)
@@ -187,7 +187,7 @@ class Changelog:
             "version_url": f"{self._repo._repo.html_url}/tree/{version}",
         }
 
-    def _render(self, data: Dict[str, Any]) -> str:
+    def _render(self, data: Dict[str, object]) -> str:
         """Render the template."""
         return self._template.render(data).strip()
 

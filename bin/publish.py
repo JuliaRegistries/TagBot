@@ -5,7 +5,7 @@ import re
 import subprocess
 import sys
 
-from typing import Any
+from typing import Optional
 
 DEST = "tagbot"
 REF = os.environ["GITHUB_REF"]
@@ -16,8 +16,8 @@ PASS = os.environ["DOCKER_PASSWORD"]
 VERSION_RE = re.compile(r"^refs/tags/v(\d+)\.(\d+)\.(\d+)$")
 
 
-def docker(*args: str, **kwargs: Any) -> None:
-    subprocess.run(["docker", *args], check=True, **kwargs)
+def docker(*args: str, stdin: Optional[bytes] = None) -> None:
+    subprocess.run(["docker", *args], check=True, input=stdin)
 
 
 def build() -> None:
@@ -29,7 +29,7 @@ def tag(version: str) -> None:
 
 
 def login() -> None:
-    docker("login", "-u", USER, "--password-stdin", input=PASS.encode())
+    docker("login", "-u", USER, "--password-stdin", stdin=PASS.encode())
 
 
 def push(version: str) -> None:
