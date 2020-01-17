@@ -94,9 +94,12 @@ class Git:
         """Configure a repository."""
         self.command("config", key, val)
 
-    def create_tag(self, version: str, sha: str) -> None:
+    def create_tag(self, version: str, sha: str, annotate: bool = False) -> None:
         """Create and push a Git tag."""
-        self.command("tag", version, sha)
+        args = ["tag"]
+        if annotate:
+            args.extend(["-m", version])
+        self.command(*args, version, sha)
         self.command("push", "origin", version)
 
     def fetch_branch(self, branch: str) -> bool:

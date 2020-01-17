@@ -1,14 +1,15 @@
 import binascii
 import os
+import re
 import subprocess
 
 import toml
 
 from base64 import b64decode
 from datetime import datetime, timedelta
-from stat import S_IREAD
+from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
-from tempfile import mkstemp
+from tempfile import mkdtemp, mkstemp
 from typing import Dict, Mapping, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
@@ -22,8 +23,17 @@ from .git import Git
 class Repo:
     """A Repo has access to its Git repository and registry metadata."""
 
+    _GPG_ID_RE = re.compile("key (.+): secret key imported")
+
     def __init__(
-        self, *, repo: str, registry: str, token: str, changelog: str, ssh: bool,
+        self,
+        *,
+        repo: str,
+        registry: str,
+        token: str,
+        changelog: str,
+        ssh: bool,
+        gpg: bool,
     ) -> None:
         gh = Github(token, per_page=100)
         self._repo = gh.get_repo(repo, lazy=True)
@@ -31,6 +41,7 @@ class Repo:
         self._token = token
         self._changelog = Changelog(self, changelog)
         self._ssh = ssh
+        self._gpg = gpg
         self._git = Git(repo, token)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
@@ -162,6 +173,27 @@ class Repo:
         debug(f"SSH command: {cmd}")
         self._git.config("core.sshCommand", cmd)
 
+    def configure_gpg(self, key: str) -> None:
+        """Configure the repo to sign tags with GPG."""
+        home = os.environ["GNUPGHOME"] = mkdtemp(prefix="tagbot_gpg_")
+        debug(f"Set GNUPGHOME to {home}")
+        os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
+        _, path = mkstemp(prefix="tagbot_gpg_")
+        debug(f"Writing GPG key to {path}")
+        with open(path, "w") as f:
+            f.write(key)
+        proc = subprocess.run(
+            ["gpg", "--import", path], check=True, text=True, capture_output=True,
+        )
+        m = self._GPG_ID_RE.search(proc.stderr)
+        if not m:
+            raise Abort("GPG key import failed")
+        debug(f"GPG key ID: {m[1]}")
+        self._git.config("user.signingKey", m[1])
+        self._git.config("user.name", "github-actions[bot]")
+        self._git.config("user.email", "actions@github.com")
+        self._git.config("tag.gpgSign", "true")
+
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
         branch = f"release-{version[1:]}"
@@ -182,7 +214,7 @@ class Repo:
             target = self._repo.default_branch
         log = self._changelog.get(version, sha)
         info(f"Creating release {version} at {sha} (target {target})")
-        if self._ssh:
-            info("Using SSH key to create a tag")
-            self._git.create_tag(version, sha)
+        if self._ssh or self._gpg:
+            info("Manually creating a tag")
+            self._git.create_tag(version, sha, annotate=self._gpg)
         self._repo.create_git_release(version, version, log, target_commitish=target)

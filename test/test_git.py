@@ -127,10 +127,12 @@ def test_config():
 
 
 def test_create_tag():
-    g = _git(command=["", ""])
+    g = _git(command="hm")
     g.create_tag("v1.2.3", "abcdef")
     calls = [call("tag", "v1.2.3", "abcdef"), call("push", "origin", "v1.2.3")]
     g.command.assert_has_calls(calls)
+    g.create_tag("v2.3.4", "abcdef", annotate=True)
+    g.command.assert_has_calls([call("tag", "-m", "v2.3.4", "v2.3.4", "abcdef")])
 
 
 def test_fetch_branch():

@@ -8,8 +8,10 @@ from github import UnknownObjectException
 from tagbot.repo import Repo
 
 
-def _repo(*, repo="", registry="", token="", changelog="", ssh=False):
-    return Repo(repo=repo, registry=registry, token=token, changelog=changelog, ssh=ssh)
+def _repo(*, repo="", registry="", token="", changelog="", ssh=False, gpg=False):
+    return Repo(
+        repo=repo, registry=registry, token=token, changelog=changelog, ssh=ssh, gpg=gpg
+    )
 
 
 @patch("os.path.isfile", return_value=True)
@@ -170,6 +172,10 @@ def test_configure_ssh(run, chmod, mkstemp):
     open.return_value.write.assert_any_call("foo\n")
 
 
+def test_configure_gpg():
+    pass  # TODO
+
+
 def test_handle_release_branch():
     r = _repo()
     r._create_release_branch_pr = Mock()
@@ -207,7 +213,7 @@ def test_create_release():
     r._git.create_tag.assert_not_called()
     r._ssh = True
     r.create_release("v1.2.3", "c")
-    r._git.create_tag.assert_called_with("v1.2.3", "c")
+    r._git.create_tag.assert_called_with("v1.2.3", "c", annotate=False)
     r._repo.create_git_release.assert_called_with(
         "v1.2.3", "v1.2.3", "log", target_commitish="c",
     )

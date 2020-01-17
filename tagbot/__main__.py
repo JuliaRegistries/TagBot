@@ -11,6 +11,7 @@ changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
 ssh = os.getenv("INPUT_SSH", "")
+gpg = os.getenv("INPUT_GPG", "")
 token = os.getenv("INPUT_TOKEN", "")
 
 if not token:
@@ -23,6 +24,7 @@ repo = Repo(
     token=token,
     changelog=changelog,
     ssh=bool(ssh),
+    gpg=bool(gpg),
 )
 versions = repo.new_versions()
 
@@ -34,9 +36,10 @@ if dispatch:
     repo.create_dispatch_event(versions)
     info("Waiting 5 minutes for any dispatch handlers")
     time.sleep(60 * 5)
-
 if ssh:
     repo.configure_ssh(ssh)
+if gpg:
+    repo.configure_gpg(gpg)
 
 for version, sha in versions.items():
     info(f"Processing version {version} ({sha})")
