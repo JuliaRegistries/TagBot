@@ -141,7 +141,7 @@ class Repo:
         _, path = mkstemp(prefix="tagbot_key_")
         debug(f"Writing SSH key to {path}")
         with open(path, "w") as f:
-            f.write(key)
+            f.write(key.strip() + "\n")
         os.chmod(path, S_IREAD)
         cmd = f"ssh -i {path} -o StrictHostKeyChecking=no"
         self._git.config("core.sshCommand", cmd)

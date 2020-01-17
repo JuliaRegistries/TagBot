@@ -150,7 +150,7 @@ def test_configure_ssh(chmod, mkstemp):
         r.configure_ssh("sshkey")
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_called_with("abc", "w")
-    open.return_value.write.assert_called_with("sshkey")
+    open.return_value.write.assert_called_with("sshkey\n")
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
         "core.sshCommand", "ssh -i abc -o StrictHostKeyChecking=no",
