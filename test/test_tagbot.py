@@ -13,3 +13,5 @@ def test_loggers(print):
     assert tagbot.STATUS == 1
     calls = [call("::debug ::a"), call("b"), call("::warning ::c"), call("::error ::d")]
     print.assert_has_calls(calls)
+    tagbot.debug("foo\nbar")
+    print.assert_called_with("::debug ::foo\n::debug ::bar")
