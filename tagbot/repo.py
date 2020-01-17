@@ -143,7 +143,8 @@ class Repo:
         with open(path, "w") as f:
             f.write(key)
         os.chmod(path, S_IREAD)
-        self._git.config("core.sshCommand", f"ssh -i {path}")
+        cmd = f"ssh -i {path} -o StrictHostKeyChecking=no"
+        self._git.config("core.sshCommand", cmd)
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""

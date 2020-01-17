@@ -152,7 +152,9 @@ def test_configure_ssh(chmod, mkstemp):
     open.assert_called_with("abc", "w")
     open.return_value.write.assert_called_with("sshkey")
     chmod.assert_called_with("abc", S_IREAD)
-    r._git.config.assert_called_with("core.sshCommand", "ssh -i abc")
+    r._git.config.assert_called_with(
+        "core.sshCommand", "ssh -i abc -o StrictHostKeyChecking=no",
+    )
 
 
 def test_handle_release_branch():
