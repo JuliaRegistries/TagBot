@@ -44,6 +44,7 @@ To reduce the consequences of a secret being leaked, you can instead use an SSH 
 To use an SSH deploy key:
 
 - Create an SSH key and add it to your repository by following the instructions [here](https://developer.github.com/v3/guides/managing-deploy-keys/#setup-2).
+  Make sure to give it write permissions.
 - Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
   Use whatever you like as the name, such as `DEPLOY_KEY`.
   Use the private key contents as the value.
@@ -54,6 +55,8 @@ with:
   token: ${{ secrets.GITHUB_TOKEN }}
   ssh: ${{ secrets.DEPLOY_KEY }}
 ```
+
+If you already have a deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
 
 ### Changelogs
 

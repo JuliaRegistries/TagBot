@@ -155,6 +155,9 @@ def test_configure_ssh(chmod, mkstemp):
     r._git.config.assert_called_with(
         "core.sshCommand", "ssh -i abc -o StrictHostKeyChecking=no",
     )
+    with patch("builtins.open", open):
+        r.configure_ssh("Zm9v")
+    open.return_value.write.assert_called_with("foo\n")
 
 
 def test_handle_release_branch():

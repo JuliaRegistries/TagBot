@@ -1,7 +1,9 @@
+import binascii
 import os
 
 import toml
 
+from base64 import b64decode
 from datetime import datetime, timedelta
 from stat import S_IREAD
 from tempfile import mkstemp
@@ -138,6 +140,10 @@ class Repo:
     def configure_ssh(self, key: str) -> None:
         """Configure the repo to use an SSH key for authentication."""
         self._git.set_remote_url(self._repo.ssh_url)
+        try:
+            key = b64decode(key, validate=True).decode()
+        except binascii.Error:
+            pass
         _, path = mkstemp(prefix="tagbot_key_")
         debug(f"Writing SSH key to {path}")
         with open(path, "w") as f:
