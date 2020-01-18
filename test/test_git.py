@@ -36,17 +36,17 @@ def _git(
 def test_command(run):
     g = Git("Foo/Bar", "x")
     g._Git__dir = "dir"
-    run.return_value.configure_mock(stdout=b"out\n", returncode=0)
+    run.return_value.configure_mock(stdout="out\n", returncode=0)
     assert g.command("a") == "out"
     assert g.command("b", repo=None) == "out"
     assert g.command("c", repo="foo") == "out"
     calls = [
-        call(["git", "-C", "dir", "a"], capture_output=True),
-        call(["git", "b"], capture_output=True),
-        call(["git", "-C", "foo", "c"], capture_output=True),
+        call(["git", "-C", "dir", "a"], text=True, capture_output=True),
+        call(["git", "b"], text=True, capture_output=True),
+        call(["git", "-C", "foo", "c"], text=True, capture_output=True),
     ]
     run.assert_has_calls(calls)
-    run.return_value.configure_mock(stderr=b"err\n", returncode=1)
+    run.return_value.configure_mock(stderr="err\n", returncode=1)
     with pytest.raises(Abort):
         g.command("d")
 

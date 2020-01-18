@@ -37,13 +37,13 @@ class Git:
         args.extend(argv)
         cmd = " ".join(args)
         debug(f"Running '{cmd}'")
-        p = subprocess.run(args, capture_output=True)
-        out = p.stdout.decode().strip()
+        p = subprocess.run(args, text=True, capture_output=True)
+        out = p.stdout.strip()
         if p.returncode:
             if out:
                 info(out)
             if p.stderr:
-                info(p.stderr.decode().strip())
+                info(p.stderr.strip())
             raise Abort(f"Git command '{cmd}' failed")
         return out
 
