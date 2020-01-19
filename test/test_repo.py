@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from os import devnull
 from stat import S_IREAD
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, call, mock_open, patch
 
 from github import UnknownObjectException
 
@@ -138,26 +139,35 @@ def test_create_dispatch_event(post):
     )
 
 
-@patch("tagbot.repo.mkstemp", return_value=(0, "abc"))
-@patch("os.chmod", return_value=(0, "abc"))
-def test_configure_ssh(chmod, mkstemp):
+@patch("tagbot.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 2)
+@patch("os.chmod")
+@patch("subprocess.run")
+def test_configure_ssh(run, chmod, mkstemp):
     r = _repo(repo="foo")
     r._repo = Mock(ssh_url="sshurl")
     r._git.set_remote_url = Mock()
     r._git.config = Mock()
     open = mock_open()
     with patch("builtins.open", open):
-        r.configure_ssh("sshkey")
+        r.configure_ssh(" sshkey ")
     r._git.set_remote_url.assert_called_with("sshurl")
-    open.assert_called_with("abc", "w")
+    open.assert_has_calls(
+        [call("abc", "w"), call("xyz", "w"), call(devnull, "w")], any_order=True,
+    )
     open.return_value.write.assert_called_with("sshkey\n")
+    run.assert_called_with(
+        ["ssh-keyscan", "-t", "rsa", "github.com"],
+        check=True,
+        stdout=open.return_value,
+        stderr=open.return_value,
+    )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
-        "core.sshCommand", "ssh -i abc -o StrictHostKeyChecking=no",
+        "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz",
     )
     with patch("builtins.open", open):
         r.configure_ssh("Zm9v")
-    open.return_value.write.assert_called_with("foo\n")
+    open.return_value.write.assert_any_call("foo\n")
 
 
 def test_handle_release_branch():

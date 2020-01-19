@@ -1,5 +1,6 @@
 import binascii
 import os
+import subprocess
 
 import toml
 
@@ -144,12 +145,20 @@ class Repo:
             key = b64decode(key, validate=True).decode()
         except binascii.Error:
             pass
-        _, path = mkstemp(prefix="tagbot_key_")
-        debug(f"Writing SSH key to {path}")
-        with open(path, "w") as f:
+        _, priv = mkstemp(prefix="tagbot_key_")
+        with open(priv, "w") as f:
             f.write(key.strip() + "\n")
-        os.chmod(path, S_IREAD)
-        cmd = f"ssh -i {path} -o StrictHostKeyChecking=no"
+        os.chmod(priv, S_IREAD)
+        _, hosts = mkstemp(prefix="tagbot_hosts_")
+        with open(hosts, "w") as f, open(os.devnull, "w") as dn:
+            subprocess.run(
+                ["ssh-keyscan", "-t", "rsa", "github.com"],
+                check=True,
+                stdout=f,
+                stderr=dn,
+            )
+        cmd = f"ssh -i {priv} -o UserKnownHostsFile={hosts}"
+        debug(f"SSH command: {cmd}")
         self._git.config("core.sshCommand", cmd)
 
     def handle_release_branch(self, version: str) -> None:
