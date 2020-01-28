@@ -7,6 +7,7 @@ import toml
 from base64 import b64decode
 from datetime import datetime, timedelta
 from stat import S_IREAD
+from subprocess import DEVNULL
 from tempfile import mkstemp
 from typing import Dict, Mapping, MutableMapping, Optional
 
@@ -150,12 +151,12 @@ class Repo:
             f.write(key.strip() + "\n")
         os.chmod(priv, S_IREAD)
         _, hosts = mkstemp(prefix="tagbot_hosts_")
-        with open(hosts, "w") as f, open(os.devnull, "w") as dn:
+        with open(hosts, "w") as f:
             subprocess.run(
                 ["ssh-keyscan", "-t", "rsa", "github.com"],
                 check=True,
                 stdout=f,
-                stderr=dn,
+                stderr=DEVNULL,
             )
         cmd = f"ssh -i {priv} -o UserKnownHostsFile={hosts}"
         debug(f"SSH command: {cmd}")

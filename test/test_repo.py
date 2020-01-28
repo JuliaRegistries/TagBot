@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
-from os import devnull
 from stat import S_IREAD
+from subprocess import DEVNULL
 from unittest.mock import Mock, call, mock_open, patch
 
 from github import UnknownObjectException
@@ -152,14 +152,14 @@ def test_configure_ssh(run, chmod, mkstemp):
         r.configure_ssh(" sshkey ")
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_has_calls(
-        [call("abc", "w"), call("xyz", "w"), call(devnull, "w")], any_order=True,
+        [call("abc", "w"), call("xyz", "w")], any_order=True,
     )
     open.return_value.write.assert_called_with("sshkey\n")
     run.assert_called_with(
         ["ssh-keyscan", "-t", "rsa", "github.com"],
         check=True,
         stdout=open.return_value,
-        stderr=open.return_value,
+        stderr=DEVNULL,
     )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
