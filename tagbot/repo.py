@@ -71,6 +71,14 @@ class Repo:
             return self.__registry_path
         return None
 
+    def _maybe_b64(self, val: str) -> str:
+        """Return a decoded value if it is Base64-encoded, or the original value."""
+        try:
+            val = b64decode(val, validate=True).decode()
+        except binascii.Error:
+            pass
+        return val
+
     def _release_exists(self, version: str) -> bool:
         """Check whether or not a GitHub release exists."""
         try:
@@ -153,13 +161,9 @@ class Repo:
     def configure_ssh(self, key: str) -> None:
         """Configure the repo to use an SSH key for authentication."""
         self._git.set_remote_url(self._repo.ssh_url)
-        try:
-            key = b64decode(key, validate=True).decode()
-        except binascii.Error:
-            pass
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
-            f.write(key.strip() + "\n")
+            f.write(self._maybe_b64(key).strip() + "\n")
         os.chmod(priv, S_IREAD)
         _, hosts = mkstemp(prefix="tagbot_hosts_")
         with open(hosts, "w") as f:
@@ -181,7 +185,7 @@ class Repo:
         _, path = mkstemp(prefix="tagbot_gpg_")
         debug(f"Writing GPG key to {path}")
         with open(path, "w") as f:
-            f.write(key)
+            f.write(self._maybe_b64(key))
         proc = subprocess.run(
             ["gpg", "--import", path], check=True, text=True, capture_output=True,
         )

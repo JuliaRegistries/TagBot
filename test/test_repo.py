@@ -42,6 +42,12 @@ def test_registry_path():
     assert r._registry.get_contents.call_count == 2
 
 
+def test_maybe_b64():
+    r = _repo()
+    assert r._maybe_b64("foo bar") == "foo bar"
+    assert r._maybe_b64("Zm9v") == "foo"
+
+
 def test_release_exists():
     r = _repo()
     r._repo = Mock()

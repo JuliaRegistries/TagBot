@@ -56,7 +56,7 @@ with:
   ssh: ${{ secrets.DEPLOY_KEY }}
 ```
 
-If you already have a deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
+If you already have a Base64-encoded deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
 
 ### Changelogs
 
@@ -124,7 +124,7 @@ It also allows you to exclude issues and pull requests from the changelog by add
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.
-Your key can be exported with `gpg --export-secret-keys --armor <ID>`.
+Your key can be exported with `gpg --export-secret-keys --armor <ID>`, and optionally Base64-encoded.
 It must not be protected by a password.
 Create the repository secret, then use the `gpg` input:
 
