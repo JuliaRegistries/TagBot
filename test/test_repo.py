@@ -1,10 +1,15 @@
+import os
+
 from datetime import datetime, timedelta
-from stat import S_IREAD
+from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from unittest.mock import Mock, call, mock_open, patch
 
+import pytest
+
 from github import UnknownObjectException
 
+from tagbot import Abort
 from tagbot.repo import Repo
 
 
@@ -178,8 +183,38 @@ def test_configure_ssh(run, chmod, mkstemp):
     open.return_value.write.assert_any_call("foo\n")
 
 
-def test_configure_gpg():
-    pass  # TODO
+@patch("tagbot.repo.mkdtemp", return_value="gpgdir")
+@patch("tagbot.repo.mkstemp", return_value=(0, "abc"))
+@patch("os.chmod")
+@patch("subprocess.run")
+def test_configure_gpg(run, chmod, mkdtemp, mkstemp):
+    r = _repo()
+    r._git.config = Mock()
+    run.return_value.stderr = "aaa\nkey mykey: secret key imported\nbbb"
+    open = mock_open()
+    with patch("builtins.open", open):
+        r.configure_gpg("foo bar")
+    mkdtemp.assert_called_with(prefix="tagbot_gpg_")
+    assert os.environ.get("GNUPGHOME") == "gpgdir"
+    chmod.assert_called_with("gpgdir", S_IREAD | S_IWRITE | S_IEXEC)
+    open.assert_called_with("abc", "w")
+    open.return_value.write.assert_called_with("foo bar")
+    run.assert_called_with(
+        ["gpg", "--import", "abc"], check=True, text=True, capture_output=True,
+    )
+    calls = [
+        call("user.signingKey", "mykey"),
+        call("user.name", "github-actions[bot]"),
+        call("user.email", "actions@github.com"),
+        call("tag.gpgSign", "true"),
+    ]
+    r._git.config.assert_has_calls(calls)
+    with patch("builtins.open", open):
+        r.configure_gpg("Zm9v")
+    open.return_value.write.assert_any_call("foo")
+    run.return_value.stderr = "something failed ahhhh"
+    with patch("builtins.open", open), pytest.raises(Abort):
+        r.configure_gpg("hi")
 
 
 def test_handle_release_branch():
