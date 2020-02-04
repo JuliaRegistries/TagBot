@@ -212,9 +212,10 @@ class Repo:
         target = sha
         if self._git.commit_sha_of_default() == sha:
             target = self._repo.default_branch
+        debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
-        info(f"Creating release {version} at {sha} (target {target})")
         if self._ssh or self._gpg:
-            info("Manually creating a tag")
+            info(f"Manually creating tag {version}")
             self._git.create_tag(version, sha, annotate=self._gpg)
+        info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)
