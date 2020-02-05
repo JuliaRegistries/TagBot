@@ -11,4 +11,9 @@ jobs:
         with:
           python-version: 3.8
       - run: pip install -r requirements.txt -r requirements.dev.txt
-      - run: $GITHUB_WORKSPACE/bin/test.sh
+      - run: make test
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make test-docker

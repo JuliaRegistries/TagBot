@@ -20,6 +20,9 @@ inputs:
   ssh:
     description: SSH private key for pushing tags
     required: false
+  gpg:
+    description: GPG key for signing tags
+    required: false
   changelog:
     description: Changelog template
     required: false

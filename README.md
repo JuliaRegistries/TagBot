@@ -56,7 +56,7 @@ with:
   ssh: ${{ secrets.DEPLOY_KEY }}
 ```
 
-If you already have a deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
+If you already have a Base64-encoded deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
 
 ### Changelogs
 
@@ -120,6 +120,19 @@ The data available to you looks like this:
 
 You can see the default template in [`action.yml`](action.yml).
 It also allows you to exclude issues and pull requests from the changelog by adding the `changelog-skip` label to them.
+
+### GPG Signing
+
+If you want to create signed tags, you can supply your own GPG private key.
+Your key can be exported with `gpg --export-secret-keys --armor <ID>`, and optionally Base64-encoded.
+It must not be protected by a password.
+Create the repository secret, then use the `gpg` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  gpg: ${{ secrets.GPG_KEY }}
+```
 
 ### Custom Registries
 
