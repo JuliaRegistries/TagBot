@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 
+import pexpect
 import toml
 
 from base64 import b64decode
@@ -14,6 +15,7 @@ from typing import Dict, Mapping, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
 from github.Requester import requests
+from gnupg import GPG
 
 from . import DELTA, Abort, debug, info, warn, error
 from .changelog import Changelog
@@ -22,8 +24,6 @@ from .git import Git
 
 class Repo:
     """A Repo has access to its Git repository and registry metadata."""
-
-    _GPG_ID_RE = re.compile("key (.+): secret key imported")
 
     def __init__(
         self,
@@ -158,7 +158,7 @@ class Repo:
         )
         debug(f"Dispatch response code: {resp.status_code}")
 
-    def configure_ssh(self, key: str) -> None:
+    def configure_ssh(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to use an SSH key for authentication."""
         self._git.set_remote_url(self._repo.ssh_url)
         _, priv = mkstemp(prefix="tagbot_key_")
@@ -176,24 +176,32 @@ class Repo:
         cmd = f"ssh -i {priv} -o UserKnownHostsFile={hosts}"
         debug(f"SSH command: {cmd}")
         self._git.config("core.sshCommand", cmd)
+        if password:
+            proc = subprocess.run(
+                ["ssh-agent"], check=True, text=True, capture_output=True,
+            )
+            for (k, v) in re.findall("(.+)=(.+?);", proc.stdout):
+                os.environ[k] = v
+            child = pexpect.spawn(f"ssh-add {priv}")
+            child.expect("Enter passphrase")
+            child.sendline(password)
+            child.expect("Identity added")
 
-    def configure_gpg(self, key: str) -> None:
+    def configure_gpg(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to sign tags with GPG."""
         home = os.environ["GNUPGHOME"] = mkdtemp(prefix="tagbot_gpg_")
-        debug(f"Set GNUPGHOME to {home}")
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
-        _, path = mkstemp(prefix="tagbot_gpg_")
-        debug(f"Writing GPG key to {path}")
-        with open(path, "w") as f:
-            f.write(self._maybe_b64(key))
+        debug(f"Set GNUPGHOME to {home}")
+        gpg = GPG(gnupghome=home, use_agent=True)
+        gpg.import_keys(self._maybe_b64(key), passphrase=password)
         proc = subprocess.run(
-            ["gpg", "--import", path], check=True, text=True, capture_output=True,
+            ["gpg", "--list-secret-keys"], check=True, capture_output=True,
         )
-        m = self._GPG_ID_RE.search(proc.stderr)
-        if not m:
-            raise Abort("GPG key import failed")
-        debug(f"GPG key ID: {m[1]}")
-        self._git.config("user.signingKey", m[1])
+        if not proc.stdout:
+            raise Abort("Importing key failed")
+        key_id = gpg.list_keys()[0]["keyid"]
+        debug(f"GPG key ID: {key_id}")
+        self._git.config("user.signingKey", key_id)
         self._git.config("user.name", "github-actions[bot]")
         self._git.config("user.email", "actions@github.com")
         self._git.config("tag.gpgSign", "true")

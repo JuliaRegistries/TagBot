@@ -46,17 +46,26 @@ To use an SSH deploy key:
 - Create an SSH key and add it to your repository by following the instructions [here](https://developer.github.com/v3/guides/managing-deploy-keys/#setup-2).
   Make sure to give it write permissions.
 - Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
-  Use whatever you like as the name, such as `DEPLOY_KEY`.
+  Use whatever you like as the name, such as `SSH_KEY`.
   Use the private key contents as the value.
 - Add the `ssh` input:
 
 ```yml
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
-  ssh: ${{ secrets.DEPLOY_KEY }}
+  ssh: ${{ secrets.SSH_KEY }}
 ```
 
 If you already have a Base64-encoded deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
+
+If your key is password-protected, you'll also need to include the password in another repository secret (not Base64-encoded):
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  ssh: ${{ secrets.SSH_KEY }}
+  ssh_password: ${{ secrets.SSH_PASSWORD }}
+```
 
 ### Changelogs
 
@@ -125,13 +134,21 @@ It also allows you to exclude issues and pull requests from the changelog by add
 
 If you want to create signed tags, you can supply your own GPG private key.
 Your key can be exported with `gpg --export-secret-keys --armor <ID>`, and optionally Base64-encoded.
-It must not be protected by a password.
 Create the repository secret, then use the `gpg` input:
 
 ```yml
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
   gpg: ${{ secrets.GPG_KEY }}
+```
+
+If your key is password-protected, you'll also need to include the password in another repository secret (not Base64-encoded):
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  gpg: ${{ secrets.GPG_KEY }}
+  gpg_password: ${{ secrets.GPG_PASSWORD }}
 ```
 
 ### Custom Registries
