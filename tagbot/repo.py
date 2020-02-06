@@ -181,6 +181,7 @@ class Repo:
                 ["ssh-agent"], check=True, text=True, capture_output=True,
             )
             for (k, v) in re.findall("(.+)=(.+?);", proc.stdout):
+                debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
             child = pexpect.spawn(f"ssh-add {priv}")
             child.expect("Enter passphrase")
@@ -193,14 +194,17 @@ class Repo:
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
-        gpg.import_keys(self._maybe_b64(key), passphrase=password)
-        proc = subprocess.run(
-            ["gpg", "--list-secret-keys"], check=True, capture_output=True,
-        )
-        if not proc.stdout:
+        import_result = gpg.import_keys(self._maybe_b64(key), passphrase=password)
+        if import_result.sec_imported != 1:
+            warn(import_result.stderr)
             raise Abort("Importing key failed")
-        key_id = gpg.list_keys()[0]["keyid"]
+        key_id = import_result.fingerprints[0]
         debug(f"GPG key ID: {key_id}")
+        if password:
+            sign_result = gpg.sign("test", passphrase=password)
+            if sign_result.status != "signature created":
+                warn(sign_result.stderr)
+                raise Abort("Testing GPG key failed")
         self._git.config("user.signingKey", key_id)
         self._git.config("user.name", "github-actions[bot]")
         self._git.config("user.email", "actions@github.com")
