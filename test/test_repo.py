@@ -152,17 +152,18 @@ def test_create_dispatch_event(post):
     )
 
 
-@patch("tagbot.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 2)
+@patch("tagbot.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
 @patch("os.chmod")
 @patch("subprocess.run")
-def test_configure_ssh(run, chmod, mkstemp):
+@patch("pexpect.spawn")
+def test_configure_ssh(spawn, run, chmod, mkstemp):
     r = _repo(repo="foo")
     r._repo = Mock(ssh_url="sshurl")
     r._git.set_remote_url = Mock()
     r._git.config = Mock()
     open = mock_open()
     with patch("builtins.open", open):
-        r.configure_ssh(" sshkey ")
+        r.configure_ssh(" sshkey ", None)
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_has_calls(
         [call("abc", "w"), call("xyz", "w")], any_order=True,
@@ -179,42 +180,59 @@ def test_configure_ssh(run, chmod, mkstemp):
         "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz",
     )
     with patch("builtins.open", open):
-        r.configure_ssh("Zm9v")
+        r.configure_ssh("Zm9v", None)
     open.return_value.write.assert_any_call("foo\n")
+    spawn.assert_not_called()
+    run.return_value.stdout = """
+    VAR1=value; export VAR1;
+    VAR2=123; export VAR2;
+    echo Agent pid 123;
+    """
+    with patch("builtins.open", open):
+        r.configure_ssh(" key ", "mypassword")
+    run.assert_called_with(["ssh-agent"], check=True, text=True, capture_output=True)
+    assert os.getenv("VAR1") == "value"
+    assert os.getenv("VAR2") == "123"
+    spawn.assert_called_with("ssh-add abc")
+    calls = [
+        call.expect("Enter passphrase"),
+        call.sendline("mypassword"),
+        call.expect("Identity added"),
+    ]
+    spawn.return_value.assert_has_calls(calls)
 
 
+@patch("tagbot.repo.GPG")
 @patch("tagbot.repo.mkdtemp", return_value="gpgdir")
-@patch("tagbot.repo.mkstemp", return_value=(0, "abc"))
 @patch("os.chmod")
-@patch("subprocess.run")
-def test_configure_gpg(run, chmod, mkdtemp, mkstemp):
+def test_configure_gpg(chmod, mkdtemp, GPG):
     r = _repo()
     r._git.config = Mock()
-    run.return_value.stderr = "aaa\nkey mykey: secret key imported\nbbb"
-    open = mock_open()
-    with patch("builtins.open", open):
-        r.configure_gpg("foo bar")
-    mkdtemp.assert_called_with(prefix="tagbot_gpg_")
-    assert os.environ.get("GNUPGHOME") == "gpgdir"
+    gpg = GPG.return_value
+    gpg.import_keys.return_value = Mock(sec_imported=1, fingerprints=["k"], stderr="e")
+    r.configure_gpg("foo bar", None)
+    assert os.getenv("GNUPGHOME") == "gpgdir"
     chmod.assert_called_with("gpgdir", S_IREAD | S_IWRITE | S_IEXEC)
-    open.assert_called_with("abc", "w")
-    open.return_value.write.assert_called_with("foo bar")
-    run.assert_called_with(
-        ["gpg", "--import", "abc"], check=True, text=True, capture_output=True,
-    )
+    GPG.assert_called_with(gnupghome="gpgdir", use_agent=True)
+    gpg.import_keys.assert_called_with("foo bar")
     calls = [
-        call("user.signingKey", "mykey"),
+        call("user.signingKey", "k"),
         call("user.name", "github-actions[bot]"),
         call("user.email", "actions@github.com"),
         call("tag.gpgSign", "true"),
     ]
     r._git.config.assert_has_calls(calls)
-    with patch("builtins.open", open):
-        r.configure_gpg("Zm9v")
-    open.return_value.write.assert_any_call("foo")
-    run.return_value.stderr = "something failed ahhhh"
-    with patch("builtins.open", open), pytest.raises(Abort):
-        r.configure_gpg("hi")
+    r.configure_gpg("Zm9v", None)
+    gpg.import_keys.assert_called_with("foo")
+    gpg.sign.return_value = Mock(status="signature created")
+    r.configure_gpg("foo bar", "mypassword")
+    gpg.sign.assert_called_with("test", passphrase="mypassword")
+    gpg.sign.return_value = Mock(status=None, stderr="e")
+    with pytest.raises(Abort):
+        r.configure_gpg("foo bar", "mypassword")
+    gpg.import_keys.return_value.sec_imported = 0
+    with pytest.raises(Abort):
+        r.configure_gpg("foo bar", None)
 
 
 def test_handle_release_branch():
