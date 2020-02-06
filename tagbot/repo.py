@@ -194,7 +194,7 @@ class Repo:
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
-        import_result = gpg.import_keys(self._maybe_b64(key), passphrase=password)
+        import_result = gpg.import_keys(self._maybe_b64(key))
         if import_result.sec_imported != 1:
             warn(import_result.stderr)
             raise Abort("Importing key failed")

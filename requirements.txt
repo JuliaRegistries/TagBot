@@ -1,7 +1,6 @@
 Jinja2==2.10.3
 PyGithub==1.44.1
 pexpect==4.8.0
+python-gnupg==0.4.5
 semver==2.9.0
 toml==0.10.0
-
-git+https://github.com/christopher-dG/python-gnupg@ea9efbf
