@@ -1,5 +1,5 @@
 FROM python:3.8-alpine
-RUN apk add git gnupg
+RUN apk add git gnupg openssh-client
 COPY requirements.txt /root
 RUN pip install -r /root/requirements.txt
 COPY tagbot /root/tagbot
