@@ -10,9 +10,11 @@ branches = os.getenv("INPUT_BRANCHES", "false") == "true"
 changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 registry_name = os.getenv("INPUT_REGISTRY", "")
-ssh = os.getenv("INPUT_SSH", "")
-gpg = os.getenv("INPUT_GPG", "")
-token = os.getenv("INPUT_TOKEN", "")
+ssh = os.getenv("INPUT_SSH")
+ssh_password = os.getenv("INPUT_SSH_PASSWORD")
+gpg = os.getenv("INPUT_GPG")
+gpg_password = os.getenv("INPUT_GPG_PASSWORD")
+token = os.getenv("INPUT_TOKEN")
 
 if not token:
     error("No GitHub API token supplied")
@@ -37,9 +39,9 @@ if dispatch:
     info("Waiting 5 minutes for any dispatch handlers")
     time.sleep(60 * 5)
 if ssh:
-    repo.configure_ssh(ssh)
+    repo.configure_ssh(ssh, ssh_password)
 if gpg:
-    repo.configure_gpg(gpg)
+    repo.configure_gpg(gpg, gpg_password)
 
 for version, sha in versions.items():
     info(f"Processing version {version} ({sha})")

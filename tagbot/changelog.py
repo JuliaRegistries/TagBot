@@ -21,10 +21,6 @@ if TYPE_CHECKING:
 class Changelog:
     """A Changelog produces release notes for a single release."""
 
-    _CUSTOM = re.compile(
-        "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->"
-    )
-
     def __init__(self, repo: "Repo", template: str) -> None:
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
@@ -120,7 +116,9 @@ class Changelog:
         if not pr:
             warn("No registry pull request was found for this version")
             return None
-        m = self._CUSTOM.search(pr.body)
+        m = re.search(
+            "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->", pr.body,
+        )
         if m:
             # Remove the '> ' at the beginning of each line.
             return "\n".join(l[2:] for l in m[1].splitlines()).strip()
