@@ -1,6 +1,8 @@
 Jinja2==2.10.3
 PyGithub==1.44.1
+croniter==0.3.31
 pexpect==4.8.0
 python-gnupg==0.4.5
+pyyaml==5.3
 semver==2.9.0
 toml==0.10.0

@@ -12,7 +12,7 @@ from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from jinja2 import Template
 
-from . import DELTA, debug, info, warn
+from . import debug, info, warn
 
 if TYPE_CHECKING:
     from .repo import Repo
@@ -115,12 +115,12 @@ class Changelog:
         debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
-            if pr.merged and now - pr.merged_at < DELTA:
+            if pr.merged and now - pr.merged_at < self._repo._lookback:
                 return pr
         debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
-            if now - pr.closed_at > DELTA:
+            if now - pr.closed_at > self._repo._lookback:
                 break
             if pr.merged and pr.head.ref == head:
                 return pr

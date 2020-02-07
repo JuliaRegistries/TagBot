@@ -1,6 +1,3 @@
-from datetime import timedelta
-
-DELTA = timedelta(days=3)  # Maximum age of new versions/merged registry PRs.
 STATUS = 0  # Exit status for the main script.
 
 

@@ -5,6 +5,7 @@ import subprocess
 
 import pexpect
 import toml
+import yaml
 
 from base64 import b64decode
 from datetime import datetime, timedelta
@@ -13,11 +14,12 @@ from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional
 
+from croniter import croniter
 from github import Github, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
 
-from . import DELTA, Abort, debug, info, warn, error
+from . import Abort, debug, info, warn, error
 from .changelog import Changelog
 from .git import Git
 
@@ -46,6 +48,7 @@ class Repo:
         self._git = Git(repo, token)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
+        self.__lookback: Optional[timedelta] = None
 
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""
@@ -71,6 +74,35 @@ class Repo:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
         return None
+
+    @property
+    def _lookback(self) -> timedelta:
+        """Calculate the lookback period."""
+        if self.__lookback is not None:
+            return self.__lookback
+        default = timedelta(days=3, hours=1)
+        workflows = self._git.path(".github", "workflows")
+        for workflow in os.listdir(workflows):
+            path = os.path.join(workflows, workflow)
+            if os.path.isdir(path):
+                continue
+            try:
+                with open(path) as f:
+                    data = yaml.safe_load(f)
+                for job in data["jobs"].values():
+                    for step in job["steps"]:
+                        if "TagBot" in step["uses"]:
+                            cron = croniter(data[True]["schedule"][0]["cron"])
+                            seconds = cron.get_next() - cron.get_prev()
+                            # Rather than just using the cron interval, multiply it by 3
+                            # so that random errors will get retried a couple of times.
+                            self.__lookback = max(
+                                timedelta(seconds=seconds * 3, hours=1), default
+                            )
+                            return self.__lookback
+            except:  # noqa: E722
+                pass
+        return default
 
     def _maybe_b64(self, val: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
@@ -142,7 +174,7 @@ class Repo:
         """Get all new versions of the package."""
         current = self._versions()
         debug(f"There are {len(current)} total versions")
-        old = self._versions(min_age=DELTA)
+        old = self._versions(min_age=self._lookback)
         debug(f"There are {len(old)} new versions")
         versions = {k: v for k, v in current.items() if k not in old}
         return self._filter_map_versions(versions)
