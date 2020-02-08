@@ -92,10 +92,12 @@ class Repo:
                 for job in data["jobs"].values():
                     for step in job["steps"]:
                         if "TagBot" in step["uses"]:
+                            # The "on" key parses to a boolean True. YAML is dumb.
                             cron = croniter(data[True]["schedule"][0]["cron"])
                             seconds = cron.get_next() - cron.get_prev()
                             # Rather than just using the cron interval, multiply it by 3
                             # so that random errors will get retried a couple of times.
+                            # For backwards compatibility, make the default the minimum.
                             self.__lookback = max(
                                 timedelta(seconds=seconds * 3, hours=1), default
                             )
@@ -155,6 +157,7 @@ class Repo:
             # Get the most recent commit from before min_age.
             until = datetime.now() - min_age
             commits = self._registry.get_commits(until=until)
+            # Get the first value like this because the iterator has no `next` method.
             for commit in commits:
                 kwargs["ref"] = commit.commit.sha
                 break
@@ -181,6 +184,7 @@ class Repo:
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
+        # PyGithub does not yet support this endpoint (#1299).
         resp = requests.post(
             f"https://api.github.com/repos/{self._repo.full_name}/dispatches",
             headers={
@@ -196,8 +200,11 @@ class Repo:
         self._git.set_remote_url(self._repo.ssh_url)
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
+            # SSH keys must end with a single newline.
             f.write(self._maybe_b64(key).strip() + "\n")
         os.chmod(priv, S_IREAD)
+        # Add the host key to a known hosts file
+        # so that we don't have to confirm anything when we try to push.
         _, hosts = mkstemp(prefix="tagbot_hosts_")
         with open(hosts, "w") as f:
             subprocess.run(
@@ -210,6 +217,8 @@ class Repo:
         debug(f"SSH command: {cmd}")
         self._git.config("core.sshCommand", cmd)
         if password:
+            # Start the SSH agent, apply the environment changes,
+            # then add our identity so that we don't need to supply a password anymore.
             proc = subprocess.run(
                 ["ssh-agent"], check=True, text=True, capture_output=True,
             )
@@ -227,6 +236,7 @@ class Repo:
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
+        # For some reason, this doesn't require the password even though the CLI does.
         import_result = gpg.import_keys(self._maybe_b64(key))
         if import_result.sec_imported != 1:
             warn(import_result.stderr)
@@ -234,6 +244,8 @@ class Repo:
         key_id = import_result.fingerprints[0]
         debug(f"GPG key ID: {key_id}")
         if password:
+            # Sign some dummy data to put our password into the GPG agent,
+            # so that we don't need to supply the password when we create a tag.
             sign_result = gpg.sign("test", passphrase=password)
             if sign_result.status != "signature created":
                 warn(sign_result.stderr)
@@ -260,11 +272,16 @@ class Repo:
         """Create a GitHub release."""
         target = sha
         if self._git.commit_sha_of_default() == sha:
+            # If we use <branch> as the target, GitHub will show
+            # "<n> commits to <branch> since this release" on the release page.
             target = self._repo.default_branch
         debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
+        # If we have a custom key, use it to create and push a tag via Git CLI,
+        # rather than through the GitHub API.
         if self._ssh or self._gpg:
             info(f"Manually creating tag {version}")
+            # The tag only needs to be annotated if we want to sign it.
             self._git.create_tag(version, sha, annotate=self._gpg)
         info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)

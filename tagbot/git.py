@@ -33,17 +33,19 @@ class Git:
         """Run a Git command."""
         args = ["git"]
         if repo is not None:
+            # Ideally, we'd set self._dir as the default for repo,
+            # but it gets evaluated at method definition.
             args.extend(["-C", repo or self._dir])
         args.extend(argv)
         cmd = " ".join(args)
         debug(f"Running '{cmd}'")
-        p = subprocess.run(args, text=True, capture_output=True)
-        out = p.stdout.strip()
-        if p.returncode:
+        proc = subprocess.run(args, text=True, capture_output=True)
+        out = proc.stdout.strip()
+        if proc.returncode:
             if out:
                 info(out)
-            if p.stderr:
-                info(p.stderr.strip())
+            if proc.stderr:
+                info(proc.stderr.strip())
             raise Abort(f"Git command '{cmd}' failed")
         return out
 
@@ -64,6 +66,8 @@ class Git:
 
     def commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Get the commit SHA that corresponds to a tree SHA."""
+        # We need --all in case the registered commit isn't on the default branch.
+        # The format of each line is "<commit sha> <tree sha>".
         lines = self.command("log", "--all", "--format=%H %T").splitlines()
         for line in lines:
             c, t = line.split()
@@ -91,7 +95,7 @@ class Git:
         self.command("remote", "set-url", "origin", url)
 
     def config(self, key: str, val: str) -> None:
-        """Configure a repository."""
+        """Configure the repository."""
         self.command("config", key, val)
 
     def create_tag(self, version: str, sha: str, annotate: bool = False) -> None:
@@ -104,6 +108,10 @@ class Git:
 
     def fetch_branch(self, branch: str) -> bool:
         """Try to checkout a remote branch, and return whether or not it succeeded."""
+        # Git lets us check out remote branches without the remote name,
+        # and automatically creates a local branch that tracks the remote one.
+        # Git does not let us do the same with a merge, so this method must be called
+        # before we call merge_and_delete_branch.
         if not self.check("checkout", branch):
             return False
         self.command("checkout", self._default_branch)
@@ -111,6 +119,7 @@ class Git:
 
     def can_fast_forward(self, branch: str) -> bool:
         """Check whether the default branch can be fast-forwarded to branch."""
+        # https://stackoverflow.com/a/49272912
         return self.check("merge-base", "--is-ancestor", self._default_branch, branch)
 
     def merge_and_delete_branch(self, branch: str) -> None:
@@ -122,6 +131,7 @@ class Git:
 
     def time_of_commit(self, sha: str) -> datetime:
         """Get the time that a commit was made."""
+        # The format %cI is "committer date, strict ISO 8601 format".
         date = self.command("show", "-s", "--format=%cI", sha)
         dt = datetime.fromisoformat(date)
         # Convert to UTC and remove time zone information.
