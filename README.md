@@ -143,7 +143,29 @@ The data available to you looks like this:
 ```
 
 You can see the default template in [`action.yml`](action.yml).
-It also allows you to exclude issues and pull requests from the changelog by adding the `changelog-skip` label to them.
+
+Issues and pull requests with specified labels are not included in the changelog data.
+By default, the following labels are ignored:
+
+- changelog skip
+- duplicate
+- exclude from changelog
+- invalid
+- no changelog
+- question
+- wont fix
+
+To supply your own labels, use the `changelog_ignore` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  changelog_ignore: ignore this label, ignore this label too
+```
+
+Whitespace, case, dashes, and underscores are ignored when comparing labels.
+
+
 
 ### GPG Signing
 

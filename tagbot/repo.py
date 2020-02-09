@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, Mapping, MutableMapping, Optional
+from typing import Dict, List, Mapping, MutableMapping, Optional
 
 from github import Github, UnknownObjectException
 from github.Requester import requests
@@ -32,6 +32,7 @@ class Repo:
         registry: str,
         token: str,
         changelog: str,
+        changelog_ignore: List[str],
         ssh: bool,
         gpg: bool,
     ) -> None:
@@ -39,7 +40,7 @@ class Repo:
         self._repo = gh.get_repo(repo, lazy=True)
         self._registry = gh.get_repo(registry, lazy=True)
         self._token = token
-        self._changelog = Changelog(self, changelog)
+        self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
         self._git = Git(repo, token)

@@ -5,11 +5,13 @@ import time
 from datetime import timedelta
 
 from . import Abort, info, error
+from .changelog import Changelog
 from .repo import Repo
 
 repo_name = os.getenv("GITHUB_REPOSITORY", "")
 branches = os.getenv("INPUT_BRANCHES", "false") == "true"
 changelog = os.getenv("INPUT_CHANGELOG", "")
+changelog_ignore = os.getenv("INPUT_CHANGELOG_IGNORE", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 dispatch_delay = os.getenv("INPUT_DISPATCH_DELAY", "")
 registry_name = os.getenv("INPUT_REGISTRY", "")
@@ -23,11 +25,17 @@ if not token:
     error("No GitHub API token supplied")
     sys.exit(1)
 
+if changelog_ignore:
+    ignore = changelog_ignore.split(",")
+else:
+    ignore = Changelog.DEFAULT_IGNORE
+
 repo = Repo(
     repo=repo_name,
     registry=registry_name,
     token=token,
     changelog=changelog,
+    changelog_ignore=ignore,
     ssh=bool(ssh),
     gpg=bool(gpg),
 )

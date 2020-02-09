@@ -12,11 +12,24 @@ from github.PullRequest import PullRequest
 from tagbot.repo import Repo
 
 
-def _changelog(*, repo="", registry="", token="", template="", ssh=False, gpg=False):
+def _changelog(
+    *, repo="", registry="", token="", template="", ignore=set(), ssh=False, gpg=False
+):
     r = Repo(
-        repo=repo, registry=registry, token=token, changelog=template, ssh=ssh, gpg=gpg
+        repo=repo,
+        registry=registry,
+        token=token,
+        changelog=template,
+        changelog_ignore=ignore,
+        ssh=ssh,
+        gpg=gpg,
     )
     return r._changelog
+
+
+def test_slug():
+    c = _changelog()
+    assert c._slug("A b-c_d") == "abcd"
 
 
 def test_previous_release():
@@ -44,10 +57,13 @@ def test_issues_and_pulls():
     c._repo._repo.get_issues.assert_called_with(state="closed", since=end)
     n = 1
     for days in [-1, 0, 5, 10, 11]:
-        i = Mock(closed_at=end - timedelta(days=days), n=n, pull_request=False)
+        i = Mock(
+            closed_at=end - timedelta(days=days), n=n, pull_request=False, labels=[]
+        )
         p = Mock(
             closed_at=end - timedelta(days=days),
             pull_request=True,
+            labels=[],
             as_pull_request=Mock(return_value=Mock(merged=days % 2 == 0, n=n + 1)),
         )
         n += 2
@@ -216,10 +232,7 @@ def test_render():
     data = {
         "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
         "custom": "Custom release notes",
-        "issues": [
-            {"number": 1, "title": "Issue title", "labels": []},
-            {"number": 2, "title": "Other issue title", "labels": ["changelog-skip"]},
-        ],
+        "issues": [{"number": 1, "title": "Issue title", "labels": []}],
         "package": "PkgName",
         "previous_release": "v1.2.2",
         "pulls": [
@@ -227,12 +240,6 @@ def test_render():
                 "number": 3,
                 "title": "Pull title",
                 "labels": [],
-                "author": {"username": "author"},
-            },
-            {
-                "number": 4,
-                "title": "Other pull title",
-                "labels": ["changelog-skip"],
                 "author": {"username": "author"},
             },
         ],

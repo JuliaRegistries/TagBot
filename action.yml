@@ -50,20 +50,19 @@ inputs:
       {% if issues %}
       **Closed issues:**
       {% for issue in issues %}
-      {% if "changelog-skip" not in issue.labels %}
       - {{ issue.title }} (#{{ issue.number }})
-      {% endif %}
       {% endfor %}
       {% endif %}
 
       {% if pulls %}
       **Merged pull requests:**
       {% for pull in pulls %}
-      {% if "changelog-skip" not in pull.labels %}
       - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
-      {% endif %}
       {% endfor %}
       {% endif %}
+  changelog_ignore:
+    description: Labels for issues and pull requests to be ignored (comma-delimited)
+    required: false
 runs:
   using: docker
   image: docker://degraafc/tagbot:1
