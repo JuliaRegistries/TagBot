@@ -28,7 +28,18 @@ repo = Repo(
     ssh=bool(ssh),
     gpg=bool(gpg),
 )
-versions = repo.new_versions()
+
+try:
+    versions = repo.new_versions()
+except Abort as e:
+    # Special case for repositories that don't have a Project.toml:
+    # Exit "silently" to avoid sending unwanted emails.
+    # TODO: Maybe mass-PR against these repos to remove TagBot.
+    if "Project file was not found" not in e.args:
+        raise
+    info("Project file was not found.")
+    info("If this repository is not going to be registered, you should remove TagBot.")
+    sys.exit(0)
 
 if not versions:
     info("No new versions to release")
