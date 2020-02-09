@@ -199,7 +199,6 @@ with:
 
 When you enable this option, a [repository dispatch event](https://developer.github.com/v3/activity/events/types/#repositorydispatchevent) is created before releases are created.
 This means that you can set up your own actions that perform any necessary pre-release tasks.
-These actions will have 5 minutes to run.
 
 The payload is an object mapping from version to commit SHA, which can contain multiple entries and looks like this:
 
@@ -208,6 +207,17 @@ The payload is an object mapping from version to commit SHA, which can contain m
   "v1.2.3": "abcdef0123456789abcdef0123456789abcdef01"
 }
 ```
+
+These actions will have 5 minutes to run by default, but you can customize the number of minutes with the `dispatch_delay` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  dispatch: true
+  dispatch_delay: 30
+```
+
+Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
 To use this feature, you must provide your own personal access token.
 For more details, see [Personal Accesss Tokens](#personal-access-tokens).

@@ -2,6 +2,8 @@ import os
 import sys
 import time
 
+from datetime import timedelta
+
 from . import Abort, info, error
 from .repo import Repo
 
@@ -9,6 +11,7 @@ repo_name = os.getenv("GITHUB_REPOSITORY", "")
 branches = os.getenv("INPUT_BRANCHES", "false") == "true"
 changelog = os.getenv("INPUT_CHANGELOG", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
+dispatch_delay = os.getenv("INPUT_DISPATCH_DELAY", "")
 registry_name = os.getenv("INPUT_REGISTRY", "")
 ssh = os.getenv("INPUT_SSH")
 ssh_password = os.getenv("INPUT_SSH_PASSWORD")
@@ -46,9 +49,10 @@ if not versions:
     sys.exit(0)
 
 if dispatch:
+    minutes = int(dispatch_delay)
     repo.create_dispatch_event(versions)
-    info("Waiting 5 minutes for any dispatch handlers")
-    time.sleep(60 * 5)
+    info(f"Waiting {minutes} minutes for any dispatch handlers")
+    time.sleep(timedelta(minutes=minutes).total_seconds())
 if ssh:
     repo.configure_ssh(ssh, ssh_password)
 if gpg:
