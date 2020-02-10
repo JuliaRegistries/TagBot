@@ -160,7 +160,7 @@ class Changelog:
     def _collect_data(self, version: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
         previous = self._previous_release(version)
-        start = datetime(1000, 1, 1)
+        start = datetime.fromtimestamp(0)
         prev_tag = None
         compare = None
         if previous:
