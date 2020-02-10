@@ -13,9 +13,17 @@ from tagbot import Abort
 from tagbot.repo import Repo
 
 
-def _repo(*, repo="", registry="", token="", changelog="", ssh=False, gpg=False):
+def _repo(
+    *, repo="", registry="", token="", changelog="", ignore=[], ssh=False, gpg=False,
+):
     return Repo(
-        repo=repo, registry=registry, token=token, changelog=changelog, ssh=ssh, gpg=gpg
+        repo=repo,
+        registry=registry,
+        token=token,
+        changelog=changelog,
+        changelog_ignore=ignore,
+        ssh=ssh,
+        gpg=gpg,
     )
 
 

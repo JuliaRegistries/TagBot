@@ -1,5 +1,12 @@
 # <img src="logo.png" width="60"> Julia TagBot
 
+TagBot creates tags, releases, and changelogs for your Julia packages when they're registered.
+
+When we talk about tags and releases, we mean *Git tags* and *GitHub releases*, and not releases in a registry that allow the Julia package manager to install your package.
+TagBot does not register your package for you, see the documentation in [General](https://github.com/JuliaRegistries/General/blob/master/README.md) and [Registrator](https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.md) for that.
+Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases.
+Tags and releases aren't at all necessary, but it's considered a good practice.
+
 ## Setup
 
 Create a file at `.github/workflows/TagBot.yml` with the following contents:
@@ -18,7 +25,15 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-No further action is required.
+No further action is required, but you may want to check out some of the available configuration options:
+
+- [Personal Access Tokens](#personal-access-tokens)
+- [SSH Deploy Keys](#ssh-deploy-keys)
+- [Changelogs](#changelogs)
+- [GPG Signing](#gpg-signing)
+- [Custom Registries](#custom-registries)
+- [Release Branch Management](#release-branch-management)
+- [Pre-Release Hooks](#pre-release-hooks)
 
 ### Personal Access Tokens
 
@@ -128,7 +143,29 @@ The data available to you looks like this:
 ```
 
 You can see the default template in [`action.yml`](action.yml).
-It also allows you to exclude issues and pull requests from the changelog by adding the `changelog-skip` label to them.
+
+Issues and pull requests with specified labels are not included in the changelog data.
+By default, the following labels are ignored:
+
+- changelog skip
+- duplicate
+- exclude from changelog
+- invalid
+- no changelog
+- question
+- wont fix
+
+To supply your own labels, use the `changelog_ignore` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  changelog_ignore: ignore this label, ignore this label too
+```
+
+Whitespace, case, dashes, and underscores are ignored when comparing labels.
+
+
 
 ### GPG Signing
 
@@ -184,7 +221,6 @@ with:
 
 When you enable this option, a [repository dispatch event](https://developer.github.com/v3/activity/events/types/#repositorydispatchevent) is created before releases are created.
 This means that you can set up your own actions that perform any necessary pre-release tasks.
-These actions will have 5 minutes to run.
 
 The payload is an object mapping from version to commit SHA, which can contain multiple entries and looks like this:
 
@@ -193,6 +229,17 @@ The payload is an object mapping from version to commit SHA, which can contain m
   "v1.2.3": "abcdef0123456789abcdef0123456789abcdef01"
 }
 ```
+
+These actions will have 5 minutes to run by default, but you can customize the number of minutes with the `dispatch_delay` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  dispatch: true
+  dispatch_delay: 30
+```
+
+Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
 To use this feature, you must provide your own personal access token.
 For more details, see [Personal Accesss Tokens](#personal-access-tokens).

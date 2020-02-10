@@ -21,11 +21,26 @@ if TYPE_CHECKING:
 class Changelog:
     """A Changelog produces release notes for a single release."""
 
-    def __init__(self, repo: "Repo", template: str) -> None:
+    DEFAULT_IGNORE = [
+        "changelog skip",
+        "duplicate",
+        "exclude from changelog",
+        "invalid",
+        "no changelog",
+        "question",
+        "wont fix",
+    ]
+
+    def __init__(self, repo: "Repo", template: str, ignore: List[str]) -> None:
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
+        self._ignore = set(self._slug(s) for s in ignore)
         self.__range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
+
+    def _slug(self, s: str) -> str:
+        """Return a version of the string that's easy to compare."""
+        return re.sub(r"[\s_-]", "", s.casefold())
 
     def _previous_release(self, version: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
@@ -62,6 +77,8 @@ class Changelog:
             # should be included in the previous release's changelog and not this one.
             # The interval includes the endpoint for this same reason.
             if x.closed_at <= start or x.closed_at > end:
+                continue
+            if self._ignore.intersection(self._slug(label.name) for label in x.labels):
                 continue
             if x.pull_request:
                 pr = x.as_pull_request()
