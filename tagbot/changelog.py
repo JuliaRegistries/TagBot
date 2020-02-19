@@ -3,7 +3,7 @@ import re
 
 import semver
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from github.GitRelease import GitRelease
@@ -71,7 +71,7 @@ class Changelog:
         if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
         xs = []
-        # Get all closed issues and merged PRs that were closed merged in the interval.
+        # Get all closed issues and merged PRs that were closed/merged in the interval.
         for x in self._repo._repo.get_issues(state="closed", since=start):
             # If a previous release's last commit closed an issue, then that issue
             # should be included in the previous release's changelog and not this one.
@@ -184,7 +184,9 @@ class Changelog:
             start = previous.created_at
             prev_tag = previous.tag_name
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
-        end = self._repo._git.time_of_commit(sha)
+        # When the last commit is a PR merge, the commit happens a second or two before
+        # the PR and associated issues are closed.
+        end = self._repo._git.time_of_commit(sha) + timedelta(minutes=1)
         debug(f"Previous version: {prev_tag}")
         debug(f"Start date: {start}")
         debug(f"End date: {end}")
