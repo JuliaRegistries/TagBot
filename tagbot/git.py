@@ -1,4 +1,3 @@
-import os.path
 import subprocess
 
 from datetime import datetime
@@ -57,38 +56,8 @@ class Git:
         except Abort:
             return False
 
-    def path(self, *paths: str) -> str:
-        """Get a path relative to the repository root."""
-        return os.path.join(self._dir, *paths)
-
     def commit_sha_of_default(self) -> str:
         return self.command("rev-parse", self._default_branch)
-
-    def commit_sha_of_tree(self, tree: str) -> Optional[str]:
-        """Get the commit SHA that corresponds to a tree SHA."""
-        # We need --all in case the registered commit isn't on the default branch.
-        # The format of each line is "<commit sha> <tree sha>".
-        lines = self.command("log", "--all", "--format=%H %T").splitlines()
-        for line in lines:
-            c, t = line.split()
-            if t == tree:
-                return c
-        return None
-
-    def commit_sha_of_tag(self, version: str) -> str:
-        """Get the commit SHA that corresponds to a tag."""
-        lines = self.command("show-ref", "-d", version).splitlines()
-        # The output looks like this: <sha> refs/tags/<version>.
-        # For lightweight tags, there's just one line which has the commit SHA.
-        # For annotaetd tags, there is a second entry where the ref has a ^{} suffix.
-        # That line's SHA is that of the commit rather than that of the tag object.
-        return max(lines, key=len).split()[0]
-
-    def invalid_tag_exists(self, version: str, sha: str) -> bool:
-        """Check whether or not an existing tag points at the wrong commit."""
-        if not self.command("tag", "--list", version):
-            return False
-        return self.commit_sha_of_tag(version) != sha
 
     def set_remote_url(self, url: str) -> None:
         """Update the origin remote URL."""

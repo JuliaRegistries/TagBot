@@ -86,14 +86,6 @@ class Repo:
             pass
         return val
 
-    def _release_exists(self, version: str) -> bool:
-        """Check whether or not a GitHub release exists."""
-        try:
-            self._repo.get_release(version)
-            return True
-        except UnknownObjectException:
-            return False
-
     def _create_release_branch_pr(self, version: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
@@ -103,23 +95,47 @@ class Repo:
             base=self._repo.default_branch,
         )
 
+    def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
+        """Look up the commit SHA of a tree with the given SHA."""
+        since = datetime.now() - self._lookback
+        for commit in self._repo.get_commits(since=since):
+            if commit.commit.tree.sha == tree:
+                # TODO: Remove the string conversion when PyGithub is typed.
+                return str(commit.sha)
+        return None
+
+    def _commit_sha_of_tag(self, version: str) -> Optional[str]:
+        """Look up the commit SHA of a given tag."""
+        try:
+            ref = self._repo.get_git_ref(f"tags/{version}")
+        except UnknownObjectException:
+            return None
+        if ref.object.type == "commit":
+            return str(ref.object.sha)
+        elif ref.object.type == "tag":
+            tag = self._repo.get_git_tag(ref.object.sha)
+            return str(tag.object.sha)
+        else:
+            return None
+
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
         for version, tree in versions.items():
             version = f"v{version}"
-            sha = self._git.commit_sha_of_tree(tree)
-            if not sha:
+            expected = self._commit_sha_of_tree(tree)
+            if not expected:
                 warn(f"No matching commit was found for version {version} ({tree})")
                 continue
-            if self._git.invalid_tag_exists(version, sha):
-                msg = f"Existing tag {version} points at the wrong commit (expected {sha})"  # noqa: E501
-                error(msg)
+            sha = self._commit_sha_of_tag(version)
+            if sha:
+                if sha != expected:
+                    msg = f"Existing tag {version} points at the wrong commit (expected {expected})"  # noqa: E501
+                    error(msg)
+                else:
+                    info(f"Tag {version} already exists")
                 continue
-            if self._release_exists(version):
-                info(f"Release {version} already exists")
-                continue
-            valid[version] = sha
+            valid[version] = expected
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:

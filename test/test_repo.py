@@ -72,16 +72,6 @@ def test_maybe_b64():
     assert r._maybe_b64("Zm9v") == "foo"
 
 
-def test_release_exists():
-    r = _repo()
-    r._repo = Mock()
-    r._repo.get_release.side_effect = [1, UnknownObjectException(0, 0)]
-    assert r._release_exists("v1.2.3")
-    r._repo.get_release.assert_called_with("v1.2.3")
-    assert not r._release_exists("v3.2.1")
-    r._repo.get_release.assert_called_with("v3.2.1")
-
-
 def test_create_release_branch_pr():
     r = _repo()
     r._repo = Mock(default_branch="default")
@@ -91,23 +81,53 @@ def test_create_release_branch_pr():
     )
 
 
+def test_commit_sha_of_tree():
+    r = _repo()
+    r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
+    r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
+    assert r._commit_sha_of_tree("tree") == "sha"
+    r._repo.get_commits.return_value.pop()
+    assert r._commit_sha_of_tree("tree") is None
+    since = r._repo.get_commits.mock_calls[0].kwargs["since"]
+    expected = datetime.now() - timedelta(days=3, hours=1)
+    assert expected - since < timedelta(seconds=5)
+
+
+def test_commit_sha_of_tag():
+    r = _repo()
+    r._repo.get_git_ref = Mock()
+    r._repo.get_git_ref.return_value.object.type = "commit"
+    r._repo.get_git_ref.return_value.object.sha = "c"
+    assert r._commit_sha_of_tag("v1.2.3") == "c"
+    r._repo.get_git_ref.assert_called_with("tags/v1.2.3")
+    r._repo.get_git_ref.return_value.object.type = "tag"
+    r._repo.get_git_tag = Mock()
+    r._repo.get_git_tag.return_value.object.sha = "t"
+    assert r._commit_sha_of_tag("v2.3.4") == "t"
+    r._repo.get_git_tag.assert_called_with("c")
+    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???")
+    assert r._commit_sha_of_tag("v3.4.5") is None
+
+
 @patch("tagbot.repo.error")
 @patch("tagbot.repo.warn")
 @patch("tagbot.repo.info")
 def test_filter_map_versions(info, warn, error):
     r = _repo()
-    r._git.commit_sha_of_tree = lambda tree: None if tree == "abc" else "sha"
-    r._git.invalid_tag_exists = lambda v, _sha: v == "v2.3.4"
-    r._release_exists = lambda v: v == "v3.4.5"
-    versions = {"1.2.3": "abc", "2.3.4": "bcd", "3.4.5": "cde", "4.5.6": "def"}
-    assert r._filter_map_versions(versions) == {"v4.5.6": "sha"}
-    info.assert_called_once_with("Release v3.4.5 already exists")
-    warn.assert_called_once_with(
-        "No matching commit was found for version v1.2.3 (abc)"
+    r._commit_sha_of_tree = Mock(return_value=None)
+    assert not r._filter_map_versions({"1.2.3": "tree1"})
+    warn.assert_called_with("No matching commit was found for version v1.2.3 (tree1)")
+    r._commit_sha_of_tree.return_value = "sha"
+    r._commit_sha_of_tag = Mock(return_value="sha")
+    assert not r._filter_map_versions({"2.3.4": "tree2"})
+    info.assert_called_with("Tag v2.3.4 already exists")
+    r._commit_sha_of_tag.return_value = "abc"
+    assert not r._filter_map_versions({"3.4.5": "tree3"})
+    error.assert_called_with(
+        "Existing tag v3.4.5 points at the wrong commit (expected sha)"
     )
-    error.assert_called_once_with(
-        "Existing tag v2.3.4 points at the wrong commit (expected sha)"
-    )
+    r._commit_sha_of_tag.return_value = None
+    assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
 
 
 @patch("tagbot.repo.debug")
