@@ -4,8 +4,12 @@ TagBot creates tags, releases, and changelogs for your Julia packages when they'
 
 When we talk about tags and releases, we mean *Git tags* and *GitHub releases*, and not releases in a registry that allow the Julia package manager to install your package.
 TagBot does not register your package for you, see the documentation in [General](https://github.com/JuliaRegistries/General/blob/master/README.md) and [Registrator](https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.md) for that.
-Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases.
-Tags and releases aren't at all necessary, but it's considered a good practice.
+Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases. Tags and releases aren't at all necessary, but it's considered a good practice.
+
+### Benefits of using TagBot
+- Manual tagging and releasing on your Github repo is no longer necessary.
+- TagBot will automatically include release notes on the GitHub release page
+- Lots of configuration options (e.g. use a registry other than the General Registry)
 
 ## Setup
 
@@ -25,7 +29,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-No further action is required, but you may want to check out some of the available configuration options:
+No further action is required on your part. When you register a new release with the Julia General Registry (either manually or with [Registrator](https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.md)), TagBot will create a Github Tag and Github Release on your package's Github repository.  
+
+You may, however, want to customize the behavior via the available configuration options:
 
 - [Personal Access Tokens](#personal-access-tokens)
 - [SSH Deploy Keys](#ssh-deploy-keys)
