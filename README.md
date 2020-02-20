@@ -32,6 +32,7 @@ No further action is required, but you may want to check out some of the availab
 - [Changelogs](#changelogs)
 - [GPG Signing](#gpg-signing)
 - [Custom Registries](#custom-registries)
+- [Lookback Period](#lookback-period)
 - [Release Branch Management](#release-branch-management)
 - [Pre-Release Hooks](#pre-release-hooks)
 
@@ -197,6 +198,20 @@ with:
   token: ${{ secrets.GITHUB_TOKEN }}
   registry: MyOrg/MyRegistry
 ```
+
+### Lookback Period
+
+By default, TagBot checks for new releases that are at most 3 days old.
+Therefore, if you only run TagBot every five days, it might miss some releases.
+To fix this, you can specify a custom number of days to look back in time with the `lookback` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  lookback: 14
+```
+
+An extra hour is always added, so if you run TagBot every 5 days, you can safely set this input to `5`.
 
 ### Release Branch Management
 

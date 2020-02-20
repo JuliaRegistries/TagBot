@@ -14,7 +14,15 @@ from tagbot.repo import Repo
 
 
 def _repo(
-    *, repo="", registry="", token="", changelog="", ignore=[], ssh=False, gpg=False,
+    *,
+    repo="",
+    registry="",
+    token="",
+    changelog="",
+    ignore=[],
+    ssh=False,
+    gpg=False,
+    lookback=3,
 ):
     return Repo(
         repo=repo,
@@ -24,6 +32,7 @@ def _repo(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        lookback=lookback,
     )
 
 
@@ -55,34 +64,6 @@ def test_registry_path():
     assert r._registry_path == "B/Bar"
     assert r._registry_path == "B/Bar"
     assert r._registry.get_contents.call_count == 2
-
-
-@patch("os.listdir", return_value=["TagBot.yml"])
-@patch("os.path.isdir", return_value=False)
-def test_lookback(isdir, listdir):
-    r = _repo()
-    r._git.path = lambda *ps: os.path.join("repo", *ps)
-    yml = """
-    on:
-      schedule:
-        - cron: 0 * * * *
-    jobs:
-      TagBot:
-        steps:
-          - uses: JuliaRegistries/TagBot@v1
-    """
-    open = mock_open(read_data=yml)
-    with patch("builtins.open", open):
-        assert r._lookback == timedelta(days=3, hours=1)
-        assert r._lookback == timedelta(days=3, hours=1)
-    open.assert_called_once()
-    r._Repo__lookback = None
-    every_five_days = yml.replace("0 * * * *", "0 0 */5 * *")
-    with patch("builtins.open", mock_open(read_data=every_five_days)):
-        assert r._lookback == timedelta(days=15, hours=1)
-    r._Repo__lookback = None
-    with patch("builtins.open", mock_open(read_data="some other stuff")):
-        assert r._lookback == timedelta(days=3, hours=1)
 
 
 def test_maybe_b64():
