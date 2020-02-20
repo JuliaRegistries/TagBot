@@ -55,12 +55,15 @@ class Repo:
         if self.__project is not None:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
-            path = self._git.path(name)
-            if os.path.isfile(path):
-                with open(path) as f:
-                    self.__project = toml.load(f)
-                return str(self.__project[k])
-        raise Abort("Project file was not found")
+            try:
+                contents = self._repo.get_contents(name)
+                break
+            except UnknownObjectException:
+                pass
+        else:
+            raise Abort("Project file was not found")
+        self.__project = toml.loads(contents.decoded_content.decode())
+        return str(self.__project[k])
 
     @property
     def _registry_path(self) -> Optional[str]:
@@ -178,7 +181,7 @@ class Repo:
         current = self._versions()
         debug(f"There are {len(current)} total versions")
         old = self._versions(min_age=self._lookback)
-        debug(f"There are {len(old)} new versions")
+        debug(f"There are {len(current) - len(old)} new versions")
         versions = {k: v for k, v in current.items() if k not in old}
         return self._filter_map_versions(versions)
 

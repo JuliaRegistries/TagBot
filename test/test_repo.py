@@ -27,17 +27,19 @@ def _repo(
     )
 
 
-@patch("os.path.isfile", return_value=True)
-def test_project(isfile):
+def test_project():
     r = _repo()
-    r._git.path = Mock(return_value="path")
-    open = mock_open(read_data="""name = "FooBar"\nuuid="abc-def"\n""")
-    with patch("builtins.open", open):
-        assert r._project("name") == "FooBar"
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
     assert r._project("name") == "FooBar"
-    r._git.path.assert_called_once_with("Project.toml")
-    isfile.assert_called_once_with("path")
+    r._repo.get_contents.assert_called_once_with("Project.toml")
+    r._repo.get_contents.side_effect = UnknownObjectException(404, "???")
+    r._Repo__project = None
+    with pytest.raises(Abort):
+        r._project("name")
 
 
 def test_registry_path():
