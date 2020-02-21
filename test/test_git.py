@@ -1,5 +1,3 @@
-import os.path
-
 from datetime import datetime
 from typing import List, Union
 from unittest.mock import Mock, call, patch
@@ -74,44 +72,11 @@ def test_dir(mkdtemp):
     g.command.assert_has_calls(calls)
 
 
-def test_path():
-    g = _git()
-    g._Git__dir = "dir"
-    assert g.path("foo", "bar") == os.path.join("dir", "foo", "bar")
-
-
 def test_commit_sha_of_default():
     g = _git(command="abcdef")
     g._default_branch = "branch"
     assert g.commit_sha_of_default() == "abcdef"
     g.command.assert_called_once_with("rev-parse", "branch")
-
-
-def test_commit_sha_of_tree():
-    g = _git(command="a b\n c d\n d e\n")
-    assert g.commit_sha_of_tree("b") == "a"
-    g.command.assert_called_with("log", "--all", "--format=%H %T")
-    assert g.commit_sha_of_tree("e") == "d"
-    assert g.commit_sha_of_tree("c") is None
-
-
-def test_commit_sha_of_tag():
-    g = _git(command=["a refs/tags/v1", "b refs/tags/v2\nc refs/tags/v2^{}"])
-    assert g.commit_sha_of_tag("v1") == "a"
-    g.command.assert_called_with("show-ref", "-d", "v1")
-    assert g.commit_sha_of_tag("v2") == "c"
-    g.command.assert_called_with("show-ref", "-d", "v2")
-
-
-def test_invalid_tag_exists():
-    g = _git(command=["", "v2", "v3"])
-    g.commit_sha_of_tag = Mock(side_effect=["b", "c"])
-    assert not g.invalid_tag_exists("v1", "a")
-    g.command.assert_called_with("tag", "--list", "v1")
-    g.commit_sha_of_tag.assert_not_called()
-    assert not g.invalid_tag_exists("v2", "b")
-    g.commit_sha_of_tag.assert_called_with("v2")
-    assert g.invalid_tag_exists("v2", "d")
 
 
 def test_set_remote_url():

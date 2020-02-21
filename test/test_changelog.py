@@ -13,7 +13,15 @@ from tagbot.repo import Repo
 
 
 def _changelog(
-    *, repo="", registry="", token="", template="", ignore=set(), ssh=False, gpg=False
+    *,
+    repo="",
+    registry="",
+    token="",
+    template="",
+    ignore=set(),
+    ssh=False,
+    gpg=False,
+    lookback=3,
 ):
     r = Repo(
         repo=repo,
@@ -23,6 +31,7 @@ def _changelog(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        lookback=lookback,
     )
     return r._changelog
 

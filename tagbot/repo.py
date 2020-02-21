@@ -5,7 +5,6 @@ import subprocess
 
 import pexpect
 import toml
-import yaml
 
 from base64 import b64decode
 from datetime import datetime, timedelta
@@ -14,7 +13,6 @@ from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional
 
-from croniter import croniter
 from github import Github, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
@@ -37,6 +35,7 @@ class Repo:
         changelog_ignore: List[str],
         ssh: bool,
         gpg: bool,
+        lookback: int,
     ) -> None:
         gh = Github(token, per_page=100)
         self._repo = gh.get_repo(repo, lazy=True)
@@ -46,6 +45,7 @@ class Repo:
         self._ssh = ssh
         self._gpg = gpg
         self._git = Git(repo, token)
+        self._lookback = timedelta(days=lookback, hours=1)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
         self.__lookback: Optional[timedelta] = None
@@ -55,12 +55,15 @@ class Repo:
         if self.__project is not None:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
-            path = self._git.path(name)
-            if os.path.isfile(path):
-                with open(path) as f:
-                    self.__project = toml.load(f)
-                return str(self.__project[k])
-        raise Abort("Project file was not found")
+            try:
+                contents = self._repo.get_contents(name)
+                break
+            except UnknownObjectException:
+                pass
+        else:
+            raise Abort("Project file was not found")
+        self.__project = toml.loads(contents.decoded_content.decode())
+        return str(self.__project[k])
 
     @property
     def _registry_path(self) -> Optional[str]:
@@ -75,37 +78,6 @@ class Repo:
             return self.__registry_path
         return None
 
-    @property
-    def _lookback(self) -> timedelta:
-        """Calculate the lookback period."""
-        if self.__lookback is not None:
-            return self.__lookback
-        default = timedelta(days=3, hours=1)
-        workflows = self._git.path(".github", "workflows")
-        for workflow in os.listdir(workflows):
-            path = os.path.join(workflows, workflow)
-            if os.path.isdir(path):
-                continue
-            try:
-                with open(path) as f:
-                    data = yaml.safe_load(f)
-                for job in data["jobs"].values():
-                    for step in job["steps"]:
-                        if "TagBot" in step["uses"]:
-                            # The "on" key parses to a boolean True. YAML is dumb.
-                            cron = croniter(data[True]["schedule"][0]["cron"])
-                            seconds = cron.get_next() - cron.get_prev()
-                            # Rather than just using the cron interval, multiply it by 3
-                            # so that random errors will get retried a couple of times.
-                            # For backwards compatibility, make the default the minimum.
-                            self.__lookback = max(
-                                timedelta(seconds=seconds * 3, hours=1), default
-                            )
-                            return self.__lookback
-            except:  # noqa: E722
-                pass
-        return default
-
     def _maybe_b64(self, val: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         try:
@@ -113,14 +85,6 @@ class Repo:
         except binascii.Error:
             pass
         return val
-
-    def _release_exists(self, version: str) -> bool:
-        """Check whether or not a GitHub release exists."""
-        try:
-            self._repo.get_release(version)
-            return True
-        except UnknownObjectException:
-            return False
 
     def _create_release_branch_pr(self, version: str, branch: str) -> None:
         """Create a pull request for the release branch."""
@@ -131,23 +95,47 @@ class Repo:
             base=self._repo.default_branch,
         )
 
+    def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
+        """Look up the commit SHA of a tree with the given SHA."""
+        since = datetime.now() - self._lookback
+        for commit in self._repo.get_commits(since=since):
+            if commit.commit.tree.sha == tree:
+                # TODO: Remove the string conversion when PyGithub is typed.
+                return str(commit.sha)
+        return None
+
+    def _commit_sha_of_tag(self, version: str) -> Optional[str]:
+        """Look up the commit SHA of a given tag."""
+        try:
+            ref = self._repo.get_git_ref(f"tags/{version}")
+        except UnknownObjectException:
+            return None
+        if ref.object.type == "commit":
+            return str(ref.object.sha)
+        elif ref.object.type == "tag":
+            tag = self._repo.get_git_tag(ref.object.sha)
+            return str(tag.object.sha)
+        else:
+            return None
+
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
         for version, tree in versions.items():
             version = f"v{version}"
-            sha = self._git.commit_sha_of_tree(tree)
-            if not sha:
+            expected = self._commit_sha_of_tree(tree)
+            if not expected:
                 warn(f"No matching commit was found for version {version} ({tree})")
                 continue
-            if self._git.invalid_tag_exists(version, sha):
-                msg = f"Existing tag {version} points at the wrong commit (expected {sha})"  # noqa: E501
-                error(msg)
+            sha = self._commit_sha_of_tag(version)
+            if sha:
+                if sha != expected:
+                    msg = f"Existing tag {version} points at the wrong commit (expected {expected})"  # noqa: E501
+                    error(msg)
+                else:
+                    info(f"Tag {version} already exists")
                 continue
-            if self._release_exists(version):
-                info(f"Release {version} already exists")
-                continue
-            valid[version] = sha
+            valid[version] = expected
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
@@ -178,7 +166,7 @@ class Repo:
         current = self._versions()
         debug(f"There are {len(current)} total versions")
         old = self._versions(min_age=self._lookback)
-        debug(f"There are {len(old)} new versions")
+        debug(f"There are {len(current) - len(old)} new versions")
         versions = {k: v for k, v in current.items() if k not in old}
         return self._filter_map_versions(versions)
 
