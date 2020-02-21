@@ -1,10 +1,11 @@
+import re
 import subprocess
 
 from datetime import datetime
 from tempfile import mkdtemp
 from typing import Optional
 
-from . import Abort, debug, info
+from . import Abort, debug, info, warn
 
 
 class Git:
@@ -13,7 +14,7 @@ class Git:
     def __init__(self, repo: str, token: str) -> None:
         self._repo = repo
         self._token = token
-        self._default_branch = ""
+        self.__default_branch: Optional[str] = None
         self.__dir: Optional[str] = None
 
     @property
@@ -25,8 +26,21 @@ class Git:
         dest = mkdtemp(prefix="tagbot_repo_")
         self.command("clone", url, dest, repo=None)
         self.__dir = dest
-        self._default_branch = self.command("rev-parse", "--abbrev-ref", "HEAD")
         return self.__dir
+
+    @property
+    def _default_branch(self) -> str:
+        """Get the name of the default branch."""
+        if self.__default_branch is not None:
+            return self.__default_branch
+        remote = self.command("remote", "show", "origin")
+        m = re.search("HEAD branch:(.+)", remote)
+        if m:
+            self.__default_branch = m[1].strip()
+        else:
+            warn("Looking up default branch name failed, assuming master")
+            self.__default_branch = "master"
+        return self.__default_branch
 
     def command(self, *argv: str, repo: Optional[str] = "") -> str:
         """Run a Git command."""
@@ -57,6 +71,7 @@ class Git:
             return False
 
     def commit_sha_of_default(self) -> str:
+        """Get the commit SHA of the default branch."""
         return self.command("rev-parse", self._default_branch)
 
     def set_remote_url(self, url: str) -> None:

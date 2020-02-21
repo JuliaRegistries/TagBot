@@ -60,21 +60,26 @@ def test_check():
 def test_dir(mkdtemp):
     g = _git(repo="Foo/Bar", token="x", command=["", "branch"])
     assert g._dir == "dir"
-    assert g._default_branch == "branch"
     assert g._dir == "dir"
     # Second call should not clone.
     mkdtemp.assert_called_once()
-    assert g.command.call_count == 2
-    calls = [
-        call("clone", "https://oauth2:x@github.com/Foo/Bar", "dir", repo=None),
-        call("rev-parse", "--abbrev-ref", "HEAD"),
-    ]
-    g.command.assert_has_calls(calls)
+    g.command.assert_called_once_with(
+        "clone", "https://oauth2:x@github.com/Foo/Bar", "dir", repo=None
+    )
+
+
+def test_default_branch():
+    g = _git(command=["foo\nHEAD branch: default\nbar", "uhhhh"])
+    assert g._default_branch == "default"
+    assert g._default_branch == "default"
+    g.command.assert_called_once_with("remote", "show", "origin")
+    g._Git__default_branch = None
+    assert g._default_branch == "master"
 
 
 def test_commit_sha_of_default():
     g = _git(command="abcdef")
-    g._default_branch = "branch"
+    g._Git__default_branch = "branch"
     assert g.commit_sha_of_default() == "abcdef"
     g.command.assert_called_once_with("rev-parse", "branch")
 
@@ -102,7 +107,7 @@ def test_create_tag():
 
 def test_fetch_branch():
     g = _git(check=[False, True], command="ok")
-    g._default_branch = "default"
+    g._Git__default_branch = "default"
     assert not g.fetch_branch("a")
     g.check.assert_called_with("checkout", "a")
     assert g.fetch_branch("b")
@@ -111,7 +116,7 @@ def test_fetch_branch():
 
 def test_can_fast_forward():
     g = _git(check=[False, True])
-    g._default_branch = "default"
+    g._Git__default_branch = "default"
     assert not g.can_fast_forward("a")
     g.check.assert_called_with("merge-base", "--is-ancestor", "default", "a")
     assert g.can_fast_forward("b")
@@ -119,7 +124,7 @@ def test_can_fast_forward():
 
 def test_merge_and_delete_branch():
     g = _git(command="ok")
-    g._default_branch = "default"
+    g._Git__default_branch = "default"
     g.merge_and_delete_branch("a")
     calls = [
         call("checkout", "default"),
