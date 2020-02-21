@@ -14,7 +14,7 @@ changelog = os.getenv("INPUT_CHANGELOG", "")
 changelog_ignore = os.getenv("INPUT_CHANGELOG_IGNORE", "")
 dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
 dispatch_delay = os.getenv("INPUT_DISPATCH_DELAY", "")
-lookback = os.getenv("INPUT_LOOKBACK", "")
+lookback = os.getenv("INPUT_LOOKBACK", "3")
 registry_name = os.getenv("INPUT_REGISTRY", "")
 ssh = os.getenv("INPUT_SSH")
 ssh_password = os.getenv("INPUT_SSH_PASSWORD")
