@@ -168,7 +168,7 @@ with:
   changelog_ignore: ignore this label, ignore this label too
 ```
 
-Whitespace, case, dashes, and underscores are ignored when comparing labels.
+White-space, case, dashes, and underscores are ignored when comparing labels.
 
 
 
@@ -247,4 +247,4 @@ with:
 Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
 To use this feature, you must provide your own personal access token.
-For more details, see [Personal Accesss Tokens](#personal-access-tokens).
+For more details, see [Personal Access Tokens](#personal-access-tokens).
