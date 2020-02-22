@@ -7,6 +7,8 @@ TagBot does not register your package for you, see the documentation in [General
 Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases.
 Tags and releases aren't at all necessary, but it's considered a good practice.
 
+Other benefits of using TagBot include the ability for you and your users to browse package code at specific releases, and automatically-generated changelogs for each release that keep your users in the loop.
+
 ## Setup
 
 Create a file at `.github/workflows/TagBot.yml` with the following contents:
@@ -25,7 +27,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-No further action is required, but you may want to check out some of the available configuration options:
+No further action is required on your part.
+When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
+
+You may, however, want to customize the behaviour via the available configuration options:
 
 - [Personal Access Tokens](#personal-access-tokens)
 - [SSH Deploy Keys](#ssh-deploy-keys)
@@ -164,7 +169,7 @@ with:
   changelog_ignore: ignore this label, ignore this label too
 ```
 
-Whitespace, case, dashes, and underscores are ignored when comparing labels.
+White-space, case, dashes, and underscores are ignored when comparing labels.
 
 
 
@@ -257,4 +262,4 @@ with:
 Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
 To use this feature, you must provide your own personal access token.
-For more details, see [Personal Accesss Tokens](#personal-access-tokens).
+For more details, see [Personal Access Tokens](#personal-access-tokens).
