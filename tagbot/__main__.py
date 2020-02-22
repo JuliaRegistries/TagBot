@@ -3,6 +3,7 @@ import sys
 import time
 
 from datetime import timedelta
+from traceback import format_exc
 
 from . import Abort, info, error
 from .changelog import Changelog
@@ -26,58 +27,56 @@ if not token:
     error("No GitHub API token supplied")
     sys.exit(1)
 
-if changelog_ignore:
-    ignore = changelog_ignore.split(",")
-else:
-    ignore = Changelog.DEFAULT_IGNORE
-
-repo = Repo(
-    repo=repo_name,
-    registry=registry_name,
-    token=token,
-    changelog=changelog,
-    changelog_ignore=ignore,
-    ssh=bool(ssh),
-    gpg=bool(gpg),
-    lookback=int(lookback),
-)
-
 try:
-    versions = repo.new_versions()
-except Abort as e:
-    # Special case for repositories that don't have a Project.toml:
-    # Exit "silently" to avoid sending unwanted emails.
-    # TODO: Maybe mass-PR against these repos to remove TagBot.
-    if "Project file was not found" not in e.args:
-        raise
-    info("Project file was not found.")
-    info("If this repository is not going to be registered, you should remove TagBot.")
-    sys.exit(0)
+    if changelog_ignore:
+        ignore = changelog_ignore.split(",")
+    else:
+        ignore = Changelog.DEFAULT_IGNORE
 
-if not versions:
-    info("No new versions to release")
-    sys.exit(0)
+    repo = Repo(
+        repo=repo_name,
+        registry=registry_name,
+        token=token,
+        changelog=changelog,
+        changelog_ignore=ignore,
+        ssh=bool(ssh),
+        gpg=bool(gpg),
+        lookback=int(lookback),
+    )
 
-if dispatch:
-    minutes = int(dispatch_delay)
-    repo.create_dispatch_event(versions)
-    info(f"Waiting {minutes} minutes for any dispatch handlers")
-    time.sleep(timedelta(minutes=minutes).total_seconds())
-if ssh:
-    repo.configure_ssh(ssh, ssh_password)
-if gpg:
-    repo.configure_gpg(gpg, gpg_password)
-
-for version, sha in versions.items():
-    info(f"Processing version {version} ({sha})")
     try:
-        if branches:
-            repo.handle_release_branch(version)
-        repo.create_release(version, sha)
+        versions = repo.new_versions()
     except Abort as e:
-        error(e.args[0])
+        # Special case for repositories that don't have a Project.toml:
+        # Exit "silently" to avoid sending unwanted emails.
+        # TODO: Maybe mass-PR against these repos to remove TagBot.
+        if "Project file was not found" not in e.args:
+            raise
+        info("Project file was not found.")
+        info("If this repository is not going to be registered, then remove TagBot.")
+        sys.exit(0)
 
-from . import STATUS  # noqa: E402
+    if not versions:
+        info("No new versions to release")
+        sys.exit(0)
 
-info(f"Exiting with status {STATUS}")
-sys.exit(STATUS)
+    if dispatch:
+        minutes = int(dispatch_delay)
+        repo.create_dispatch_event(versions)
+        info(f"Waiting {minutes} minutes for any dispatch handlers")
+        time.sleep(timedelta(minutes=minutes).total_seconds())
+    if ssh:
+        repo.configure_ssh(ssh, ssh_password)
+    if gpg:
+        repo.configure_gpg(gpg, gpg_password)
+
+    for version, sha in versions.items():
+        info(f"Processing version {version} ({sha})")
+        try:
+            if branches:
+                repo.handle_release_branch(version)
+            repo.create_release(version, sha)
+        except Abort as e:
+            error(e.args[0])
+except Exception:
+    repo.report_error(format_exc())

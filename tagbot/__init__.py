@@ -1,6 +1,3 @@
-STATUS = 0  # Exit status for the main script.
-
-
 class Abort(Exception):
     pass
 
@@ -26,7 +23,5 @@ def warn(msg: str) -> None:
 
 
 def error(msg: str) -> None:
-    """Write an error message, and set the exit code to be non-zero."""
-    global STATUS
-    STATUS += 1
+    """Write an error message."""
     _log(msg, "error")

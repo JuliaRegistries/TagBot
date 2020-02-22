@@ -165,6 +165,44 @@ def test_versions(debug):
     debug.assert_called_with("Versions.toml was not found")
 
 
+def test_run_url():
+    r = _repo()
+    r._repo = Mock(html_url="https://github.com/Foo/Bar")
+    with patch.dict(os.environ, {"GITHUB_RUN_ID": "123"}):
+        assert r._run_url() == "https://github.com/Foo/Bar/actions/runs/123"
+    with patch.dict(os.environ, clear=True):
+        assert r._run_url() == "https://github.com/Foo/Bar/actions"
+
+
+@patch("tagbot.repo.warn")
+@patch("docker.from_env")
+def test_image_id(from_env, warn):
+    r = _repo()
+    from_env.return_value.containers.get.return_value.image.id = "sha"
+    with patch.dict(os.environ, {"HOSTNAME": "foo"}):
+        assert r._image_id() == "sha"
+    with patch.dict(os.environ, clear=True):
+        assert r._image_id() == "Unknown"
+    warn.assert_called_with("HOSTNAME is not set")
+
+
+def test_create_error_issue():
+    r = _repo(token="abcdef")
+    r._repo = Mock(full_name="Foo/Bar")
+    r._gh = Mock()
+    r._run_url = Mock(return_value="URL")
+    r._image_id = Mock(return_value="id")
+    r._create_error_issue("ahhh abcdef ahhh")
+    title = "Automatic error report from Foo/Bar"
+    body = (
+        "Run URL: URL\n"
+        "Image ID: id\n"
+        "Stacktrace:\n```py\nahhh *** ahhh\n```\n"
+        "[err]"
+    )
+    r._gh.get_repo.return_value.create_issue.assert_called_with(title, body)
+
+
 def test_new_versions():
     r = _repo()
     r._Repo__lookback = timedelta(days=3)
@@ -316,3 +354,14 @@ def test_create_release():
     r._repo.create_git_release.assert_called_with(
         "v1.2.3", "v1.2.3", "log", target_commitish="c",
     )
+
+
+def test_report_error():
+    r = _repo()
+    r._create_error_issue = Mock()
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
+        r.report_error("ahh")
+    r._create_error_issue.assert_not_called()
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        r.report_error("ahh")
+    r._create_error_issue.assert_called_with("ahh")

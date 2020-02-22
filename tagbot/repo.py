@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 
+import docker
 import pexpect
 import toml
 
@@ -37,9 +38,9 @@ class Repo:
         gpg: bool,
         lookback: int,
     ) -> None:
-        gh = Github(token, per_page=100)
-        self._repo = gh.get_repo(repo, lazy=True)
-        self._registry = gh.get_repo(registry, lazy=True)
+        self._gh = Github(token, per_page=100)
+        self._repo = self._gh.get_repo(repo, lazy=True)
+        self._registry = self._gh.get_repo(registry, lazy=True)
         self._token = token
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
@@ -161,6 +162,36 @@ class Repo:
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
+    def _run_url(self) -> str:
+        """Get the URL of this Actions run."""
+        url = f"{self._repo.html_url}/actions"
+        run = os.getenv("GITHUB_RUN_ID")
+        if run:
+            url += f"/runs/{run}"
+        return url
+
+    def _image_id(self) -> str:
+        """Get the Docker image ID."""
+        host = os.getenv("HOSTNAME", "")
+        if not host:
+            warn("HOSTNAME is not set")
+            return "Unknown"
+        client = docker.from_env()
+        container = client.containers.get(host)
+        return container.image.id
+
+    def _create_error_issue(self, trace: str) -> None:
+        """Create an issue to report an error."""
+        r = self._gh.get_repo("JuliaRegistries/TagBot", lazy=True)
+        title = f"Automatic error report from {self._repo.full_name}"
+        body = (
+            f"Run URL: {self._run_url()}\n"
+            f"Image ID: {self._image_id()}\n"
+            f"Stacktrace:\n```py\n{trace}\n```\n"
+            "[err]"  # Required for the automatic issue labeler.
+        )
+        r.create_issue(title, body.replace(self._token, "***"))
+
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
@@ -273,3 +304,13 @@ class Repo:
             self._git.create_tag(version, sha, annotate=self._gpg)
         info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)
+
+    def report_error(self, trace: str) -> None:
+        """Report an error."""
+        error("TagBot experienced an unexpected internal failure")
+        info(trace)
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            debug("Opening an issue")
+            self._create_error_issue(trace)
+        else:
+            debug("Not opening an issue")
