@@ -32,7 +32,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-No further action is required on your part. When you register a new release with the Julia General Registry (either manually or with [Registrator](https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.md)), TagBot will create a Github Tag and Github Release on your package's Github repository.  
+No further action is required on your part.
+When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
 You may, however, want to customize the behavior via the available configuration options:
 
