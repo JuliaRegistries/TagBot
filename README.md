@@ -9,11 +9,6 @@ Tags and releases aren't at all necessary, but it's considered a good practice.
 
 Other benefits of using TagBot include the ability for you and your users to browse package code at specific releases, and automatically-generated changelogs for each release that keep your users in the loop.
 
-### Benefits of using TagBot
-- Manual tagging and releasing on your Github repo is no longer necessary.
-- TagBot will automatically include release notes on the GitHub release page
-- Lots of configuration options (e.g. use a registry other than the General Registry)
-
 ## Setup
 
 Create a file at `.github/workflows/TagBot.yml` with the following contents:
