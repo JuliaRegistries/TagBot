@@ -1,0 +1,14 @@
+name: Docker Action Releaser
+on:
+  issue_comment:
+    types: created
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: christopher-dG/docker-action-releaser@v1
+        if: contains(github.event.comment.body, '/release')
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          docker_username: degraafc
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}

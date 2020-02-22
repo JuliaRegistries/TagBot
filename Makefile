@@ -1,10 +1,7 @@
-.PHONY: test test-docker publish
+.PHONY: test test-docker
 
 test:
 	./bin/test.sh
 
 test-docker:
 	./bin/test-docker.sh
-
-publish:
-	./bin/publish.py
