@@ -4,7 +4,10 @@ TagBot creates tags, releases, and changelogs for your Julia packages when they'
 
 When we talk about tags and releases, we mean *Git tags* and *GitHub releases*, and not releases in a registry that allow the Julia package manager to install your package.
 TagBot does not register your package for you, see the documentation in [General](https://github.com/JuliaRegistries/General/blob/master/README.md) and [Registrator](https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.md) for that.
-Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases. Tags and releases aren't at all necessary, but it's considered a good practice.
+Instead, it reacts to versions of your packages that have been registered, making TagBot a set-and-forget solution to keep your repository in sync with your package releases.
+Tags and releases aren't at all necessary, but it's considered a good practice.
+
+Other benefits of using TagBot include the ability for you and your users to browse package code at specific releases, and automatically-generated changelogs for each release that keep your users in the loop.
 
 ### Benefits of using TagBot
 - Manual tagging and releasing on your Github repo is no longer necessary.
