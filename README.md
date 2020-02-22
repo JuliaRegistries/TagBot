@@ -35,7 +35,7 @@ jobs:
 No further action is required on your part.
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
-You may, however, want to customize the behavior via the available configuration options:
+You may, however, want to customize the behaviour via the available configuration options:
 
 - [Personal Access Tokens](#personal-access-tokens)
 - [SSH Deploy Keys](#ssh-deploy-keys)
