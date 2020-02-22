@@ -9,7 +9,7 @@ import pytest
 
 from github import UnknownObjectException
 
-from tagbot import Abort
+from tagbot import TAGBOT_WEB, Abort
 from tagbot.repo import Repo
 
 
@@ -186,23 +186,6 @@ def test_image_id(from_env, warn):
     warn.assert_called_with("HOSTNAME is not set")
 
 
-def test_create_error_issue():
-    r = _repo(token="abcdef")
-    r._repo = Mock(full_name="Foo/Bar")
-    r._gh = Mock()
-    r._run_url = Mock(return_value="URL")
-    r._image_id = Mock(return_value="id")
-    r._create_error_issue("ahhh abcdef ahhh")
-    title = "Automatic error report from Foo/Bar"
-    body = (
-        "Run URL: URL\n"
-        "Image ID: id\n"
-        "Stacktrace:\n```py\nahhh *** ahhh\n```\n"
-        "[err]"
-    )
-    r._gh.get_repo.return_value.create_issue.assert_called_with(title, body)
-
-
 def test_new_versions():
     r = _repo()
     r._Repo__lookback = timedelta(days=3)
@@ -356,12 +339,25 @@ def test_create_release():
     )
 
 
-def test_report_error():
-    r = _repo()
-    r._create_error_issue = Mock()
+@patch("requests.post")
+def test_report_error(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar")
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
     with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
         r.report_error("ahh")
-    r._create_error_issue.assert_not_called()
+    post.assert_not_called()
     with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
         r.report_error("ahh")
-    r._create_error_issue.assert_called_with("ahh")
+    post.assert_called_with(
+        f"{TAGBOT_WEB}/report",
+        json={
+            "image": "id",
+            "repo": "Foo/Bar",
+            "run": "url",
+            "stacktrace": "ahh",
+            "token": "x",
+        },
+    )

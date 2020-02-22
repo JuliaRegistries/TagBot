@@ -1,0 +1,26 @@
+service: TagBotWeb
+plugins:
+  - serverless-domain-manager
+  - serverless-wsgi
+custom:
+  prod:
+    dev: false
+    prod: true
+  customDomain:
+    domainName: julia-tagbot.com
+    enabled: ${self:custom.prod.${self:custom.stage}}
+  stage: ${opt:stage, '${self:provider.stage}'}
+  wsgi:
+    app: web.app
+provider:
+  name: aws
+  runtime: python3.8
+  environment:
+    GITHUB_TOKEN: ${env:GITHUB_TOKEN}
+    TAGBOT_REPO: ${env:TAGBOT_REPO, 'JuliaRegistries/TagBot'}
+functions:
+  api:
+    handler: wsgi_handler.handler
+    events:
+      - http: ANY /
+      - http: ANY /{any+}

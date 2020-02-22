@@ -1,3 +1,6 @@
+TAGBOT_WEB = "https://julia-tagbot.com"
+
+
 class Abort(Exception):
     pass
 

@@ -1,4 +1,5 @@
 import binascii
+import json
 import os
 import re
 import subprocess
@@ -18,7 +19,7 @@ from github import Github, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
 
-from . import Abort, debug, info, warn, error
+from . import TAGBOT_WEB, Abort, debug, info, warn, error
 from .changelog import Changelog
 from .git import Git
 
@@ -180,18 +181,6 @@ class Repo:
         container = client.containers.get(host)
         return container.image.id
 
-    def _create_error_issue(self, trace: str) -> None:
-        """Create an issue to report an error."""
-        r = self._gh.get_repo("JuliaRegistries/TagBot", lazy=True)
-        title = f"Automatic error report from {self._repo.full_name}"
-        body = (
-            f"Run URL: {self._run_url()}\n"
-            f"Image ID: {self._image_id()}\n"
-            f"Stacktrace:\n```py\n{trace}\n```\n"
-            "[err]"  # Required for the automatic issue labeler.
-        )
-        r.create_issue(title, body.replace(self._token, "***"))
-
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
@@ -310,7 +299,16 @@ class Repo:
         error("TagBot experienced an unexpected internal failure")
         info(trace)
         if os.getenv("GITHUB_ACTIONS") == "true":
-            debug("Opening an issue")
-            self._create_error_issue(trace)
+            debug("Reporting error")
+            data = {
+                "image": self._image_id(),
+                "repo": self._repo.full_name,
+                "run": self._run_url(),
+                "stacktrace": trace,
+                "token": self._token,
+            }
+            resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
+            output = json.dumps(resp.json(), indent=2)
+            info(f"Response: {output}")
         else:
-            debug("Not opening an issue")
+            debug("Not reporting")
