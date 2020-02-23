@@ -1,23 +1,25 @@
 import os
 import re
 
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 from github import BadCredentialsException, Github
 from github.Issue import Issue
 from pylev import levenshtein
 
-_gh = Github(os.getenv("GITHUB_TOKEN"))
-TAGBOT_REPO = _gh.get_repo(os.getenv("TAGBOT_REPO"), lazy=True)
+from . import TAGBOT_REPO_NAME, JSONResponse
+
+_gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
+TAGBOT_REPO = _gh.get_repo(TAGBOT_REPO_NAME, lazy=True)
 ERROR_LABEL = "error-report"
 
 
 def handle(
-    *, image: str, repo: str, run: str, stacktrace: str, token: str
-) -> Tuple[Dict[str, str], int]:
+    *, image: str, repo: str, run: str, stacktrace: str, token: str,
+) -> JSONResponse:
     """Report an error."""
     if not _validate_token(token):
-        return 400, {"error": "Invalid token"}
+        return {"error": "Invalid token"}, 400
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
         print(f"Found a duplicate (#{duplicate.number})")
