@@ -11,7 +11,7 @@ custom:
     enabled: ${self:custom.prod.${self:custom.stage}}
   stage: ${opt:stage, '${self:provider.stage}'}
   wsgi:
-    app: web.app
+    app: tagbot.web.app
 provider:
   name: aws
   runtime: python3.8

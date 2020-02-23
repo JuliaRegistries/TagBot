@@ -9,7 +9,7 @@ import yaml
 from github.Issue import Issue
 from github.PullRequest import PullRequest
 
-from tagbot.repo import Repo
+from tagbot.action.repo import Repo
 
 
 def _changelog(
@@ -221,7 +221,7 @@ def test_collect_data():
 
 
 def test_render():
-    path = os.path.join(os.path.dirname(__file__), "..", "action.yml")
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "action.yml")
     with open(path) as f:
         action = yaml.safe_load(f)
     default = action["inputs"]["changelog"]["default"]
