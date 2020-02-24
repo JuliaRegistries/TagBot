@@ -5,6 +5,7 @@ from typing import Optional
 
 from github import BadCredentialsException, Github
 from github.Issue import Issue
+from github.IssueComment import IssueComment
 from pylev import levenshtein
 
 from . import TAGBOT_REPO_NAME, JSONResponse
@@ -23,15 +24,17 @@ def handle(
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
         print(f"Found a duplicate (#{duplicate.number})")
-        _add_duplicate_comment(
+        comment = _add_duplicate_comment(
             duplicate, image=image, repo=repo, run=run, stacktrace=stacktrace
         )
-        status = f"Duplicate: {duplicate.html_url}"
+        status = "Found duplicate issue"
+        url = comment.html_url
     else:
         print("Creating a new issue")
         issue = _create_issue(image=image, repo=repo, run=run, stacktrace=stacktrace)
-        status = f"Created new issue: {issue.html_url}"
-    return {"status": status}, 200
+        status = "Created new issue"
+        url = issue.html_url
+    return {"status": status, "url": url}, 200
 
 
 def _validate_token(token: str) -> bool:
@@ -39,9 +42,8 @@ def _validate_token(token: str) -> bool:
     if not token:
         return False
     gh = Github(token)
-    user = gh.get_user()
     try:
-        print("Token belongs to:", user.login)
+        print("Token belongs to:", gh.get_user(token).login)
         return True
     except BadCredentialsException:
         return False
@@ -79,7 +81,7 @@ def _report_body(*, image: str, repo: str, run: str, stacktrace: str) -> str:
 
 def _add_duplicate_comment(
     issue: Issue, *, image: str, repo: str, run: str, stacktrace: str
-) -> None:
+) -> IssueComment:
     """Comment on an existing error report."""
     body = (
         f"Probably duplicate error:\n"
@@ -92,7 +94,7 @@ def _create_issue(*, image: str, repo: str, run: str, stacktrace: str) -> Issue:
     """Create a new error report."""
     title = f"Automatic error report from {repo}"
     body = (
-        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}\n"
+        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
         f"[{ERROR_LABEL[:3]}]\n"  # Required for the automatic issue labeler.
     )
     return TAGBOT_REPO.create_issue(title, body)

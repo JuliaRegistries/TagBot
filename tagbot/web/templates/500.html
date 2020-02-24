@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<p>
+  Sorry, there has been an internal server error.
+</p>
+<p>
+  You may want to report this error <a href="https://github.com/{{tagbot_repo}}/issues">on GitHub</a>.
+  {% if id %}
+  Include the following error ID: <kbd>{{request_id}}</kbd>.
+  {% endif %}
+  Please be sure to check for any existing issues!
+</p>
+{% endblock %}
