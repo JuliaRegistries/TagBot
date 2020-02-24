@@ -50,5 +50,4 @@ def report() -> JSONResponse:
         repo=request.json["repo"],
         run=request.json["run"],
         stacktrace=request.json["stacktrace"],
-        token=request.json["token"],
     )

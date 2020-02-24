@@ -353,11 +353,5 @@ def test_report_error(post):
         r.report_error("ahh")
     post.assert_called_with(
         f"{TAGBOT_WEB}/report",
-        json={
-            "image": "id",
-            "repo": "Foo/Bar",
-            "run": "url",
-            "stacktrace": "ahh",
-            "token": "x",
-        },
+        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
     )

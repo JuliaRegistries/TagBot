@@ -305,7 +305,6 @@ class Repo:
                 "repo": self._repo.full_name,
                 "run": self._run_url(),
                 "stacktrace": trace,
-                "token": self._token,
             }
             resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
             output = json.dumps(resp.json(), indent=2)

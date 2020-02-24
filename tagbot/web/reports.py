@@ -3,7 +3,7 @@ import re
 
 from typing import Optional
 
-from github import BadCredentialsException, Github
+from github import Github
 from github.Issue import Issue
 from github.IssueComment import IssueComment
 from pylev import levenshtein
@@ -15,12 +15,8 @@ TAGBOT_REPO = _gh.get_repo(TAGBOT_REPO_NAME, lazy=True)
 ERROR_LABEL = "error-report"
 
 
-def handle(
-    *, image: str, repo: str, run: str, stacktrace: str, token: str,
-) -> JSONResponse:
+def handle(*, image: str, repo: str, run: str, stacktrace: str) -> JSONResponse:
     """Report an error."""
-    if not _validate_token(token):
-        return {"error": "Invalid token"}, 400
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
         print(f"Found a duplicate (#{duplicate.number})")
@@ -35,18 +31,6 @@ def handle(
         status = "Created new issue"
         url = issue.html_url
     return {"status": status, "url": url}, 200
-
-
-def _validate_token(token: str) -> bool:
-    """Ensure that the provided token is valid."""
-    if not token:
-        return False
-    gh = Github(token)
-    try:
-        print("Token belongs to:", gh.get_user(token).login)
-        return True
-    except BadCredentialsException:
-        return False
 
 
 def _is_duplicate(a: str, b: str) -> bool:
