@@ -1,9 +1,9 @@
 import os
 import sys
 import time
+import traceback
 
 from datetime import timedelta
-from traceback import format_exc
 
 from . import Abort, info, error
 from .changelog import Changelog
@@ -79,4 +79,8 @@ try:
         except Abort as e:
             error(e.args[0])
 except Exception:
-    repo.report_error(format_exc())
+    try:
+        repo.report_error(traceback.format_exc())
+    except Exception:
+        error("Issue reporting failed")
+        traceback.print_exc()
