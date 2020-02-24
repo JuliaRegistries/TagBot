@@ -4,8 +4,8 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
-from tagbot import Abort
-from tagbot.git import Git
+from tagbot.action import Abort
+from tagbot.action.git import Git
 
 
 def _git(
@@ -56,7 +56,7 @@ def test_check():
     g.command.assert_has_calls([call("foo", repo=""), call("bar", repo="dir")])
 
 
-@patch("tagbot.git.mkdtemp", return_value="dir")
+@patch("tagbot.action.git.mkdtemp", return_value="dir")
 def test_dir(mkdtemp):
     g = _git(repo="Foo/Bar", token="x", command=["", "branch"])
     assert g._dir == "dir"

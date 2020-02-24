@@ -9,8 +9,8 @@ import pytest
 
 from github import UnknownObjectException
 
-from tagbot import Abort
-from tagbot.repo import Repo
+from tagbot.action import TAGBOT_WEB, Abort
+from tagbot.action.repo import Repo
 
 
 def _repo(
@@ -109,9 +109,9 @@ def test_commit_sha_of_tag():
     assert r._commit_sha_of_tag("v3.4.5") is None
 
 
-@patch("tagbot.repo.error")
-@patch("tagbot.repo.warn")
-@patch("tagbot.repo.info")
+@patch("tagbot.action.repo.error")
+@patch("tagbot.action.repo.warn")
+@patch("tagbot.action.repo.info")
 def test_filter_map_versions(info, warn, error):
     r = _repo()
     r._commit_sha_of_tree = Mock(return_value=None)
@@ -130,7 +130,7 @@ def test_filter_map_versions(info, warn, error):
     assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
 
 
-@patch("tagbot.repo.debug")
+@patch("tagbot.action.repo.debug")
 def test_versions(debug):
     r = _repo()
     r._Repo__registry_path = "path"
@@ -165,6 +165,27 @@ def test_versions(debug):
     debug.assert_called_with("Versions.toml was not found")
 
 
+def test_run_url():
+    r = _repo()
+    r._repo = Mock(html_url="https://github.com/Foo/Bar")
+    with patch.dict(os.environ, {"GITHUB_RUN_ID": "123"}):
+        assert r._run_url() == "https://github.com/Foo/Bar/actions/runs/123"
+    with patch.dict(os.environ, clear=True):
+        assert r._run_url() == "https://github.com/Foo/Bar/actions"
+
+
+@patch("tagbot.action.repo.warn")
+@patch("docker.from_env")
+def test_image_id(from_env, warn):
+    r = _repo()
+    from_env.return_value.containers.get.return_value.image.id = "sha"
+    with patch.dict(os.environ, {"HOSTNAME": "foo"}):
+        assert r._image_id() == "sha"
+    with patch.dict(os.environ, clear=True):
+        assert r._image_id() == "Unknown"
+    warn.assert_called_with("HOSTNAME is not set")
+
+
 def test_new_versions():
     r = _repo()
     r._Repo__lookback = timedelta(days=3)
@@ -192,7 +213,7 @@ def test_create_dispatch_event(post):
     )
 
 
-@patch("tagbot.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
+@patch("tagbot.action.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
 @patch("os.chmod")
 @patch("subprocess.run")
 @patch("pexpect.spawn")
@@ -242,8 +263,8 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     spawn.return_value.assert_has_calls(calls)
 
 
-@patch("tagbot.repo.GPG")
-@patch("tagbot.repo.mkdtemp", return_value="gpgdir")
+@patch("tagbot.action.repo.GPG")
+@patch("tagbot.action.repo.mkdtemp", return_value="gpgdir")
 @patch("os.chmod")
 def test_configure_gpg(chmod, mkdtemp, GPG):
     r = _repo()
@@ -315,4 +336,22 @@ def test_create_release():
     r._git.create_tag.assert_called_with("v1.2.3", "c", annotate=False)
     r._repo.create_git_release.assert_called_with(
         "v1.2.3", "v1.2.3", "log", target_commitish="c",
+    )
+
+
+@patch("requests.post")
+def test_report_error(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar")
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
+        r.report_error("ahh")
+    post.assert_not_called()
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        r.report_error("ahh")
+    post.assert_called_with(
+        f"{TAGBOT_WEB}/report",
+        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
     )

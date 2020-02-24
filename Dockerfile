@@ -4,4 +4,4 @@ COPY requirements.txt /root
 RUN pip install -r /root/requirements.txt
 COPY tagbot /root/tagbot
 ENV PYTHONPATH /root
-CMD python -m tagbot
+CMD python -m tagbot.action

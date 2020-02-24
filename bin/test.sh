@@ -14,7 +14,7 @@ checked() {
 
 cd $(dirname "$0")/..
 
-checked pytest --cov tagbot
+checked python -m pytest --cov tagbot --ignore node_modules
 checked black --check bin stubs tagbot test
 checked flake8 bin stubs tagbot test
 # The test code monkey patches methods a lot, and mypy doesn't like that.
