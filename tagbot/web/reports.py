@@ -71,7 +71,7 @@ def _add_duplicate_comment(
         f"Probably duplicate error:\n"
         f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
     )
-    issue.create_comment(body)
+    return issue.create_comment(body)
 
 
 def _create_issue(*, image: str, repo: str, run: str, stacktrace: str) -> Issue:
