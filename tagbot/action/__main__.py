@@ -47,13 +47,12 @@ try:
     try:
         versions = repo.new_versions()
     except Abort as e:
-        # Special case for repositories that don't have a Project.toml:
-        # Exit "silently" to avoid sending unwanted emails.
-        # TODO: Maybe mass-PR against these repos to remove TagBot.
-        if "Project file was not found" not in e.args:
+        # Special cases for repositories that don't have a valid Project.toml.
+        # Exit with success but recommend uninstalling for invalid repos.
+        if e.args[0] not in ("Project file was not found", "Project file has no UUID"):
             raise
-        info("Project file was not found.")
-        info("If this repository is not going to be registered, then remove TagBot.")
+        info(e.args[0])
+        info("If this repository is not going to be registered, then remove TagBot")
         sys.exit(0)
 
     if not versions:

@@ -74,7 +74,10 @@ class Repo:
             return self.__registry_path
         contents = self._registry.get_contents("Registry.toml")
         registry = toml.loads(contents.decoded_content.decode())
-        uuid = self._project("uuid")
+        try:
+            uuid = self._project("uuid")
+        except KeyError:
+            raise Abort("Project file has no UUID")
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
