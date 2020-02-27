@@ -328,6 +328,6 @@ class Repo:
             }
             resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
             output = json.dumps(resp.json(), indent=2)
-            info(f"Response: {output}")
+            info(f"Response ({resp.status_code}): {output}")
         else:
             debug("Not reporting")

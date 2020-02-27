@@ -9,15 +9,12 @@ from tagbot.web import reports
 @patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
 def test_handle(create_issue, add_duplicate_comment, find_duplicate):
     kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
-    assert reports.handle(**kwargs) == (
-        {"status": "Created new issue", "url": "new"},
-        200,
-    )
+    assert reports.handle(**kwargs) == {"status": "Created new issue", "url": "new"}
     find_duplicate.return_value = Mock()
-    assert reports.handle(**kwargs) == (
-        {"status": "Found duplicate issue", "url": "dupe"},
-        200,
-    )
+    assert reports.handle(**kwargs) == {
+        "status": "Found duplicate issue",
+        "url": "dupe",
+    }
 
 
 def test_is_duplicate():
