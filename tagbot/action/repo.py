@@ -97,13 +97,30 @@ class Repo:
             base=self._repo.default_branch,
         )
 
-    def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
-        """Look up the commit SHA of a tree with the given SHA."""
-        since = datetime.now() - self._lookback
-        for commit in self._repo.get_commits(since=since):
+    def _commit_sha_of_tree_from_branch(
+        self, branch: str, tree: str, since: datetime
+    ) -> Optional[str]:
+        """Look up the commit SHA of a tree with the given SHA on one branch."""
+        for commit in self._repo.get_commits(sha=branch, since=since):
             if commit.commit.tree.sha == tree:
                 # TODO: Remove the string conversion when PyGithub is typed.
                 return str(commit.sha)
+        return None
+
+    def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
+        """Look up the commit SHA of a tree with the given SHA."""
+        since = datetime.now() - self._lookback
+        sha = self._commit_sha_of_tree_from_branch(
+            self._repo.default_branch, tree, since
+        )
+        if sha:
+            return sha
+        for branch in self._repo.get_branches():
+            if branch.name == self._repo.default_branch:
+                continue
+            sha = self._commit_sha_of_tree_from_branch(branch.name, tree, since)
+            if sha:
+                return sha
         return None
 
     def _commit_sha_of_tag(self, version: str) -> Optional[str]:

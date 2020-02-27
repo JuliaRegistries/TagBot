@@ -81,16 +81,31 @@ def test_create_release_branch_pr():
     )
 
 
-def test_commit_sha_of_tree():
+def test_commit_sha_of_tree_from_branch():
     r = _repo()
+    since = datetime.now()
     r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
     r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
-    assert r._commit_sha_of_tree("tree") == "sha"
+    assert r._commit_sha_of_tree_from_branch("master", "tree", since) == "sha"
+    r._repo.get_commits.assert_called_with(sha="master", since=since)
     r._repo.get_commits.return_value.pop()
-    assert r._commit_sha_of_tree("tree") is None
-    since = r._repo.get_commits.mock_calls[0].kwargs["since"]
-    expected = datetime.now() - timedelta(days=3, hours=1)
-    assert expected - since < timedelta(seconds=5)
+    assert r._commit_sha_of_tree_from_branch("master", "tree", since) is None
+
+
+def test_commit_sha_of_tree():
+    r = _repo()
+    now = datetime.now()
+    r._repo = Mock(default_branch="master",)
+    branches = r._repo.get_branches.return_value = [Mock(), Mock()]
+    branches[0].name = "foo"
+    branches[1].name = "master"
+    r._lookback = Mock(__rsub__=lambda x, y: now)
+    r._commit_sha_of_tree_from_branch = Mock(side_effect=["sha1", None, "sha2"])
+    assert r._commit_sha_of_tree("tree") == "sha1"
+    r._repo.get_branches.assert_not_called()
+    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree", now)
+    assert r._commit_sha_of_tree("tree") == "sha2"
+    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree", now)
 
 
 def test_commit_sha_of_tag():
