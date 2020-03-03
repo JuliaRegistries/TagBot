@@ -70,6 +70,16 @@ class Git:
         except Abort:
             return False
 
+    def commit_sha_of_tree(self, tree: str) -> Optional[str]:
+        """Get the commit SHA of a corresponding tree SHA."""
+        # We need --all in case the registered commit isn't on the default branch.
+        for line in self.command("log", "--all", "--format=%H %T").splitlines():
+            # The format of each line is "<commit sha> <tree sha>".
+            c, t = line.split()
+            if t == tree:
+                return c
+        return None
+
     def commit_sha_of_default(self) -> str:
         """Get the commit SHA of the default branch."""
         return self.command("rev-parse", self._default_branch)

@@ -77,6 +77,14 @@ def test_default_branch():
     assert g._default_branch == "master"
 
 
+def test_commit_sha_of_tree():
+    g = _git(command="a b\n c d\n d e\n")
+    assert g.commit_sha_of_tree("b") == "a"
+    g.command.assert_called_with("log", "--all", "--format=%H %T")
+    assert g.commit_sha_of_tree("e") == "d"
+    assert g.commit_sha_of_tree("c") is None
+
+
 def test_commit_sha_of_default():
     g = _git(command="abcdef")
     g._Git__default_branch = "branch"

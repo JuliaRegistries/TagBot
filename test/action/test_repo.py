@@ -106,6 +106,11 @@ def test_commit_sha_of_tree():
     r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree", now)
     assert r._commit_sha_of_tree("tree") == "sha2"
     r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree", now)
+    r._commit_sha_of_tree_from_branch.side_effect = None
+    r._commit_sha_of_tree_from_branch.return_value = None
+    r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
+    assert r._commit_sha_of_tree("tree") == "sha"
+    assert r._commit_sha_of_tree("tree") is None
 
 
 def test_commit_sha_of_tag():

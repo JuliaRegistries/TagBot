@@ -122,7 +122,10 @@ class Repo:
             sha = self._commit_sha_of_tree_from_branch(branch.name, tree, since)
             if sha:
                 return sha
-        return None
+        # For a valid tree SHA, the only time that we reach here is when a release
+        # has been made long after the commit was made, which is reasonably rare.
+        # Fall back to cloning the repo in that case.
+        return self._git.commit_sha_of_tree(tree)
 
     def _commit_sha_of_tag(self, version: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
