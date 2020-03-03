@@ -44,6 +44,10 @@ try:
         lookback=int(lookback),
     )
 
+    if not repo.is_registered():
+        info("This package is not registered, skipping")
+        sys.exit(0)
+
     try:
         versions = repo.new_versions()
     except Abort as e:

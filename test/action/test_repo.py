@@ -175,9 +175,9 @@ def test_versions(debug):
     r._registry.get_commits.return_value = []
     assert r._versions(min_age=delta) == {}
     debug.assert_called_with("No registry commits were found")
-    r._registry.get_contents.side_effect = UnknownObjectException(0, 0)
+    r._Repo__registry_path = Mock(__bool__=lambda self: False)
     assert r._versions() == {}
-    debug.assert_called_with("Versions.toml was not found")
+    debug.assert_called_with("Package is not registered")
 
 
 def test_run_url():
@@ -199,6 +199,25 @@ def test_image_id(from_env, warn):
     with patch.dict(os.environ, clear=True):
         assert r._image_id() == "Unknown"
     warn.assert_called_with("HOSTNAME is not set")
+
+
+@patch("tagbot.action.repo.debug")
+def test_is_registered(debug):
+    r = _repo()
+    r._repo = Mock(full_name="Foo/Bar.jl")
+    r._Repo__registry_path = Mock(__bool__=lambda self: False)
+    r._registry.get_contents = Mock()
+    contents = r._registry.get_contents.return_value
+    contents.decoded_content = b"""repo = "https://github.com/Foo/Bar.jl.git"\n"""
+    assert not r.is_registered()
+    r._registry.get_contents.assert_not_called()
+    r._Repo__registry_path = "path"
+    assert r.is_registered()
+    r._registry.get_contents.assert_called_with("path/Package.toml")
+    contents.decoded_content = b"""repo = "https://github.com/Foo/Bar.jl"\n"""
+    assert r.is_registered()
+    contents.decoded_content = b"""repo = "https://gitlab.com/Foo/Bar.jl.git"\n"""
+    assert not r.is_registered()
 
 
 def test_new_versions():

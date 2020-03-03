@@ -161,6 +161,10 @@ class Repo:
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Get all package versions from the registry."""
+        root = self._registry_path
+        if not root:
+            debug("Package is not registered")
+            return {}
         kwargs = {}
         if min_age:
             # Get the most recent commit from before min_age.
@@ -173,12 +177,7 @@ class Repo:
             else:
                 debug("No registry commits were found")
                 return {}
-        root = self._registry_path
-        try:
-            contents = self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
-        except UnknownObjectException:
-            debug("Versions.toml was not found")
-            return {}
+        contents = self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
@@ -199,6 +198,19 @@ class Repo:
         client = docker.from_env()
         container = client.containers.get(host)
         return container.image.id
+
+    def is_registered(self) -> bool:
+        """Check whether or not the repository belongs to a registered package."""
+        root = self._registry_path
+        if not root:
+            return False
+        contents = self._registry.get_contents(f"{root}/Package.toml")
+        package = toml.loads(contents.decoded_content.decode())
+        m = re.search(r"://github\.com/(.*?)(?:\.git)?$", package["repo"])
+        if not m:
+            return False
+        # I'm not really sure why mypy doesn't like this line without the cast.
+        return cast(bool, m[1].casefold() == self._repo.full_name.casefold())
 
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
