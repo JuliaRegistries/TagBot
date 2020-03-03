@@ -222,7 +222,6 @@ def test_is_registered(debug):
 
 def test_new_versions():
     r = _repo()
-    r._Repo__lookback = timedelta(days=3)
     r._versions = (
         lambda min_age=None: {"1.2.3": "abc"}
         if min_age

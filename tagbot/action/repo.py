@@ -50,7 +50,6 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
-        self.__lookback: Optional[timedelta] = None
 
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""

@@ -98,7 +98,6 @@ def test_issues_pulls():
 def test_registry_pr():
     c = _changelog()
     c._repo._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
-    c._repo._Repo__lookback = timedelta(days=3)
     registry = c._repo._registry = Mock(owner=Mock(login="Owner"))
     now = datetime.now()
     owner_pr = Mock(merged=True, merged_at=now)
