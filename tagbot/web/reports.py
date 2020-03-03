@@ -20,17 +20,28 @@ def handle(*, image: str, repo: str, run: str, stacktrace: str) -> JSON:
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
         print(f"Found a duplicate (#{duplicate.number})")
-        comment = _add_duplicate_comment(
-            duplicate, image=image, repo=repo, run=run, stacktrace=stacktrace
-        )
+        if _already_commented(duplicate, repo=repo):
+            print("Already commented on")
+        else:
+            _add_duplicate_comment(
+                duplicate, image=image, repo=repo, run=run, stacktrace=stacktrace
+            )
         status = "Found duplicate issue"
-        url = comment.html_url
+        url = duplicate.html_url
     else:
         print("Creating a new issue")
         issue = _create_issue(image=image, repo=repo, run=run, stacktrace=stacktrace)
         status = "Created new issue"
         url = issue.html_url
     return {"status": status, "url": url}
+
+
+def _already_commented(issue: Issue, *, repo: str) -> bool:
+    """Check whether this repository has already commented on the issue."""
+    for comment in issue.get_comments():
+        if f"Repo: {repo}" in comment.body:
+            return True
+    return False
 
 
 def _is_duplicate(a: str, b: str) -> bool:
