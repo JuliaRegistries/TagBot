@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional
+from typing import Dict, List, Mapping, MutableMapping, Optional, cast
 
 from github import Github, UnknownObjectException
 from github.Requester import requests
@@ -106,8 +106,7 @@ class Repo:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
             if commit.commit.tree.sha == tree:
-                # TODO: Remove the string conversion when PyGithub is typed.
-                return str(commit.sha)
+                return cast(str, commit.sha)
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -133,10 +132,10 @@ class Repo:
         except UnknownObjectException:
             return None
         if ref.object.type == "commit":
-            return str(ref.object.sha)
+            return cast(str, ref.object.sha)
         elif ref.object.type == "tag":
             tag = self._repo.get_git_tag(ref.object.sha)
-            return str(tag.object.sha)
+            return cast(str, tag.object.sha)
         else:
             return None
 
