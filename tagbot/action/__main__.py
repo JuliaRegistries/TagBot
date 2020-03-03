@@ -46,7 +46,7 @@ try:
 
     if not repo.is_registered():
         info("This package is not registered, skipping")
-        sys.exit(0)
+        sys.exit()
 
     try:
         versions = repo.new_versions()
@@ -57,11 +57,11 @@ try:
             raise
         info(e.args[0])
         info("If this repository is not going to be registered, then remove TagBot")
-        sys.exit(0)
+        sys.exit()
 
     if not versions:
         info("No new versions to release")
-        sys.exit(0)
+        sys.exit()
 
     if dispatch:
         minutes = int(dispatch_delay)
