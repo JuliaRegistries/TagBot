@@ -5,9 +5,12 @@ import traceback
 
 from datetime import timedelta
 
-from . import Abort, info, error
+from github.Requester import requests
+from . import Abort, info, error, warn
 from .changelog import Changelog
 from .repo import Repo
+
+RequestException = requests.RequestException
 
 repo_name = os.getenv("GITHUB_REPOSITORY", "")
 branches = os.getenv("INPUT_BRANCHES", "false") == "true"
@@ -72,6 +75,9 @@ try:
             repo.create_release(version, sha)
         except Abort as e:
             error(e.args[0])
+except RequestException:
+    warn("TagBot encountered a likely transient HTTP exception")
+    traceback.print_exc()
 except Exception:
     try:
         repo.report_error(traceback.format_exc())
