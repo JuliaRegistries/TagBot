@@ -1,12 +1,13 @@
 import json
+import logging
 import os
 
 from random import randrange
-from typing import Dict, Tuple, TypeVar, Union
+from typing import Dict, Optional, Tuple, TypeVar, Union, cast
 
 import boto3
 
-from flask import Flask, render_template, request
+from flask import Flask, Response, render_template, request
 from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
 
 T = TypeVar("T")
@@ -20,6 +21,23 @@ REPORTS_QUEUE = SQS.Queue(os.getenv("REPORTS_QUEUE", ""))
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
+
+
+def _request_id() -> Optional[str]:
+    """Get the AWS request ID if it's set."""
+    ctx = request.environ.get("context")
+    return ctx.aws_request_id if ctx else None
+
+
+@app.after_request
+def after_request(r: Response) -> Response:
+    msg = f"{request.method} {request.path}: {r.status_code}"
+    req_id = _request_id()
+    if req_id:
+        msg = f"{req_id} - {msg}"
+    app.logger.info(msg)
+    return r
 
 
 @app.errorhandler(NotFound)
@@ -40,12 +58,13 @@ def method_not_allowed(e: MethodNotAllowed) -> Union[HTML, JSON]:
 
 @app.errorhandler(InternalServerError)
 def error(e: InternalServerError) -> Union[HTML, JSON]:
-    ctx = request.environ.get("context")
-    req_id = ctx.aws_request_id if ctx else None
+    req_id = _request_id()
+    # mypy really hates this.
     if request.is_json:
-        return {"error": "Internal server error", "request_id": req_id}, 500
-    resp = render_template("500.html", request_id=req_id, tagbot_repo=TAGBOT_REPO_NAME)
-    return resp, 500
+        json = {"error": "Internal server error", "request_id": req_id}
+        return cast(JSON, (json, 500))
+    html = render_template("500.html", request_id=req_id, tagbot_repo=TAGBOT_REPO_NAME)
+    return html, 500
 
 
 @app.route("/")

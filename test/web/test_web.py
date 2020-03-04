@@ -1,6 +1,18 @@
 import json
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from tagbot import web
+
+
+def test_request_id():
+    with_id = {"context": Mock(aws_request_id="id")}
+    with web.app.test_request_context(environ_base=with_id):
+        assert web._request_id() == "id"
+    with web.app.test_request_context(environ_base={}):
+        assert web._request_id() is None
+    with web.app.test_request_context():
+        assert web._request_id() is None
 
 
 def test_not_found(client):
@@ -26,18 +38,21 @@ def test_method_not_allowed(client):
 
 
 @patch("tagbot.web.TAGBOT_REPO_NAME", __str__=lambda x: "Foo/Bar")
-def test_error(repo_name, client):
-    # TODO: How to test the request ID?
+@patch("tagbot.web._request_id", return_value=None)
+@patch("tagbot.web.after_request", lambda r: r)
+def test_error(request_id, repo_name, client):
     resp = client.get("/die")
     assert resp.status_code == 500
     assert not resp.is_json
     assert b"Sorry, there has been an internal server error." in resp.data
     assert b"https://github.com/Foo/Bar/issues" in resp.data
     assert b"Include the following error ID:" not in resp.data
+    request_id.return_value = "id"
     resp = client.get("/die", content_type="application/json")
     assert resp.status_code == 500
     assert resp.is_json
     assert resp.json["error"] == "Internal server error"
+    assert resp.json["request_id"] == "id"
 
 
 def test_index(client):
