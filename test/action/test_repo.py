@@ -180,6 +180,9 @@ def test_versions(debug):
     r._registry.get_commits.return_value = []
     assert r._versions(min_age=delta) == {}
     debug.assert_called_with("No registry commits were found")
+    r._registry.get_contents.side_effect = UnknownObjectException(404, "???")
+    assert r._versions() == {}
+    debug.assert_called_with("Versions.toml was not found ({})")
     r._Repo__registry_path = Mock(__bool__=lambda self: False)
     assert r._versions() == {}
     debug.assert_called_with("Package is not registered")

@@ -179,7 +179,11 @@ class Repo:
             else:
                 debug("No registry commits were found")
                 return {}
-        contents = self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
+        try:
+            contents = self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
+        except UnknownObjectException:
+            debug(f"Versions.toml was not found ({kwargs})")
+            return {}
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
