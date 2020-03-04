@@ -5,6 +5,11 @@ class Abort(Exception):
     pass
 
 
+class InvalidProject(Abort):
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+
 def _log(message: str, prefix: str) -> None:
     """Print out a log message."""
     print("\n".join(f"::{prefix} ::{line}" for line in message.splitlines()))

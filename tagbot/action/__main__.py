@@ -46,19 +46,10 @@ try:
 
     if not repo.is_registered():
         info("This package is not registered, skipping")
-        sys.exit()
-
-    try:
-        versions = repo.new_versions()
-    except Abort as e:
-        # Special cases for repositories that don't have a valid Project.toml.
-        # Exit with success but recommend uninstalling for invalid repos.
-        if e.args[0] not in ("Project file was not found", "Project file has no UUID"):
-            raise
-        info(e.args[0])
         info("If this repository is not going to be registered, then remove TagBot")
         sys.exit()
 
+    versions = repo.new_versions()
     if not versions:
         info("No new versions to release")
         sys.exit()

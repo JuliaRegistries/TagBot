@@ -9,7 +9,7 @@ import pytest
 
 from github import UnknownObjectException
 
-from tagbot.action import TAGBOT_WEB, Abort
+from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
 from tagbot.action.repo import Repo
 
 
@@ -47,7 +47,7 @@ def test_project():
     r._repo.get_contents.assert_called_once_with("Project.toml")
     r._repo.get_contents.side_effect = UnknownObjectException(404, "???")
     r._Repo__project = None
-    with pytest.raises(Abort):
+    with pytest.raises(InvalidProject):
         r._project("name")
 
 
@@ -226,6 +226,8 @@ def test_is_registered(debug):
     assert r.is_registered()
     contents.decoded_content = b"""repo = "https://gitlab.com/Foo/Bar.jl.git"\n"""
     assert not r.is_registered()
+    # TODO: We should test for the InvalidProject behaviour,
+    # but I'm not really sure how it's possible.
 
 
 def test_new_versions():

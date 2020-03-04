@@ -19,7 +19,7 @@ from github import Github, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
 
-from . import TAGBOT_WEB, Abort, debug, info, warn, error
+from . import TAGBOT_WEB, Abort, InvalidProject, debug, info, warn, error
 from .changelog import Changelog
 from .git import Git
 
@@ -62,7 +62,7 @@ class Repo:
             except UnknownObjectException:
                 pass
         else:
-            raise Abort("Project file was not found")
+            raise InvalidProject("Project file was not found")
         self.__project = toml.loads(contents.decoded_content.decode())
         return str(self.__project[k])
 
@@ -76,7 +76,7 @@ class Repo:
         try:
             uuid = self._project("uuid")
         except KeyError:
-            raise Abort("Project file has no UUID")
+            raise InvalidProject("Project file has no UUID")
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
@@ -207,7 +207,11 @@ class Repo:
 
     def is_registered(self) -> bool:
         """Check whether or not the repository belongs to a registered package."""
-        root = self._registry_path
+        try:
+            root = self._registry_path
+        except InvalidProject as e:
+            debug(e.message)
+            return False
         if not root:
             return False
         contents = self._registry.get_contents(f"{root}/Package.toml")
