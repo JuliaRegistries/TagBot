@@ -15,8 +15,13 @@ custom:
 provider:
   name: aws
   runtime: python3.8
+  iamRoleStatements:
+    - Effect: Allow
+      Action: sqs:SendMessage
+      Resource: !GetAtt reports.Arn
   environment:
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
+    REPORTS_QUEUE: !Ref reports
     TAGBOT_REPO: ${env:TAGBOT_REPO, 'JuliaRegistries/TagBot'}
 functions:
   api:
@@ -24,3 +29,12 @@ functions:
     events:
       - http: ANY /
       - http: ANY /{any+}
+  reports:
+    handler: tagbot.web.reports.handler
+    events:
+      - sqs:
+          arn: !GetAtt reports.Arn
+resources:
+  Resources:
+    reports:
+      Type: AWS::SQS::Queue

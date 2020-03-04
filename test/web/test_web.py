@@ -1,3 +1,5 @@
+import json
+
 from unittest.mock import patch
 
 
@@ -42,3 +44,16 @@ def test_index(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert b"Home" in resp.data
+
+
+@patch("tagbot.web.randrange", return_value=10)
+@patch("tagbot.web.REPORTS_QUEUE")
+def test_report(REPORTS_QUEUE, randrange, client):
+    payload = {"image": "img", "repo": "repo", "run": "123", "stacktrace": "ow"}
+    resp = client.post("/report", json=payload)
+    assert resp.status_code == 200
+    assert resp.is_json
+    assert resp.json == {"status": "Submitted error report", "delay": 10}
+    REPORTS_QUEUE.send_message.assert_called_with(
+        MessageBody=json.dumps(payload), DelaySeconds=10
+    )

@@ -4,29 +4,44 @@ from unittest.mock import Mock, patch
 from tagbot.web import reports
 
 
+@patch("tagbot.web.reports._handle_report")
+def test_handler(handle_report):
+    event = {
+        "Records": [
+            {"body": """{"image":"i","repo":"re","run":"ru","stacktrace":"s"}"""},
+        ]
+    }
+    reports.handler(event)
+    handle_report.assert_called_with(image="i", repo="re", run="ru", stacktrace="s")
+
+
 @patch("tagbot.web.reports._find_duplicate", return_value=None)
 @patch("tagbot.web.reports._already_commented", side_effect=[True, False])
 @patch("tagbot.web.reports._add_duplicate_comment")
 @patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
-def test_handle(create_issue, add_duplicate_comment, already_commented, find_duplicate):
+def test_handle_report(
+    create_issue, add_duplicate_comment, already_commented, find_duplicate
+):
     kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
-    assert reports.handle(**kwargs) == {"status": "Created new issue", "url": "new"}
+    reports._handle_report(**kwargs)
+    create_issue.assert_called()
     find_duplicate.return_value = Mock(html_url="dupe")
-    assert reports.handle(**kwargs) == {
-        "status": "Found duplicate issue",
-        "url": "dupe",
-    }
+    reports._handle_report(**kwargs)
     add_duplicate_comment.assert_not_called()
-    assert reports.handle(**kwargs) == {
-        "status": "Found duplicate issue",
-        "url": "dupe",
-    }
+    reports._handle_report(**kwargs)
     add_duplicate_comment.assert_called()
 
 
 def test_already_commented():
-    issue = Mock(get_comments=Mock(return_value=[Mock(body="Repo: Foo/Bar")]))
+    issue = Mock(
+        body="Repo: Foo/Bar",
+        get_comments=Mock(return_value=[Mock(body="Repo: Foo/Bar")]),
+    )
     assert reports._already_commented(issue, repo="Foo/Bar")
+    issue.get_comments.assert_not_called()
+    issue.body = ""
+    assert reports._already_commented(issue, repo="Foo/Bar")
+    issue.get_comments.assert_called()
     assert not reports._already_commented(issue, repo="Bar/Baz")
 
 

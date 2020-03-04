@@ -1,6 +1,10 @@
+import json
 import os
 
+from random import randrange
 from typing import Dict, Tuple, TypeVar, Union
+
+import boto3
 
 from flask import Flask, render_template, request
 from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
@@ -9,9 +13,11 @@ T = TypeVar("T")
 StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
-TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 
-from . import reports  # noqa: E402
+MAX_DELAY = 900
+SQS = boto3.resource("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
+REPORTS_QUEUE = SQS.Queue(os.getenv("REPORTS_QUEUE", ""))
+TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 
 app = Flask(__name__)
 
@@ -49,9 +55,15 @@ def index() -> HTML:
 
 @app.route("/report", methods=["POST"])
 def report() -> JSON:
-    return reports.handle(
-        image=request.json["image"],
-        repo=request.json["repo"],
-        run=request.json["run"],
-        stacktrace=request.json["stacktrace"],
-    )
+    payload = {
+        "image": request.json["image"],
+        "repo": request.json["repo"],
+        "run": request.json["run"],
+        "stacktrace": request.json["stacktrace"],
+    }
+    # Because the GitHub Action usually runs on the hour, we tend to get a lot of
+    # requests at once, which botches the duplicate report detection.
+    # To deal with that, wait a random period before the message becomes available.
+    delay = randrange(MAX_DELAY)
+    REPORTS_QUEUE.send_message(MessageBody=json.dumps(payload), DelaySeconds=delay)
+    return {"status": "Submitted error report", "delay": delay}, 200
