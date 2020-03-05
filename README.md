@@ -171,8 +171,6 @@ with:
 
 White-space, case, dashes, and underscores are ignored when comparing labels.
 
-
-
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.

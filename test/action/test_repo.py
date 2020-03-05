@@ -362,24 +362,22 @@ def test_handle_release_branch():
 def test_create_release():
     r = _repo()
     r._git.commit_sha_of_default = Mock(return_value="a")
-    r._repo = Mock(default_branch="default")
-    r._changelog.get = Mock(return_value="log")
     r._git.create_tag = Mock()
-    r.create_release("v1.2.3", "a")
-    r._repo.create_git_release.assert_called_with(
-        "v1.2.3", "v1.2.3", "log", target_commitish="default",
-    )
-    r.create_release("v1.2.3", "b")
-    r._repo.create_git_release.assert_called_with(
-        "v1.2.3", "v1.2.3", "log", target_commitish="b",
-    )
+    r._repo = Mock(default_branch="default")
+    r._repo.create_git_tag.return_value.sha = "t"
+    r._changelog.get = Mock(return_value="l")
+    r.create_release("v1", "a")
     r._git.create_tag.assert_not_called()
-    r._ssh = True
-    r.create_release("v1.2.3", "c")
-    r._git.create_tag.assert_called_with("v1.2.3", "c", annotate=False)
+    r._repo.create_git_tag.assert_called_with("v1", "l", "a", "commit")
+    r._repo.create_git_ref.assert_called_with("refs/tags/v1", "t")
     r._repo.create_git_release.assert_called_with(
-        "v1.2.3", "v1.2.3", "log", target_commitish="c",
+        "v1", "v1", "l", target_commitish="default"
     )
+    r.create_release("v1", "b")
+    r._repo.create_git_release.assert_called_with("v1", "v1", "l", target_commitish="b")
+    r._ssh = True
+    r.create_release("v1", "c")
+    r._git.create_tag.assert_called_with("v1", "c", "l")
 
 
 @patch("requests.post")

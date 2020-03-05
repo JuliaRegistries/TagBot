@@ -12,26 +12,16 @@ from github.PullRequest import PullRequest
 from tagbot.action.repo import Repo
 
 
-def _changelog(
-    *,
-    repo="",
-    registry="",
-    token="",
-    template="",
-    ignore=set(),
-    ssh=False,
-    gpg=False,
-    lookback=3,
-):
+def _changelog(*, template="", ignore=set()):
     r = Repo(
-        repo=repo,
-        registry=registry,
-        token=token,
+        repo="",
+        registry="",
+        token="",
         changelog=template,
         changelog_ignore=ignore,
-        ssh=ssh,
-        gpg=gpg,
-        lookback=lookback,
+        ssh=False,
+        gpg=False,
+        lookback=3,
     )
     return r._changelog
 
