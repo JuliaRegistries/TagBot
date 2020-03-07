@@ -6,7 +6,7 @@ import traceback
 from datetime import timedelta
 
 from github.Requester import requests
-from . import Abort, info, error, warn
+from . import info, error, warn
 from .changelog import Changelog
 from .repo import Repo
 
@@ -69,12 +69,9 @@ try:
 
     for version, sha in versions.items():
         info(f"Processing version {version} ({sha})")
-        try:
-            if branches:
-                repo.handle_release_branch(version)
-            repo.create_release(version, sha)
-        except Abort as e:
-            error(e.args[0])
+        if branches:
+            repo.handle_release_branch(version)
+        repo.create_release(version, sha)
 except RequestException:
     warn("TagBot encountered a likely transient HTTP exception")
     traceback.print_exc()
