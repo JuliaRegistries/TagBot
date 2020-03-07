@@ -326,12 +326,13 @@ class Repo:
             target = self._repo.default_branch
         debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
-        # If we have a custom key, use it to create and push a tag via Git CLI,
-        # rather than through the GitHub API.
         if self._ssh or self._gpg:
-            info(f"Manually creating tag {version}")
-            # The tag only needs to be annotated if we want to sign it.
-            self._git.create_tag(version, sha, annotate=self._gpg)
+            debug("Creating tag via Git CLI")
+            self._git.create_tag(version, sha, log)
+        else:
+            debug("Creating tag via GitHub API")
+            tag = self._repo.create_git_tag(version, log, sha, "commit")
+            self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
         info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)
 
