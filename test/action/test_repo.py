@@ -125,8 +125,10 @@ def test_commit_sha_of_tag():
     r._repo.get_git_tag.return_value.object.sha = "t"
     assert r._commit_sha_of_tag("v2.3.4") == "t"
     r._repo.get_git_tag.assert_called_with("c")
-    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???")
+    r._repo.get_git_ref.return_value.object = None
     assert r._commit_sha_of_tag("v3.4.5") is None
+    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???")
+    assert r._commit_sha_of_tag("v4.5.6") is None
 
 
 @patch("tagbot.action.repo.error")

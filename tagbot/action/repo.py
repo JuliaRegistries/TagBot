@@ -133,9 +133,10 @@ class Repo:
             ref = self._repo.get_git_ref(f"tags/{version}")
         except UnknownObjectException:
             return None
-        if ref.object.type == "commit":
+        ref_type = getattr(ref.object, "type", None)
+        if ref_type == "commit":
             return cast(str, ref.object.sha)
-        elif ref.object.type == "tag":
+        elif ref_type == "tag":
             tag = self._repo.get_git_tag(ref.object.sha)
             return cast(str, tag.object.sha)
         else:
