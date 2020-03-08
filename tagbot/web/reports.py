@@ -109,7 +109,7 @@ def _create_issue(*, image: str, repo: str, run: str, stacktrace: str) -> Issue:
     """Create a new error report."""
     title = f"Automatic error report from {repo}"
     body = (
-        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
         f"[{ERROR_LABEL[:3]}]\n"  # Required for the automatic issue labeler.
+        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
     )
     return TAGBOT_REPO.create_issue(title, body)

@@ -96,6 +96,7 @@ def test_add_duplicate_comment():
 def test_create_issue(TAGBOT_REPO):
     reports._create_issue(image="img", repo="Foo/Bar", run="123", stacktrace="ow")
     expected = """\
+    [err]
     Repo: Foo/Bar
     Run URL: 123
     Image ID: img
@@ -103,7 +104,6 @@ def test_create_issue(TAGBOT_REPO):
     ```py
     ow
     ```
-    [err]
     """
     TAGBOT_REPO.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
