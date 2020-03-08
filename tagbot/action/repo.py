@@ -300,8 +300,6 @@ class Repo:
                 warn(sign_result.stderr)
                 raise Abort("Testing GPG key failed")
         self._git.config("user.signingKey", key_id)
-        self._git.config("user.name", "github-actions[bot]")
-        self._git.config("user.email", "actions@github.com")
         self._git.config("tag.gpgSign", "true")
 
     def handle_release_branch(self, version: str) -> None:

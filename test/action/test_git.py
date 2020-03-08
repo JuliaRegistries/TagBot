@@ -106,8 +106,17 @@ def test_config():
 
 def test_create_tag():
     g = _git(command="hm")
+    g.config = Mock()
     g.create_tag("v1", "abcdef", "log")
-    calls = [call("tag", "-m", "log", "v1", "abcdef"), call("push", "origin", "v1")]
+    calls = [
+        call("user.name", "github-actions[bot]"),
+        call("user.email", "actions@github.com"),
+    ]
+    g.config.assert_has_calls(calls)
+    calls = [
+        call("tag", "-m", "log", "v1", "abcdef"),
+        call("push", "origin", "v1"),
+    ]
     g.command.assert_has_calls(calls)
 
 

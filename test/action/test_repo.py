@@ -319,12 +319,7 @@ def test_configure_gpg(chmod, mkdtemp, GPG):
     chmod.assert_called_with("gpgdir", S_IREAD | S_IWRITE | S_IEXEC)
     GPG.assert_called_with(gnupghome="gpgdir", use_agent=True)
     gpg.import_keys.assert_called_with("foo bar")
-    calls = [
-        call("user.signingKey", "k"),
-        call("user.name", "github-actions[bot]"),
-        call("user.email", "actions@github.com"),
-        call("tag.gpgSign", "true"),
-    ]
+    calls = [call("user.signingKey", "k"), call("tag.gpgSign", "true")]
     r._git.config.assert_has_calls(calls)
     r.configure_gpg("Zm9v", None)
     gpg.import_keys.assert_called_with("foo")

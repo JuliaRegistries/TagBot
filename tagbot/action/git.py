@@ -94,6 +94,8 @@ class Git:
 
     def create_tag(self, version: str, sha: str, message: str) -> None:
         """Create and push a Git tag."""
+        self.config("user.name", "github-actions[bot]")
+        self.config("user.email", "actions@github.com")
         self.command("tag", "-m", message, version, sha)
         self.command("push", "origin", version)
 
