@@ -5,7 +5,9 @@ import traceback
 
 from datetime import timedelta
 
+from github import GithubException
 from github.Requester import requests
+
 from . import info, error, warn
 from .changelog import Changelog
 from .repo import Repo
@@ -72,12 +74,20 @@ try:
         if branches:
             repo.handle_release_branch(version)
         repo.create_release(version, sha)
-except RequestException:
-    warn("TagBot encountered a likely transient HTTP exception")
-    traceback.print_exc()
-except Exception:
-    try:
-        repo.report_error(traceback.format_exc())
-    except Exception:
-        error("Issue reporting failed")
+except Exception as e:
+    report = True
+    if isinstance(e, GithubException):
+        if 500 <= e.status < 600:
+            warn("GitHub returned a 5xx error code")
+            traceback.print_exc()
+            report = False
+    elif isinstance(e, RequestException):
+        warn("TagBot encountered a likely transient HTTP exception")
         traceback.print_exc()
+        report = False
+    if report:
+        try:
+            repo.report_error(traceback.format_exc())
+        except Exception:
+            error("Issue reporting failed")
+            traceback.print_exc()
