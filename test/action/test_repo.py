@@ -7,10 +7,13 @@ from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
-from github import UnknownObjectException
+from github import GithubException, UnknownObjectException
+from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
 from tagbot.action.repo import Repo
+
+RequestException = requests.RequestException
 
 
 def _repo(
@@ -211,6 +214,30 @@ def test_image_id(from_env, warn):
     warn.assert_called_with("HOSTNAME is not set")
 
 
+@patch("requests.post")
+def test_report_error(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar", private=True)
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
+    r._report_error("ahh")
+    post.assert_not_called()
+    r._repo.private = False
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
+        r._report_error("ahh")
+    post.assert_not_called()
+    with patch.dict(os.environ, {}, clear=True):
+        r._report_error("ahh")
+    post.assert_not_called()
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        r._report_error("ahh")
+    post.assert_called_with(
+        f"{TAGBOT_WEB}/report",
+        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
+    )
+
+
 @patch("tagbot.action.repo.debug")
 def test_is_registered(debug):
     r = _repo()
@@ -377,19 +404,17 @@ def test_create_release():
     r._git.create_tag.assert_called_with("v1", "c", "l")
 
 
-@patch("requests.post")
-def test_report_error(post):
-    post.return_value.json.return_value = {"status": "ok"}
-    r = _repo(token="x")
-    r._repo = Mock(full_name="Foo/Bar")
-    r._image_id = Mock(return_value="id")
-    r._run_url = Mock(return_value="url")
-    with patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}):
-        r.report_error("ahh")
-    post.assert_not_called()
-    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
-        r.report_error("ahh")
-    post.assert_called_with(
-        f"{TAGBOT_WEB}/report",
-        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
-    )
+@patch("traceback.format_exc", return_value="ahh")
+@patch("tagbot.action.repo.error")
+def test_handle_error(error, format_exc):
+    r = _repo()
+    r._report_error = Mock(side_effect=[None, RuntimeError("!")])
+    r.handle_error(RequestException())
+    r._report_error.assert_not_called()
+    r.handle_error(GithubException(502, "oops"))
+    r._report_error.assert_not_called()
+    r.handle_error(GithubException(404, "???"))
+    r._report_error.assert_called_with("ahh")
+    r.handle_error(RuntimeError("?"))
+    r._report_error.assert_called_with("ahh")
+    error.assert_called_with("Issue reporting failed")

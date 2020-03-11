@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import traceback
 
 import docker
 import pexpect
@@ -15,13 +16,15 @@ from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, cast
 
-from github import Github, UnknownObjectException
+from github import Github, GithubException, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
 
 from . import TAGBOT_WEB, Abort, InvalidProject, debug, info, warn, error
 from .changelog import Changelog
 from .git import Git
+
+RequestException = requests.RequestException
 
 
 class Repo:
@@ -206,6 +209,22 @@ class Repo:
         container = client.containers.get(host)
         return container.image.id
 
+    def _report_error(self, trace: str) -> None:
+        """Report an error."""
+        if self._repo.private or os.getenv("GITHUB_ACTIONS") != "true":
+            debug("Not reporting")
+            return
+        debug("Reporting error")
+        data = {
+            "image": self._image_id(),
+            "repo": self._repo.full_name,
+            "run": self._run_url(),
+            "stacktrace": trace,
+        }
+        resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
+        output = json.dumps(resp.json(), indent=2)
+        info(f"Response ({resp.status_code}): {output}")
+
     def is_registered(self) -> bool:
         """Check whether or not the repository belongs to a registered package."""
         try:
@@ -335,20 +354,24 @@ class Repo:
         info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)
 
-    def report_error(self, trace: str) -> None:
-        """Report an error."""
-        error("TagBot experienced an unexpected internal failure")
-        info(trace)
-        if os.getenv("GITHUB_ACTIONS") == "true":
-            debug("Reporting error")
-            data = {
-                "image": self._image_id(),
-                "repo": self._repo.full_name,
-                "run": self._run_url(),
-                "stacktrace": trace,
-            }
-            resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
-            output = json.dumps(resp.json(), indent=2)
-            info(f"Response ({resp.status_code}): {output}")
-        else:
-            debug("Not reporting")
+    def handle_error(self, e: Exception) -> None:
+        """Handle an unexpected error."""
+        allowed = False
+        trace = traceback.format_exc()
+        if isinstance(e, RequestException):
+            warn("TagBot encountered a likely transient HTTP exception")
+            info(trace)
+            allowed = True
+        elif isinstance(e, GithubException):
+            if 500 <= e.status < 600:
+                warn("GitHub returned a 5xx error code")
+                info(trace)
+                allowed = True
+        if not allowed:
+            error("TagBot experienced an unexpected internal failure")
+            info(trace)
+            try:
+                self._report_error(trace)
+            except Exception:
+                error("Issue reporting failed")
+                info(traceback.format_exc())
