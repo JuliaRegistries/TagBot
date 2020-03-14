@@ -327,8 +327,9 @@ class Repo:
         branch = f"release-{version[1:]}"
         if not self._git.fetch_branch(branch):
             info(f"Release branch {branch} does not exist")
-            return
-        if self._git.can_fast_forward(branch):
+        elif self._git.is_merged(branch):
+            info(f"Release branch {branch} is already merged")
+        elif self._git.can_fast_forward(branch):
             info("Release branch can be fast-forwarded")
             self._git.merge_and_delete_branch(branch)
         else:

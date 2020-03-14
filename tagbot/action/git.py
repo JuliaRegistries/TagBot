@@ -110,6 +110,12 @@ class Git:
         self.command("checkout", self._default_branch)
         return True
 
+    def is_merged(self, branch: str) -> bool:
+        """Determine if a branch has been merged."""
+        head = self.command("rev-parse", branch)
+        shas = self.command("log", self._default_branch, "--format=%H").splitlines()
+        return head in shas
+
     def can_fast_forward(self, branch: str) -> bool:
         """Check whether the default branch can be fast-forwarded to branch."""
         # https://stackoverflow.com/a/49272912

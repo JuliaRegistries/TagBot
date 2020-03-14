@@ -129,6 +129,15 @@ def test_fetch_branch():
     g.command.assert_called_with("checkout", "default")
 
 
+def test_is_merged():
+    g = _git(command=["b", "a\nb\nc", "d", "a\nb\nc"])
+    g._Git__default_branch = "default"
+    assert g.is_merged("foo")
+    calls = [call("rev-parse", "foo"), call("log", "default", "--format=%H")]
+    g.command.assert_has_calls(calls)
+    assert not g.is_merged("bar")
+
+
 def test_can_fast_forward():
     g = _git(check=[False, True])
     g._Git__default_branch = "default"
