@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v25/github"
-	"github.com/pkg/errors"
+	"github.com/google/go-github/v30/github"
 )
 
 const (
@@ -42,7 +41,7 @@ Comment body:
 	)
 
 	if err := isTriggerComment(ice); err != nil {
-		return errors.Wrap(err, "Validation")
+		return fmt.Errorf("Validation: %w", err)
 	}
 
 	repo := ice.GetRepo()
@@ -51,12 +50,12 @@ Comment body:
 
 	client, err := GetInstallationClient(owner, name)
 	if err != nil {
-		return errors.Wrap(err, "Installation client")
+		return fmt.Errorf("Installation client: %w", err)
 	}
 
 	pr, _, err := client.PullRequests.Get(Ctx, owner, name, i.GetNumber())
 	if err != nil {
-		return errors.Wrap(err, "Getting PR")
+		return fmt.Errorf("Getting PR: %w", err)
 	}
 
 	fmt.Println("Processing fake PullRequestEvent")

@@ -6,21 +6,18 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/google/go-github/v25/github"
-	"github.com/pkg/errors"
+	"github.com/google/go-github/v30/github"
 )
 
 const ActionClosed = "closed"
 
 var (
-	ContactUser         = os.Getenv("GITHUB_CONTACT_USER")
 	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
 
-	RepoRegex         = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
-	VersionRegex      = regexp.MustCompile(`Version:\s*(v.*)`)
-	CommitRegex       = regexp.MustCompile(`Commit:\s*(.*)`)
-	ReleaseNotesRegex = regexp.MustCompile(`(?s)<!-- BEGIN (?:PATCH|RELEASE) NOTES -->(.*)<!-- END (?:PATCH|RELEASE) NOTES -->`)
-	MergedPRRegex     = regexp.MustCompile(`Merge pull request #(\d+)`)
+	RepoRegex     = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
+	VersionRegex  = regexp.MustCompile(`Version:\s*(v.*)`)
+	CommitRegex   = regexp.MustCompile(`Commit:\s*(.*)`)
+	MergedPRRegex = regexp.MustCompile(`Merge pull request #(\d+)`)
 )
 
 // HandlePullRequest handles a pull request event.
@@ -50,12 +47,12 @@ PR Body:
 	)
 
 	if err := shouldRelease(pre); err != nil {
-		return errors.Wrap(err, "Validation")
+		return fmt.Errorf("Validation: %w", err)
 	}
 
 	r := parseBody(PreprocessBody(pr.GetBody()))
 
-	if ok, err := IsActionEnabled(r.User, r.Repo, r.Commit); err != nil {
+	if ok, err := IsActionEnabled(r.User, r.Repo); err != nil {
 		fmt.Println("Checking for GitHub Action failed:", err)
 	} else if ok {
 		fmt.Println("TagBot as a GitHub Action is enabled, skipping")
@@ -67,11 +64,11 @@ PR Body:
 		if err == ErrRepoNotEnabled {
 			MakeErrorComment(pr, id, err)
 		}
-		return errors.Wrap(err, "Installation client")
+		return fmt.Errorf("Installation client: %w", err)
 	}
 
 	if err := r.Do(client, pr, id); err != nil {
-		return errors.Wrap(err, "Creating release")
+		return fmt.Errorf("Creating release: %w", err)
 	}
 
 	return nil
@@ -122,26 +119,11 @@ func parseBody(body string) Release {
 	match = CommitRegex.FindStringSubmatch(body)
 	commit := match[1]
 
-	// This one is optional, and just defaults to no notes.
-	match = ReleaseNotesRegex.FindStringSubmatch(body)
-	var notes string
-	if match != nil {
-		notes = strings.TrimSpace(match[1])
-		lines := strings.Split(notes, "\n")
-		if strings.HasPrefix(lines[0], "> ") {
-			for i, l := range lines {
-				lines[i] = strings.TrimSpace(l[1:])
-			}
-			notes = strings.Join(lines, "\n")
-		}
-	}
-
 	return Release{
 		User:    owner,
 		Repo:    name,
 		Version: version,
 		Commit:  commit,
-		Notes:   notes,
 	}
 }
 
@@ -160,9 +142,8 @@ func MakeErrorComment(pr *github.PullRequest, id string, err error) {
 		"I tried to create a release but ran into this error:",
 		"```\n%v\n```",
 		"To retry, comment on this PR with the phrase `%s`.",
-		"cc: @%s",
 	}
-	body := fmt.Sprintf(strings.Join(lines, "\n"), err, CommandTag, ContactUser)
+	body := fmt.Sprintf(strings.Join(lines, "\n"), err, CommandTag)
 	SendComment(pr, id, body)
 }
 
@@ -180,7 +161,6 @@ func SendComment(pr *github.PullRequest, id, body string) {
 	}
 
 	body += fmt.Sprintf("\n<!-- %s -->", id)
-	body += "\n\n" + DeprecationNotice
 	c := &github.IssueComment{Body: &body}
 	if _, _, err := client.Issues.CreateComment(Ctx, owner, name, num, c); err != nil {
 		fmt.Println("Creating comment:", err)

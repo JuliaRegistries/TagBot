@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/v25/github"
+	"github.com/google/go-github/v30/github"
 )
 
 func makePRE(action string, merged bool, user, branch, body string) *github.PullRequestEvent {
@@ -24,7 +24,7 @@ func makePRE(action string, merged bool, user, branch, body string) *github.Pull
 	}
 }
 
-func makeBody(repository, version, commit, notes string) string {
+func makeBody(repository, version, commit string) string {
 	ss := []string{}
 	if repository != "" {
 		ss = append(ss, "Repository: "+repository)
@@ -34,9 +34,6 @@ func makeBody(repository, version, commit, notes string) string {
 	}
 	if commit != "" {
 		ss = append(ss, "Commit: "+commit)
-	}
-	if notes != "" {
-		ss = append(ss, "Release notes:", "<!-- BEGIN RELEASE NOTES -->", notes, "<!-- END RELEASE NOTES -->")
 	}
 	return strings.TrimSpace(strings.Join(ss, "\n"))
 }
@@ -53,10 +50,10 @@ func TestShouldRelease(t *testing.T) {
 		{makePRE(ActionClosed, false, "", "", ""), ErrNotMergeEvent},
 		{makePRE(ActionClosed, true, "foo", "", ""), ErrNotRegistrator},
 		{makePRE(ActionClosed, true, r, "foo", ""), ErrBaseBranch},
-		{makePRE(ActionClosed, true, r, b, makeBody("", "", "", "")), ErrRepoMatch},
-		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "", "", "")), ErrVersionMatch},
-		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "v0.1.0", "", "")), ErrCommitMatch},
-		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "v0.1.0", "sha", "")), nil},
+		{makePRE(ActionClosed, true, r, b, makeBody("", "", "")), ErrRepoMatch},
+		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "", "")), ErrVersionMatch},
+		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "v0.1.0", "")), ErrCommitMatch},
+		{makePRE(ActionClosed, true, r, b, makeBody("github.com/a/b", "v0.1.0", "sha")), nil},
 	}
 
 	for i, tt := range cases {
@@ -71,11 +68,11 @@ func TestParseBody(t *testing.T) {
 		in  string
 		out Release
 	}{
-		{makeBody("github.com/a/b", "v0.1.0", "sha", ""), Release{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("https://github.com/a/b", "v0.1.0", "sha", ""), Release{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", " "), Release{"a", "b", "v0.1.0", "sha", ""}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "notes"), Release{"a", "b", "v0.1.0", "sha", "notes"}},
-		{makeBody("http://github.com/a/b", "v0.1.0", "sha", "> foo\n> bar"), Release{"a", "b", "v0.1.0", "sha", "foo\nbar"}},
+		{makeBody("github.com/a/b", "v0.1.0", "sha"), Release{"a", "b", "v0.1.0", "sha"}},
+		{makeBody("https://github.com/a/b", "v0.1.0", "sha"), Release{"a", "b", "v0.1.0", "sha"}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha"), Release{"a", "b", "v0.1.0", "sha"}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha"), Release{"a", "b", "v0.1.0", "sha"}},
+		{makeBody("http://github.com/a/b", "v0.1.0", "sha"), Release{"a", "b", "v0.1.0", "sha"}},
 	}
 
 	for i, tt := range cases {

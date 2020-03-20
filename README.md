@@ -1,57 +1,18 @@
-# <img src="logo.png" width="60"> Julia TagBot
+# Deploying The Legacy GitHub App
 
-[![app-img]][app-link]
-[![travis-img]][travis-link]
+The old GitHub App can be deployed as a plain old web server.
+To run it through Docker, here's an example:
 
-TagBot creates tags and releases for your Julia packages when they're registered, so that your Git tags and GitHub releases are kept in sync with releases you have made on the Julia package registry.
+```sh
+docker build -t tagbot:app .
+docker run \
+    --name tagbot \
+    -d \
+    --mount type=bind,source=$(pwd)/tagbot.pem,target=/app/tagbot.pem -e GITHUB_PEM=/app/tagbot.pem \
+    -p 4000:4000 -e PORT=4000 \
+    -e GITHUB_APP_ID=123 \
+    -e GITHUB_WEBHOOK_SECRET=asdf \
+    tagbot:app
+```
 
-To install the app, click the badge above (enabling for all repositories is recommended).
-Afterwards, releases for all of your packages registered with [Registrator] will be handled automatically.
-TagBot does not handle manual registrations.
-
-## Usage
-
-1. Install TagBot and enable it for your package if not already done.
-2. Make a package release using [Registrator].
-3. TagBot will automatically tag a GitHub release that matches the package release you just made.
-
-### Manually Triggering a Release
-
-If you register a package before enabling TagBot, you can still have a release created retroactively.
-To trigger the release, add a comment to your merged registry PR containing the text `TagBot tag`.
-This is also useful when TagBot reports an error.
-To include the tag command in a comment without actually triggering a release, include `TagBot ignore` in your comment.
-This should be useful for registry maintainers who want to make recommendations without modifying another repository.
-
-### Release Notes
-
-TagBot allows you to write your release notes in the same place that you trigger Registrator (see the [Registrator] README for specifics), but you don't have to if you're feeling lazy.
-When release notes are provided, they are copied into both the Git tag message and the GitHub release.
-If you do not write any notes, a changelog is automatically generated from closed issues and merged pull requests.
-This will appear in the GitHub release, and a link to that release will appear in the Git tag message.
-
-When using the automatic changelog, you can ensure that certain issues or pull requests are not included.
-These might include usage questions or typo fixes that aren't worth mentioning.
-To exclude an issue or PR, add a label to it with one of the following values:
-
-- `changelog skip`
-- `duplicate`
-- `exclude from changelog`
-- `invalid`
-- `no changelog`
-- `question`
-- `wont fix`
-
-You can spell these in a few different ways.
-For example, `no changelog` could be `nochangelog`, `no-changelog`, `no_changelog`, `No Changelog`, `NoChangelog`, `No-Changelog`, or `No_Changelog`.
-
----
-
-For more information on what TagBot is and isn't, please see the [announcement].
-
-[app-img]: https://img.shields.io/badge/GitHub%20App-install-blue.svg
-[app-link]: https://github.com/apps/julia-tagbot
-[travis-img]: https://travis-ci.com/JuliaRegistries/TagBot.svg?branch=master
-[travis-link]: https://travis-ci.com/JuliaRegistries/TagBot
-[registrator]: https://juliaregistrator.github.io
-[announcement]: https://discourse.julialang.org/t/ann-tagbot-creates-tags-and-releases-for-your-julia-packages-when-theyre-registered/23084
+This assumes that you already have a GitHub App set up, and have obtained its ID, webhook secret, and private key.
