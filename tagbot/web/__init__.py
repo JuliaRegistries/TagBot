@@ -2,7 +2,6 @@ import json
 import logging
 import os
 
-from random import randrange
 from typing import Dict, Optional, Tuple, TypeVar, Union, cast
 
 import boto3
@@ -15,7 +14,6 @@ StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
 
-MAX_DELAY = 900
 SQS = boto3.resource("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
 REPORTS_QUEUE = SQS.Queue(os.getenv("REPORTS_QUEUE", ""))
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
@@ -80,9 +78,5 @@ def report() -> JSON:
         "run": request.json["run"],
         "stacktrace": request.json["stacktrace"],
     }
-    # Because the GitHub Action usually runs on the hour, we tend to get a lot of
-    # requests at once, which botches the duplicate report detection.
-    # To deal with that, wait a random period before the message becomes available.
-    delay = randrange(MAX_DELAY)
-    REPORTS_QUEUE.send_message(MessageBody=json.dumps(payload), DelaySeconds=delay)
-    return {"status": "Submitted error report", "delay": delay}, 200
+    REPORTS_QUEUE.send_message(MessageBody=json.dumps(payload))
+    return {"status": "Submitted error report"}, 200

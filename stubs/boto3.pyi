@@ -1,7 +1,7 @@
 from typing import Literal
 
 class QueueType:
-    def send_message(self, *, MessageBody: str, DelaySeconds: int) -> object: ...
+    def send_message(self, *, MessageBody: str) -> object: ...
 
 class SQS:
     @staticmethod
