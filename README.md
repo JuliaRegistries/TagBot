@@ -17,7 +17,7 @@ Create a file at `.github/workflows/TagBot.yml` with the following contents:
 name: TagBot
 on:
   schedule:
-    - cron: 0 * * * *
+    - cron: 0 0 * * *
 jobs:
   TagBot:
     runs-on: ubuntu-latest
