@@ -13,11 +13,11 @@ const ActionClosed = "closed"
 
 var (
 	RegistratorUsername = os.Getenv("REGISTRATOR_USERNAME")
-
-	RepoRegex     = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
-	VersionRegex  = regexp.MustCompile(`Version:\s*(v.*)`)
-	CommitRegex   = regexp.MustCompile(`Commit:\s*(.*)`)
-	MergedPRRegex = regexp.MustCompile(`Merge pull request #(\d+)`)
+	RepoRegex           = regexp.MustCompile(`Repository:.*github.com/(.*)/(.*)`)
+	VersionRegex        = regexp.MustCompile(`Version:\s*(v.*)`)
+	CommitRegex         = regexp.MustCompile(`Commit:\s*(.*)`)
+	MergedPRRegex       = regexp.MustCompile(`Merge pull request #(\d+)`)
+	ServerMaintainer    = os.Getenv("SERVER_MAINTAINER")
 )
 
 // HandlePullRequest handles a pull request event.
@@ -53,6 +53,11 @@ PR Body:
 	r := parseBody(PreprocessBody(pr.GetBody()))
 
 	if ok, err := IsActionEnabled(r.User, r.Repo); err != nil {
+		if err == ErrNoSpace {
+			fmt.Println("No space left on server!")
+			MakeErrorComment(pr, id, err)
+			return nil
+		}
 		fmt.Println("Checking for GitHub Action failed:", err)
 	} else if ok {
 		fmt.Println("TagBot as a GitHub Action is enabled, skipping")
@@ -142,6 +147,9 @@ func MakeErrorComment(pr *github.PullRequest, id string, err error) {
 		"I tried to create a release but ran into this error:",
 		"```\n%v\n```",
 		"To retry, comment on this PR with the phrase `%s`.",
+	}
+	if err == ErrNoSpace && ServerMaintainer != "" {
+		lines = append(lines, "cc: @"+ServerMaintainer)
 	}
 	body := fmt.Sprintf(strings.Join(lines, "\n"), err, CommandTag)
 	SendComment(pr, id, body)

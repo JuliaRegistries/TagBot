@@ -8,6 +8,7 @@ var (
 	ErrCommentByBot   = errors.New("Comment is made by a bot")
 	ErrCommitMatch    = errors.New("No commit regex match")
 	ErrIgnored        = errors.New("Comment contained ignore command")
+	ErrNoSpace        = errors.New("No space left on device")
 	ErrNoTrigger      = errors.New("Comment doesn't contain trigger phrase")
 	ErrNotMergeEvent  = errors.New("Not a merge event")
 	ErrNotNewComment  = errors.New("Not a comment creation event")

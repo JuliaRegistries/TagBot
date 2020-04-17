@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +21,12 @@ func IsActionEnabled(user, repo string) (bool, error) {
 		"git", "clone", fmt.Sprintf("https://github.com/%s/%s", user, repo), dest,
 		"--depth", "1",
 	)
-	if err = cmd.Run(); err != nil {
+	if bs, err := cmd.CombinedOutput(); err != nil {
+		s := string(bs)
+		log.Println(s)
+		if strings.Contains(s, "No space left on device") {
+			err = ErrNoSpace
+		}
 		return false, err
 	}
 	defer os.RemoveAll(dest)
