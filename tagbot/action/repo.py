@@ -19,6 +19,7 @@ from typing import Dict, List, Mapping, MutableMapping, Optional, cast
 from github import Github, GithubException, UnknownObjectException
 from github.Requester import requests
 from gnupg import GPG
+from semver import VersionInfo
 
 from . import TAGBOT_WEB, Abort, InvalidProject, debug, info, warn, error
 from .changelog import Changelog
@@ -248,7 +249,11 @@ class Repo:
         debug(f"There are {len(current)} total versions")
         old = self._versions(min_age=self._lookback)
         debug(f"There are {len(current) - len(old)} new versions")
-        versions = {k: v for k, v in current.items() if k not in old}
+        # Make sure to insert items in SemVer order.
+        versions = {}
+        for v in sorted(current.keys(), key=VersionInfo.parse):
+            if v not in old:
+                versions[v] = current[v]
         return self._filter_map_versions(versions)
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:

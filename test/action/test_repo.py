@@ -264,10 +264,10 @@ def test_new_versions():
     r._versions = (
         lambda min_age=None: {"1.2.3": "abc"}
         if min_age
-        else {"1.2.3": "abc", "2.3.4": "bcd"}
+        else {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
     r._filter_map_versions = lambda vs: vs
-    assert r.new_versions() == {"2.3.4": "bcd"}
+    assert list(r.new_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
 
 
 @patch("requests.post")

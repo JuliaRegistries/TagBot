@@ -1,8 +1,6 @@
 import json
 import re
 
-import semver
-
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
@@ -11,6 +9,7 @@ from github.Issue import Issue
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from jinja2 import Template
+from semver import VersionInfo
 
 from . import debug, info, warn
 
@@ -44,14 +43,14 @@ class Changelog:
 
     def _previous_release(self, version: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        cur_ver = semver.parse_version_info(version[1:])
-        prev_ver = semver.parse_version_info("0.0.0")
+        cur_ver = VersionInfo.parse(version[1:])
+        prev_ver = VersionInfo(0)
         prev_rel = None
         for r in self._repo._repo.get_releases():
             if not r.tag_name.startswith("v"):
                 continue
             try:
-                ver = semver.parse_version_info(r.tag_name[1:])
+                ver = VersionInfo.parse(r.tag_name[1:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
