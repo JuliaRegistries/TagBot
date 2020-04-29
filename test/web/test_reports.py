@@ -51,13 +51,14 @@ def test_is_duplicate():
     assert not reports._is_duplicate("hello", "friend")
 
 
-@patch("tagbot.web.reports.TAGBOT_REPO")
-def test_find_duplicate(TAGBOT_REPO):
+@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
+def test_find_duplicate(TAGBOT_ISSUES_REPO):
     body = "foo\n```py\nstack\n```\nbar"
-    TAGBOT_REPO.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
+    TAGBOT_ISSUES_REPO.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
     assert not reports._find_duplicate("foo bar")
     assert not reports._find_duplicate("hello")
-    assert reports._find_duplicate("stack") is TAGBOT_REPO.get_issues.return_value[1]
+    expected = TAGBOT_ISSUES_REPO.get_issues.return_value[1]
+    assert reports._find_duplicate("stack") is expected
 
 
 def test_report_body():
@@ -92,11 +93,10 @@ def test_add_duplicate_comment():
     issue.create_comment.assert_called_with(dedent(expected))
 
 
-@patch("tagbot.web.reports.TAGBOT_REPO")
-def test_create_issue(TAGBOT_REPO):
+@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
+def test_create_issue(TAGBOT_ISSUES_REPO):
     reports._create_issue(image="img", repo="Foo/Bar", run="123", stacktrace="ow")
     expected = """\
-    [err]
     Repo: Foo/Bar
     Run URL: 123
     Image ID: img
@@ -105,6 +105,6 @@ def test_create_issue(TAGBOT_REPO):
     ow
     ```
     """
-    TAGBOT_REPO.create_issue.assert_called_with(
+    TAGBOT_ISSUES_REPO.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
     )

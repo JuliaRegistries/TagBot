@@ -9,11 +9,10 @@ from github.Issue import Issue
 from github.IssueComment import IssueComment
 from pylev import levenshtein
 
-from . import TAGBOT_REPO_NAME
+from . import TAGBOT_ISSUES_REPO_NAME
 
 _gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
-TAGBOT_REPO = _gh.get_repo(TAGBOT_REPO_NAME, lazy=True)
-ERROR_LABEL = "error-report"
+TAGBOT_ISSUES_REPO = _gh.get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 
 def handler(event: Dict[str, object], ctx: object = None) -> None:
@@ -75,7 +74,7 @@ def _is_duplicate(a: str, b: str) -> bool:
 
 def _find_duplicate(stacktrace: str) -> Optional[Issue]:
     """Look for a duplicate error report."""
-    for issue in TAGBOT_REPO.get_issues(state="all", labels=[ERROR_LABEL]):
+    for issue in TAGBOT_ISSUES_REPO.get_issues(state="all"):
         m = re.search("(?s)```py\n(.*)\n```", issue.body)
         if not m:
             continue
@@ -108,8 +107,5 @@ def _add_duplicate_comment(
 def _create_issue(*, image: str, repo: str, run: str, stacktrace: str) -> Issue:
     """Create a new error report."""
     title = f"Automatic error report from {repo}"
-    body = (
-        f"[{ERROR_LABEL[:3]}]\n"  # Required for the automatic issue labeler.
-        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
-    )
-    return TAGBOT_REPO.create_issue(title, body)
+    body = _report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)
+    return TAGBOT_ISSUES_REPO.create_issue(title, body)
