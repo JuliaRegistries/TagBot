@@ -1,6 +1,7 @@
 service: TagBotWeb
 plugins:
   - serverless-domain-manager
+  - serverless-python-requirements
   - serverless-wsgi
 custom:
   prod:
