@@ -17,6 +17,7 @@ JSON = StatusOptional[Dict[str, object]]
 SQS = boto3.resource("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
 REPORTS_QUEUE = SQS.Queue(os.getenv("REPORTS_QUEUE", ""))
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
+TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
