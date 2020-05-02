@@ -2,9 +2,9 @@ import os
 import sys
 import time
 
-from datetime import timedelta
+import requests
 
-from github.Requester import requests
+from datetime import timedelta
 
 from . import info, error
 from .changelog import Changelog

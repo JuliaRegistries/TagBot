@@ -2,7 +2,7 @@ import json
 import re
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union, cast
 
 from github.GitRelease import GitRelease
 from github.Issue import Issue
@@ -63,13 +63,15 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
-    def _issues_and_pulls(self, start: datetime, end: datetime) -> List[Issue]:
+    def _issues_and_pulls(
+        self, start: datetime, end: datetime
+    ) -> List[Union[Issue, PullRequest]]:
         """Collect issues and pull requests that were closed in the interval."""
         # Even if we've previously cached some data,
         # only return it if the interval is the same.
         if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
-        xs = []
+        xs: List[Union[Issue, PullRequest]] = []
         # Get all closed issues and merged PRs that were closed/merged in the interval.
         for x in self._repo._repo.get_issues(state="closed", since=start):
             # If a previous release's last commit closed an issue, then that issue
@@ -119,7 +121,7 @@ class Changelog:
         debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
-            if now - pr.closed_at > self._repo._lookback:
+            if now - cast(datetime, pr.closed_at) > self._repo._lookback:
                 break
             if pr.merged and pr.head.ref == head:
                 return pr

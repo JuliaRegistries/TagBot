@@ -69,6 +69,13 @@ def test_registry_path():
     assert r._registry.get_contents.call_count == 2
 
 
+def test_only():
+    r = _repo()
+    assert r._only(1) == 1
+    assert r._only([1]) == 1
+    assert r._only([[1]]) == [1]
+
+
 def test_maybe_b64():
     r = _repo()
     assert r._maybe_b64("foo bar") == "foo bar"
@@ -270,18 +277,12 @@ def test_new_versions():
     assert list(r.new_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
 
 
-@patch("requests.post")
-def test_create_dispatch_event(post):
-    r = _repo(token="x")
+def test_create_dispatch_event():
+    r = _repo()
     r._repo = Mock(full_name="Foo/Bar")
     r.create_dispatch_event({"a": "b", "c": "d"})
-    post.assert_called_once_with(
-        "https://api.github.com/repos/Foo/Bar/dispatches",
-        headers={
-            "Accept": "application/vnd.github.everest-preview+json",
-            "Authorization": f"token x",
-        },
-        json={"event_type": "TagBot", "client_payload": {"a": "b", "c": "d"}},
+    r._repo.create_repository_dispatch.assert_called_once_with(
+        "TagBot", {"a": "b", "c": "d"}
     )
 
 

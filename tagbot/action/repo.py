@@ -7,6 +7,7 @@ import traceback
 
 import docker
 import pexpect
+import requests
 import toml
 
 from base64 import b64decode
@@ -14,10 +15,9 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional, cast
+from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 
 from github import Github, GithubException, UnknownObjectException
-from github.Requester import requests
 from gnupg import GPG
 from semver import VersionInfo
 
@@ -26,6 +26,7 @@ from .changelog import Changelog
 from .git import Git
 
 RequestException = requests.RequestException
+T = TypeVar("T")
 
 
 class Repo:
@@ -61,7 +62,7 @@ class Repo:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             try:
-                contents = self._repo.get_contents(name)
+                contents = self._only(self._repo.get_contents(name))
                 break
             except UnknownObjectException:
                 pass
@@ -75,7 +76,7 @@ class Repo:
         """Get the package's path in the registry repo."""
         if self.__registry_path is not None:
             return self.__registry_path
-        contents = self._registry.get_contents("Registry.toml")
+        contents = self._only(self._registry.get_contents("Registry.toml"))
         registry = toml.loads(contents.decoded_content.decode())
         try:
             uuid = self._project("uuid")
@@ -85,6 +86,10 @@ class Repo:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
         return None
+
+    def _only(self, val: Union[T, List[T]]) -> T:
+        """Get the first element of a list or the thing itself if it's not a list."""
+        return val[0] if isinstance(val, list) else val
 
     def _maybe_b64(self, val: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
@@ -109,7 +114,7 @@ class Repo:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
             if commit.commit.tree.sha == tree:
-                return cast(str, commit.sha)
+                return commit.sha
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -139,10 +144,10 @@ class Repo:
             return None
         ref_type = getattr(ref.object, "type", None)
         if ref_type == "commit":
-            return cast(str, ref.object.sha)
+            return ref.object.sha
         elif ref_type == "tag":
             tag = self._repo.get_git_tag(ref.object.sha)
-            return cast(str, tag.object.sha)
+            return tag.object.sha
         else:
             return None
 
@@ -185,7 +190,9 @@ class Repo:
                 debug("No registry commits were found")
                 return {}
         try:
-            contents = self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
+            contents = self._only(
+                self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
+            )
         except UnknownObjectException:
             debug(f"Versions.toml was not found ({kwargs})")
             return {}
@@ -235,7 +242,7 @@ class Repo:
             return False
         if not root:
             return False
-        contents = self._registry.get_contents(f"{root}/Package.toml")
+        contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
         package = toml.loads(contents.decoded_content.decode())
         m = re.search(r"://github\.com/(.*?)(?:\.git)?$", package["repo"])
         if not m:
@@ -258,16 +265,8 @@ class Repo:
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
-        # PyGithub does not yet support this endpoint (#1299).
-        resp = requests.post(
-            f"https://api.github.com/repos/{self._repo.full_name}/dispatches",
-            headers={
-                "Accept": "application/vnd.github.everest-preview+json",
-                "Authorization": f"token {self._token}",
-            },
-            json={"event_type": "TagBot", "client_payload": payload},
-        )
-        debug(f"Dispatch response code: {resp.status_code}")
+        # TODO: Remove the comment when PyGithub#1502 is published.
+        self._repo.create_repository_dispatch("TagBot", payload)  # type: ignore
 
     def configure_ssh(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to use an SSH key for authentication."""
