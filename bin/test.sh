@@ -18,6 +18,6 @@ checked python -m pytest --cov tagbot --ignore node_modules
 checked black --check bin stubs tagbot test
 checked flake8 bin tagbot test
 # The test code monkey patches methods a lot, and mypy doesn't like that.
-checked env MYPYPATH=stubs mypy --strict bin tagbot
+checked mypy --strict bin tagbot
 
 exit "$exit"
