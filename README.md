@@ -30,38 +30,31 @@ jobs:
 No further action is required on your part.
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
-You may, however, want to customize the behaviour via the available configuration options:
+You may, however, want to customize the behaviour via the available configuration options.
 
-- [Personal Access Tokens](#personal-access-tokens)
-- [SSH Deploy Keys](#ssh-deploy-keys)
-- [Changelogs](#changelogs)
-- [GPG Signing](#gpg-signing)
-- [Custom Registries](#custom-registries)
-- [Lookback Period](#lookback-period)
-- [Release Branch Management](#release-branch-management)
-- [Pre-Release Hooks](#pre-release-hooks)
+For example, if you use GitHub Actions to build the documentation for your package, you will find that with the default TagBot configuration, your documentation build is not triggered when a new tag is created. In this case, you will need to use [SSH Deploy Keys](#ssh-deploy-keys).
 
-### Personal Access Tokens
+Read on for a full description of all of the available configuration options.
 
-It's sometimes better to use a GitHub personal access token instead of the default `secrets.GITHUB_TOKEN`.
-The most notable reason is that the default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
-To use a personal access token:
+## Table of Contents
 
-- Create a token by following the instructions [here](https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line#creating-a-token).
-- Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
-  Use whatever you like as the name, such as `TAGBOT_PAT`.
-  Use the new personal access token as the value.
-- Replace the `token` input's value with the name of your secret, like so:
+- Configuration Options:
+  - [SSH Deploy Keys](#ssh-deploy-keys)
+  - [Changelogs](#changelogs)
+  - [GPG Signing](#gpg-signing)
+  - [Custom Registries](#custom-registries)
+  - [Lookback Period](#lookback-period)
+  - [Release Branch Management](#release-branch-management)
+- Advanced Configuration Options:
+  - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
+  - [Pre-Release Hooks](#pre-release-hooks)
 
-```yml
-with:
-  token: ${{ secrets.TAGBOT_PAT }}
-```
+## Configuration Options
 
 ### SSH Deploy Keys
 
-Using personal access tokens works around the default token's limitations, but they have access to all of your repositories.
-To reduce the consequences of a secret being leaked, you can instead use an SSH deploy key that only has permissions for a single repository.
+Sometimes, instead of using the default `secrets.GITHUB_TOKEN`, it is better to use an SSH deploy key. The most notable reason is that the default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
+
 To use an SSH deploy key:
 
 - Create an SSH key and add it to your repository by following the instructions [here](https://developer.github.com/v3/guides/managing-deploy-keys/#setup-2).
@@ -227,6 +220,30 @@ with:
   branches: true
 ```
 
+## Advanced Configuration Options
+
+### Personal Access Tokens (PATs)
+
+We highly recommend that you use an SSH deploy key instead of a personal access token (PAT).
+
+Please keep in mind that there are security concerns with using a PAT. For example, a PAT has access to all of your repositories. To reduce the consequences of a secret being leaked, you can instead use an SSH deploy key that only has permissions for a single repository. This is what we recommend. An SSH deploy key only has access to a single repository. This is enforced by GitHub.
+
+If you really need to use a PAT, we recommend creating a separate GitHub account for this purpose. For example, if your GitHub username is `JohnSmith`, then you might create a separate GitHub account with the username `JohnSmithBot`. This is sometimes referred as a "machine user" or "bot user". The [GitHub Terms of Service](https://help.github.com/en/github/site-policy/github-terms-of-service) allow you to create a machine user account.
+
+We strongly recommend that you **do not** create PATs from your own GitHub account.
+
+To use a PAT:
+- Create a PAT by following the instructions [here](https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line#creating-a-token).
+- Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
+  Use whatever you like as the name, such as `TAGBOT_PAT`.
+  Use the new PAT as the value.
+- Replace the `token` input's value with the name of your secret, like so:
+
+```yml
+with:
+  token: ${{ secrets.TAGBOT_PAT }}
+```
+
 ### Pre-Release Hooks
 
 If you want to make something happen just before releases are created, for example creating annotated, GPG-signed tags, you can do so with the `dispatch` input:
@@ -260,4 +277,5 @@ with:
 Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
 To use this feature, you must provide your own personal access token.
-For more details, see [Personal Access Tokens](#personal-access-tokens).
+For more details, see [Personal Access Tokens (PATs)](#personal-access-tokens-pats).
+
