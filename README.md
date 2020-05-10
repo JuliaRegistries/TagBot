@@ -246,7 +246,7 @@ with:
 
 ### Pre-Release Hooks
 
-If you want to make something happen just before releases are created, for example creating annotated, GPG-signed tags, you can do so with the `dispatch` input:
+If you want to make something happen just before releases are created, you can do so with the `dispatch` input:
 
 ```yml
 with:
