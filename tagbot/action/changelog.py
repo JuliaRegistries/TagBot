@@ -139,7 +139,7 @@ class Changelog:
         )
         if m:
             # Remove the '> ' at the beginning of each line.
-            return "\n".join(l[2:] for l in m[1].splitlines()).strip()
+            return "\n".join(line[2:] for line in m[1].splitlines()).strip()
         debug("No custom release notes were found")
         return None
 
