@@ -380,3 +380,19 @@ class Repo:
             except Exception:
                 error("Issue reporting failed")
                 info(traceback.format_exc())
+
+    def commit_sha_of_version(self, version: str) -> Optional[str]:
+        """Get the commit SHA from a registered version."""
+        if version.startswith("v"):
+            version = version[1:]
+        root = self._registry_path
+        if not root:
+            error("Package is not registered")
+            return None
+        contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
+        versions = toml.loads(contents.decoded_content.decode())
+        if version not in versions:
+            error(f"Version {version} is not registered")
+            return None
+        tree = versions[version]["git-tree-sha1"]
+        return self._commit_sha_of_tree(tree)
