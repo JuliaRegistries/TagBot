@@ -219,7 +219,7 @@ We highly recommend that you use an SSH deploy key instead of a personal access 
 
 Please keep in mind that there are security concerns with using a PAT.
 For example, a PAT has access to all of your repositories.
-To reduce the consequences of a secret being leaked, we recommend that you instead use an [SSH deploy key](#ss-deploy-keys) that only has permissions for a single repository.
+To reduce the consequences of a secret being leaked, we recommend that you instead use an [SSH deploy key](#ssh-deploy-keys) that only has permissions for a single repository.
 
 
 To use a PAT:
