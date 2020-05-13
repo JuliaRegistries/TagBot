@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "tagbot"
+version = "1.8.1"
+description = "Creates tags, releases, and changelogs for your Julia packages when they're registered"
+authors = ["Chris de Graaf <chrisadegraaf@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+Flask = "^1.1.2"
+Jinja2 = "^2.11.2"
+PyGithub = "^1.51"
+docker = "^4.2.0"
+pexpect = "^4.8.0"
+pylev = "^1.3.0"
+python-gnupg = "^0.4.6"
+pyyaml = "^5.3.1"
+semver = "^2.10.0"
+toml = "^0.10.0"
+
+[tool.poetry.dev-dependencies]
+black = "^19.10b0"
+boto3 = "^1.13.8"
+flake8 = "^3.8.1"
+mypy = "^0.770"
+pytest-cov = "^2.8.1"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

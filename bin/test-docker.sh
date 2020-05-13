@@ -4,7 +4,8 @@ cd $(dirname "$0")/..
 
 docker build -t tagbot:test .
 docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:test sh -c '
-  apk add gcc make musl-dev
-  pip install -r /repo/requirements.dev.txt
+  apk add gcc libffi-dev make musl-dev openssl-dev
+  pip install poetry
   cd /repo
-  make test'
+  poetry install
+  poetry run make test'

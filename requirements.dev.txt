@@ -1,6 +1,0 @@
-black
-boto3
-flake8
-mypy
-pytest-cov
-pyyaml

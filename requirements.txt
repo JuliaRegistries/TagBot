@@ -1,9 +1,0 @@
-Flask==1.1.2
-Jinja2==2.11.2
-PyGithub==1.51
-docker==4.2.0
-pexpect==4.8.0
-pylev==1.3.0
-python-gnupg==0.4.6
-semver==2.9.1
-toml==0.10.0

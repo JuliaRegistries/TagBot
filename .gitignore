@@ -6,3 +6,5 @@
 __pycache__/
 htmlcov/
 node_modules/
+requirements.txt
+tagbot.egg-info/
