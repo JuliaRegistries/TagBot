@@ -49,6 +49,7 @@ Read on for a full description of all of the available configuration options.
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
   - [Pre-Release Hooks](#pre-release-hooks)
   - [Release Branch Management](#release-branch-management)
+- [Local Usage](#local-usage)
 
 ## Basic Configuration Options
 
@@ -279,4 +280,37 @@ To enable this feature, use the `branches` input:
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
   branches: true
+```
+
+## Local Usage
+
+There are some scenarios in which you want to manually run TagBot.
+Perhaps TagBot failed for some reason, or GitHub's service was down, or you just set up TagBot but would like to fill in tags for old releases.
+The simplest way to run TagBot manually is through Docker and the `tagbot.local` module.
+
+```sh
+$ docker pull degraafc/tagbot
+$ docker run --rm degraafc/tagbot python -m tagbot.local -h
+usage: __main__.py [-h] --repo --token --version --version  [--changelog] [--registry]
+
+optional arguments:
+  -h, --help    show this help message and exit
+  --repo        Repo to tag
+  --token       GitHub API token
+  --version     Version to tag
+  --changelog   Changelog template
+  --registry    Registry to search
+
+$ docker run --rm degraafc/tagbot python -m tagbot.local \
+    --repo Owner/Name \
+    --token <TOKEN> \
+    --version v1.2.3
+```
+
+You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
+
+```sh
+$ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C
+$ poetry install
+$ poetry run python -m tagbot.local -h
 ```
