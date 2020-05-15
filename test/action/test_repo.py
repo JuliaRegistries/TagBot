@@ -420,3 +420,20 @@ def test_handle_error(error, format_exc):
     r.handle_error(RuntimeError("?"))
     r._report_error.assert_called_with("ahh")
     error.assert_called_with("Issue reporting failed")
+
+
+def test_commit_sha_of_version():
+    r = _repo()
+    r._Repo__registry_path = ""
+    r._registry.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""["3.4.5"]\ngit-tree-sha1 = "abc"\n""")
+    )
+    r._commit_sha_of_tree = Mock(return_value="def")
+    assert r.commit_sha_of_version("v1.2.3") is None
+    r._registry.get_contents.assert_not_called()
+    r._Repo__registry_path = "path"
+    assert r.commit_sha_of_version("v2.3.4") is None
+    r._registry.get_contents.assert_called_with("path/Versions.toml")
+    r._commit_sha_of_tree.assert_not_called()
+    assert r.commit_sha_of_version("v3.4.5") == "def"
+    r._commit_sha_of_tree.assert_called_with("abc")
