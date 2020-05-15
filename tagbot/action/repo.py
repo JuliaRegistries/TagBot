@@ -199,6 +199,13 @@ class Repo:
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
 
+    def _pr_exists(self, branch: str) -> bool:
+        """Check whether a PR exists for a given branch."""
+        owner = self._repo.owner.login
+        for pr in self._repo.get_pulls(head=f"{owner}:{branch}"):
+            return True
+        return False
+
     def _run_url(self) -> str:
         """Get the URL of this Actions run."""
         url = f"{self._repo.html_url}/actions"
@@ -336,6 +343,8 @@ class Repo:
         elif self._git.can_fast_forward(branch):
             info("Release branch can be fast-forwarded")
             self._git.merge_and_delete_branch(branch)
+        elif self._pr_exists(branch):
+            info("Release branch already has a PR")
         else:
             info("Release branch cannot be fast-forwarded, creating pull request")
             self._create_release_branch_pr(version, branch)

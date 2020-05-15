@@ -368,10 +368,11 @@ def test_handle_release_branch():
     r = _repo()
     r._create_release_branch_pr = Mock()
     r._git = Mock(
-        fetch_branch=Mock(side_effect=[False, True, True, True]),
-        is_merged=Mock(side_effect=[True, False, False]),
-        can_fast_forward=Mock(side_effect=[True, False]),
+        fetch_branch=Mock(side_effect=[False, True, True, True, True]),
+        is_merged=Mock(side_effect=[True, False, False, False]),
+        can_fast_forward=Mock(side_effect=[True, False, False]),
     )
+    r._pr_exists = Mock(side_effect=[True, False])
     r.handle_release_branch("v1")
     r._git.fetch_branch.assert_called_with("release-1")
     r._git.is_merged.assert_not_called()
@@ -380,9 +381,12 @@ def test_handle_release_branch():
     r._git.can_fast_forward.assert_not_called()
     r.handle_release_branch("v3")
     r._git.merge_and_delete_branch.assert_called_with("release-3")
-    r._create_release_branch_pr.assert_not_called()
+    r._pr_exists.assert_not_called()
     r.handle_release_branch("v4")
-    r._create_release_branch_pr.assert_called_with("v4", "release-4")
+    r._pr_exists.assert_called_with("release-4")
+    r._create_release_branch_pr.assert_not_called()
+    r.handle_release_branch("v5")
+    r._create_release_branch_pr.assert_called_with("v5", "release-5")
 
 
 def test_create_release():
