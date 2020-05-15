@@ -11,7 +11,7 @@ from github.PullRequest import PullRequest
 from jinja2 import Template
 from semver import VersionInfo
 
-from . import debug, info, warn
+from .. import logger
 
 if TYPE_CHECKING:
     from .repo import Repo
@@ -108,17 +108,17 @@ class Changelog:
         uuid = self._repo._project("uuid")
         # This is the format used by Registrator/PkgDev.
         head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
-        debug(f"Looking for PR from branch {head}")
+        logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._repo._registry
         owner = registry.owner.login
-        debug(f"Trying to find PR by registry owner first ({owner})")
+        logger.debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
             if pr.merged and now - pr.merged_at < self._repo._lookback:
                 return pr
-        debug("Did not find registry PR by registry owner")
+        logger.debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
             if now - cast(datetime, pr.closed_at) > self._repo._lookback:
@@ -129,10 +129,10 @@ class Changelog:
 
     def _custom_release_notes(self, version: str) -> Optional[str]:
         """Look up a version's custom release notes."""
-        debug("Looking up custom release notes")
+        logger.debug("Looking up custom release notes")
         pr = self._registry_pr(version)
         if not pr:
-            warn("No registry pull request was found for this version")
+            logger.warning("No registry pull request was found for this version")
             return None
         m = re.search(
             "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->", pr.body,
@@ -140,7 +140,7 @@ class Changelog:
         if m:
             # Remove the '> ' at the beginning of each line.
             return "\n".join(line[2:] for line in m[1].splitlines()).strip()
-        debug("No custom release notes were found")
+        logger.debug("No custom release notes were found")
         return None
 
     def _format_user(self, user: NamedUser) -> Dict[str, object]:
@@ -188,9 +188,9 @@ class Changelog:
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
         end = self._repo._git.time_of_commit(sha) + timedelta(minutes=1)
-        debug(f"Previous version: {prev_tag}")
-        debug(f"Start date: {start}")
-        debug(f"End date: {end}")
+        logger.debug(f"Previous version: {prev_tag}")
+        logger.debug(f"Start date: {start}")
+        logger.debug(f"End date: {end}")
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
         return {
@@ -211,7 +211,7 @@ class Changelog:
 
     def get(self, version: str, sha: str) -> str:
         """Get the changelog for a specific version."""
-        info(f"Generating changelog for version {version} ({sha})")
+        logger.info(f"Generating changelog for version {version} ({sha})")
         data = self._collect_data(version, sha)
-        debug(f"Changelog data: {json.dumps(data, indent=2)}")
+        logger.debug(f"Changelog data: {json.dumps(data, indent=2)}")
         return self._render(data)

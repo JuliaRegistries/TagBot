@@ -6,7 +6,7 @@ import requests
 
 from datetime import timedelta
 
-from . import info, error
+from .. import logger
 from .changelog import Changelog
 from .repo import Repo
 
@@ -29,7 +29,7 @@ gpg_password = os.getenv("INPUT_GPG_PASSWORD")
 token = os.getenv("INPUT_TOKEN")
 
 if not token:
-    error("No GitHub API token supplied")
+    logger.error("No GitHub API token supplied")
     sys.exit(1)
 
 try:
@@ -52,19 +52,21 @@ try:
     )
 
     if not repo.is_registered():
-        info("This package is not registered, skipping")
-        info("If this repository is not going to be registered, then remove TagBot")
+        logger.info("This package is not registered, skipping")
+        logger.info(
+            "If this repository is not going to be registered, then remove TagBot"
+        )
         sys.exit()
 
     versions = repo.new_versions()
     if not versions:
-        info("No new versions to release")
+        logger.info("No new versions to release")
         sys.exit()
 
     if dispatch:
         minutes = int(dispatch_delay)
         repo.create_dispatch_event(versions)
-        info(f"Waiting {minutes} minutes for any dispatch handlers")
+        logger.info(f"Waiting {minutes} minutes for any dispatch handlers")
         time.sleep(timedelta(minutes=minutes).total_seconds())
     if ssh:
         repo.configure_ssh(ssh, ssh_password)
@@ -72,7 +74,7 @@ try:
         repo.configure_gpg(gpg, gpg_password)
 
     for version, sha in versions.items():
-        info(f"Processing version {version} ({sha})")
+        logger.info(f"Processing version {version} ({sha})")
         if branches:
             repo.handle_release_branch(version)
         repo.create_release(version, sha)
