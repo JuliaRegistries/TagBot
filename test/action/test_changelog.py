@@ -16,6 +16,8 @@ def _changelog(*, template="", ignore=set()):
     r = Repo(
         repo="",
         registry="",
+        github="",
+        github_api="",
         token="",
         changelog=template,
         changelog_ignore=ignore,

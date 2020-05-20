@@ -20,6 +20,8 @@ def _repo(
     *,
     repo="",
     registry="",
+    github="",
+    github_api="",
     token="",
     changelog="",
     ignore=[],
@@ -30,6 +32,8 @@ def _repo(
     return Repo(
         repo=repo,
         registry=registry,
+        github=github,
+        github_api=github_api,
         token=token,
         changelog=changelog,
         changelog_ignore=ignore,
@@ -37,6 +41,17 @@ def _repo(
         gpg=gpg,
         lookback=lookback,
     )
+
+
+def test_constuctor():
+    r = _repo(github="github.com", github_api="api.github.com")
+    assert r._gh_url == "https://github.com"
+    assert r._gh_api == "https://api.github.com"
+    assert r._git._github == "github.com"
+    r = _repo(github="https://github.com", github_api="https://api.github.com")
+    assert r._gh_url == "https://github.com"
+    assert r._gh_api == "https://api.github.com"
+    assert r._git._github == "github.com"
 
 
 def test_project():
@@ -291,7 +306,7 @@ def test_create_dispatch_event():
 @patch("subprocess.run")
 @patch("pexpect.spawn")
 def test_configure_ssh(spawn, run, chmod, mkstemp):
-    r = _repo(repo="foo")
+    r = _repo(github="gh.com", repo="foo")
     r._repo = Mock(ssh_url="sshurl")
     r._git.set_remote_url = Mock()
     r._git.config = Mock()
@@ -304,7 +319,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     )
     open.return_value.write.assert_called_with("sshkey\n")
     run.assert_called_with(
-        ["ssh-keyscan", "-t", "rsa", "github.com"],
+        ["ssh-keyscan", "-t", "rsa", "gh.com"],
         check=True,
         stdout=open.return_value,
         stderr=DEVNULL,

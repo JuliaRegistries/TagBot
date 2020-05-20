@@ -16,6 +16,7 @@ from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from urllib.parse import urlparse
 
 from github import Github, GithubException, UnknownObjectException
 from gnupg import GPG
@@ -37,6 +38,8 @@ class Repo:
         *,
         repo: str,
         registry: str,
+        github: str,
+        github_api: str,
         token: str,
         changelog: str,
         changelog_ignore: List[str],
@@ -44,14 +47,20 @@ class Repo:
         gpg: bool,
         lookback: int,
     ) -> None:
-        self._gh = Github(token, per_page=100)
+        if not urlparse(github).scheme:
+            github = f"https://{github}"
+        if not urlparse(github_api).scheme:
+            github_api = f"https://{github_api}"
+        self._gh_url = github
+        self._gh_api = github_api
+        self._gh = Github(token, base_url=self._gh_api, per_page=100)
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry = self._gh.get_repo(registry, lazy=True)
         self._token = token
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
-        self._git = Git(repo, token)
+        self._git = Git(self._gh_url, repo, token)
         self._lookback = timedelta(days=lookback, hours=1)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
@@ -286,9 +295,10 @@ class Repo:
         # Add the host key to a known hosts file
         # so that we don't have to confirm anything when we try to push.
         _, hosts = mkstemp(prefix="tagbot_hosts_")
+        host = cast(str, urlparse(self._gh_url).hostname)
         with open(hosts, "w") as f:
             subprocess.run(
-                ["ssh-keyscan", "-t", "rsa", "github.com"],
+                ["ssh-keyscan", "-t", "rsa", host],
                 check=True,
                 stdout=f,
                 stderr=DEVNULL,

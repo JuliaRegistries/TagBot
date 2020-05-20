@@ -9,6 +9,14 @@ inputs:
     description: Owner/name of the registry repository
     required: false
     default: JuliaRegistries/General
+  github:
+    description: URL of self-hosted GitHub
+    required: false
+    default: github.com
+  github_api:
+    description: API base URL of self-hosted GitHub
+    required: false
+    default: api.github.com
   branches:
     description: Whether or not to merge release branches
     required: false

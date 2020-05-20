@@ -44,6 +44,7 @@ Read on for a full description of all of the available configuration options.
   - [Changelogs](#changelogs)
   - [Custom Registries](#custom-registries)
 - Advanced Configuration Options:
+  - [Self-Hosted GitHub](#self-hosted-github)
   - [GPG Signing](#gpg-signing)
   - [Lookback Period](#lookback-period)
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
@@ -179,6 +180,16 @@ with:
 
 ## Advanced Configuration Options
 
+### Self-Hosted GitHub
+
+If your company is running their own GitHub server, then you'll need to update the relevant GitHub URL inputs, `github` and `github_api`:
+
+```yml
+with:
+  github: git.corp.com
+  github_api: api.git.corp.com
+```
+
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.
@@ -291,15 +302,17 @@ The simplest way to run TagBot manually is through Docker and the `tagbot.local`
 ```sh
 $ docker pull degraafc/tagbot
 $ docker run --rm degraafc/tagbot python -m tagbot.local -h
-usage: __main__.py [-h] --repo --version --version [--token] [--changelog] [--registry]
+usage: __main__.py [-h] --repo  --version  [--token] [--github] [--github-api] [--changelog] [--registry]
 
 optional arguments:
-  -h, --help    show this help message and exit
-  --repo        Repo to tag
-  --version     Version to tag
-  --token       GitHub API token
-  --changelog   Changelog template
-  --registry    Registry to search
+  -h, --help     show this help message and exit
+  --repo         Repo to tag
+  --version      Version to tag
+  --token        GitHub API token
+  --github       GitHub URL
+  --github-api   GitHub API URL
+  --changelog    Changelog template
+  --registry     Registry to search
 
 $ docker run --rm degraafc/tagbot python -m tagbot.local \
     --repo Owner/Name \
