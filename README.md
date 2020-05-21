@@ -42,7 +42,7 @@ Read on for a full description of all of the available configuration options.
 - Basic Configuration Options:
   - [SSH Deploy Keys](#ssh-deploy-keys)
   - [Changelogs](#changelogs)
-  - [Custom Registries](#custom-registries)  
+  - [Custom Registries](#custom-registries)
 - Advanced Configuration Options:
   - [GPG Signing](#gpg-signing)
   - [Lookback Period](#lookback-period)
@@ -291,13 +291,13 @@ The simplest way to run TagBot manually is through Docker and the `tagbot.local`
 ```sh
 $ docker pull degraafc/tagbot
 $ docker run --rm degraafc/tagbot python -m tagbot.local -h
-usage: __main__.py [-h] --repo --token --version --version  [--changelog] [--registry]
+usage: __main__.py [-h] --repo --version --version [--token] [--changelog] [--registry]
 
 optional arguments:
   -h, --help    show this help message and exit
   --repo        Repo to tag
-  --token       GitHub API token
   --version     Version to tag
+  --token       GitHub API token
   --changelog   Changelog template
   --registry    Registry to search
 
@@ -306,6 +306,8 @@ $ docker run --rm degraafc/tagbot python -m tagbot.local \
     --token <TOKEN> \
     --version v1.2.3
 ```
+
+If you don't want to provide a token on the command line, omit the `--token` option and you will be securely prompted for a token.
 
 You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
 
