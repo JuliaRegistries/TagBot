@@ -3,7 +3,8 @@ import subprocess
 
 from datetime import datetime
 from tempfile import mkdtemp
-from typing import Optional
+from typing import Optional, cast
+from urllib.parse import urlparse
 
 from . import Abort, debug, info, warn
 
@@ -11,7 +12,8 @@ from . import Abort, debug, info, warn
 class Git:
     """Provides access to a local Git repository."""
 
-    def __init__(self, repo: str, token: str) -> None:
+    def __init__(self, github: str, repo: str, token: str) -> None:
+        self._github = cast(str, urlparse(github).hostname)
         self._repo = repo
         self._token = token
         self.__default_branch: Optional[str] = None
@@ -22,7 +24,7 @@ class Git:
         """Get the repository clone location (cloning if necessary)."""
         if self.__dir is not None:
             return self.__dir
-        url = f"https://oauth2:{self._token}@github.com/{self._repo}"
+        url = f"https://oauth2:{self._token}@{self._github}/{self._repo}"
         dest = mkdtemp(prefix="tagbot_repo_")
         self.command("clone", url, dest, repo=None)
         self.__dir = dest
@@ -95,7 +97,7 @@ class Git:
     def create_tag(self, version: str, sha: str, message: str) -> None:
         """Create and push a Git tag."""
         self.config("user.name", "github-actions[bot]")
-        self.config("user.email", "actions@github.com")
+        self.config("user.email", f"actions@{self._github}")
         self.command("tag", "-m", message, version, sha)
         self.command("push", "origin", version)
 

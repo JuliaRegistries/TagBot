@@ -9,12 +9,13 @@ from tagbot.action.git import Git
 
 
 def _git(
+    github: str = "",
     repo: str = "",
     token: str = "",
     command: Union[str, List[str], None] = None,
     check: Union[str, List[str], None] = None,
 ) -> Git:
-    g = Git(repo, token)
+    g = Git(github, repo, token)
     if command:
         m = g.command = Mock()
         if isinstance(command, list):
@@ -32,7 +33,7 @@ def _git(
 
 @patch("subprocess.run")
 def test_command(run):
-    g = Git("Foo/Bar", "x")
+    g = Git("", "Foo/Bar", "x")
     g._Git__dir = "dir"
     run.return_value.configure_mock(stdout="out\n", returncode=0)
     assert g.command("a") == "out"
@@ -58,13 +59,13 @@ def test_check():
 
 @patch("tagbot.action.git.mkdtemp", return_value="dir")
 def test_dir(mkdtemp):
-    g = _git(repo="Foo/Bar", token="x", command=["", "branch"])
+    g = _git(github="https://gh.com", repo="Foo/Bar", token="x", command=["", "branch"])
     assert g._dir == "dir"
     assert g._dir == "dir"
     # Second call should not clone.
     mkdtemp.assert_called_once()
     g.command.assert_called_once_with(
-        "clone", "https://oauth2:x@github.com/Foo/Bar", "dir", repo=None
+        "clone", "https://oauth2:x@gh.com/Foo/Bar", "dir", repo=None
     )
 
 
@@ -105,12 +106,12 @@ def test_config():
 
 
 def test_create_tag():
-    g = _git(command="hm")
+    g = _git(github="https://gh.com", command="hm")
     g.config = Mock()
     g.create_tag("v1", "abcdef", "log")
     calls = [
         call("user.name", "github-actions[bot]"),
-        call("user.email", "actions@github.com"),
+        call("user.email", "actions@gh.com"),
     ]
     g.config.assert_has_calls(calls)
     calls = [
