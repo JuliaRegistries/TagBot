@@ -260,7 +260,14 @@ class Repo:
             return False
         contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
         package = toml.loads(contents.decoded_content.decode())
-        m = re.search(r"://github\.com/(.*?)(?:\.git)?$", package["repo"])
+        gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")
+        if "@" in package["repo"]:
+            pattern = rf"{gh}:(.*?)(?:\.git)?$"
+        else:
+            pattern = rf"{gh}/(.*?)(?:\.git)?$"
+        print(pattern)
+        print(package["repo"])
+        m = re.search(pattern, package["repo"])
         if not m:
             return False
         # I'm not really sure why mypy doesn't like this line without the cast.
