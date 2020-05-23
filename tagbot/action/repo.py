@@ -15,17 +15,7 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import (
-    Dict,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    TypeVar,
-    Union,
-    cast,
-    Any,
-)
+from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
 from github import Github, GithubException, UnknownObjectException
