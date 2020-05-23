@@ -59,7 +59,7 @@ class Repo:
         github_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         if github_kwargs is None:
-            github_kwargs = dict()
+            github_kwargs = {}
         if not urlparse(github).scheme:
             github = f"https://{github}"
         if not urlparse(github_api).scheme:
