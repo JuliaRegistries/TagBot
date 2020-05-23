@@ -56,7 +56,7 @@ class Repo:
         ssh: bool,
         gpg: bool,
         lookback: int,
-        github_kwargs: Optional[Dict[str, Any]] = None,
+        github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
             github_kwargs = dict()
