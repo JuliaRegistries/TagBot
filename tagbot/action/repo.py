@@ -15,7 +15,17 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import (
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+    Any,
+)
 from urllib.parse import urlparse
 
 from github import Github, GithubException, UnknownObjectException
@@ -46,14 +56,17 @@ class Repo:
         ssh: bool,
         gpg: bool,
         lookback: int,
+        github_kwargs: Dict[str, Any] = None,
     ) -> None:
+        if github_kwargs is None:
+            github_kwargs = dict()
         if not urlparse(github).scheme:
             github = f"https://{github}"
         if not urlparse(github_api).scheme:
             github_api = f"https://{github_api}"
         self._gh_url = github
         self._gh_api = github_api
-        self._gh = Github(token, base_url=self._gh_api, per_page=100)
+        self._gh = Github(token, base_url=self._gh_api, per_page=100, **github_kwargs)
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry = self._gh.get_repo(registry, lazy=True)
         self._token = token
