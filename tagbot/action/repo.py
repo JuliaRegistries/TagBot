@@ -57,8 +57,8 @@ class Repo:
         self._gh_url = github
         self._gh_api = github_api
         self._gh = Github(
-            token, base_url=self._gh_api, per_page=100, **github_kwargs
-        )  # type: ignore
+            token, base_url=self._gh_api, per_page=100, **github_kwargs  # type: ignore
+        )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry = self._gh.get_repo(registry, lazy=True)
         self._token = token
