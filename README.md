@@ -116,7 +116,7 @@ The data available to you looks like this:
       "author": {
         "name": "Real Name",
         "url": "https://github.com/username",
-        "username" "their login"
+        "username": "their login"
       },
       "body": "issue body",
       "labels": ["label1", "label2"],
