@@ -270,8 +270,6 @@ class Repo:
             pattern = rf"{gh}:(.*?)(?:\.git)?$"
         else:
             pattern = rf"{gh}/(.*?)(?:\.git)?$"
-        print(pattern)
-        print(package["repo"])
         m = re.search(pattern, package["repo"])
         if not m:
             return False
