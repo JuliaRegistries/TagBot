@@ -61,11 +61,12 @@ def test_index(client):
     assert b"Home" in resp.data
 
 
-@patch("tagbot.web.REPORTS_QUEUE")
-def test_report(REPORTS_QUEUE, client):
+@patch("tagbot.web.REPORTS_FUNCTION_NAME")
+@patch("tagbot.web.LAMBDA")
+def test_report(LAMBDA, REPORTS, client):
     payload = {"image": "img", "repo": "repo", "run": "123", "stacktrace": "ow"}
     resp = client.post("/report", json=payload)
     assert resp.status_code == 200
     assert resp.is_json
     assert resp.json == {"status": "Submitted error report"}
-    REPORTS_QUEUE.send_message.assert_called_with(MessageBody=json.dumps(payload))
+    LAMBDA.invoke.assert_called_with(FunctionName=REPORTS, Payload=json.dumps(payload))

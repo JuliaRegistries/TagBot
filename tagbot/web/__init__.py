@@ -14,8 +14,8 @@ StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
 
-SQS = boto3.resource("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
-REPORTS_QUEUE = SQS.Queue(os.getenv("REPORTS_QUEUE", ""))
+LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")
 
@@ -79,5 +79,5 @@ def report() -> JSON:
         "run": request.json["run"],
         "stacktrace": request.json["stacktrace"],
     }
-    REPORTS_QUEUE.send_message(MessageBody=json.dumps(payload))
+    LAMBDA.invoke(FunctionName=REPORTS_FUNCTION_NAME, Payload=json.dumps(payload))
     return {"status": "Submitted error report"}, 200
