@@ -6,11 +6,7 @@ from tagbot.web import reports
 
 @patch("tagbot.web.reports._handle_report")
 def test_handler(handle_report):
-    event = {
-        "Records": [
-            {"body": """{"image":"i","repo":"re","run":"ru","stacktrace":"s"}"""},
-        ]
-    }
+    event = {"image": "i", "repo": "re", "run": "ru", "stacktrace": "s"}
     reports.handler(event)
     handle_report.assert_called_with(image="i", repo="re", run="ru", stacktrace="s")
 

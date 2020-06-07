@@ -2,7 +2,7 @@ import json
 import os
 import re
 
-from typing import Dict, List, Optional, cast
+from typing import Dict, Optional
 
 from github import Github
 from github.Issue import Issue
@@ -15,19 +15,15 @@ _gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
 TAGBOT_ISSUES_REPO = _gh.get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 
-def handler(event: Dict[str, object], ctx: object = None) -> None:
+def handler(event: Dict[str, str], ctx: object = None) -> None:
     """Lambda event handler."""
-    records = cast(List[Dict[str, object]], event["Records"])
-    print(f"Processing {len(records)} records")
-    for record in records:
-        body = json.loads(cast(str, record["body"]))
-        print(f"Record: {json.dumps(body, indent=2)}")
-        _handle_report(
-            image=body["image"],
-            repo=body["repo"],
-            run=body["run"],
-            stacktrace=body["stacktrace"],
-        )
+    print(f"Event: {json.dumps(event, indent=2)}")
+    _handle_report(
+        image=event["image"],
+        repo=event["repo"],
+        run=event["run"],
+        stacktrace=event["stacktrace"],
+    )
 
 
 def _handle_report(*, image: str, repo: str, run: str, stacktrace: str) -> None:
