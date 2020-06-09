@@ -20,7 +20,7 @@ REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")
 
-app = Flask(__name__,)
+app = Flask(__name__)
 app.logger.addHandler(log_handler)
 
 
