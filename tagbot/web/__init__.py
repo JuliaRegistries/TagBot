@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 
 from typing import Dict, Optional, Tuple, TypeVar, Union, cast
@@ -8,6 +7,8 @@ import boto3
 
 from flask import Flask, Response, render_template, request
 from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
+
+from .. import log_handler
 
 T = TypeVar("T")
 StatusOptional = Union[T, Tuple[T, int]]
@@ -20,7 +21,7 @@ TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")
 
 app = Flask(__name__)
-app.logger.setLevel(logging.INFO)
+app.logger.addHandler(log_handler)
 
 
 def _request_id() -> Optional[str]:

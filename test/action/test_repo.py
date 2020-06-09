@@ -156,29 +156,29 @@ def test_commit_sha_of_tag():
     assert r._commit_sha_of_tag("v4.5.6") is None
 
 
-@patch("tagbot.action.repo.error")
-@patch("tagbot.action.repo.warn")
-@patch("tagbot.action.repo.info")
-def test_filter_map_versions(info, warn, error):
+@patch("tagbot.action.repo.logger")
+def test_filter_map_versions(logger):
     r = _repo()
     r._commit_sha_of_tree = Mock(return_value=None)
     assert not r._filter_map_versions({"1.2.3": "tree1"})
-    warn.assert_called_with("No matching commit was found for version v1.2.3 (tree1)")
+    logger.warning.assert_called_with(
+        "No matching commit was found for version v1.2.3 (tree1)"
+    )
     r._commit_sha_of_tree.return_value = "sha"
     r._commit_sha_of_tag = Mock(return_value="sha")
     assert not r._filter_map_versions({"2.3.4": "tree2"})
-    info.assert_called_with("Tag v2.3.4 already exists")
+    logger.info.assert_called_with("Tag v2.3.4 already exists")
     r._commit_sha_of_tag.return_value = "abc"
     assert not r._filter_map_versions({"3.4.5": "tree3"})
-    error.assert_called_with(
+    logger.error.assert_called_with(
         "Existing tag v3.4.5 points at the wrong commit (expected sha)"
     )
     r._commit_sha_of_tag.return_value = None
     assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
 
 
-@patch("tagbot.action.repo.debug")
-def test_versions(debug):
+@patch("tagbot.action.repo.logger")
+def test_versions(logger):
     r = _repo()
     r._Repo__registry_path = "path"
     r._registry = Mock()
@@ -191,7 +191,7 @@ def test_versions(debug):
     """
     assert r._versions() == {"1.2.3": "abc", "2.3.4": "bcd"}
     r._registry.get_contents.assert_called_with("path/Versions.toml")
-    debug.assert_not_called()
+    logger.debug.assert_not_called()
     commit = Mock()
     commit.commit.sha = "abcdef"
     r._registry.get_commits.return_value = [commit]
@@ -203,16 +203,16 @@ def test_versions(debug):
     assert not c.args and len(c.kwargs) == 1 and "until" in c.kwargs
     assert isinstance(c.kwargs["until"], datetime)
     r._registry.get_contents.assert_called_with("path/Versions.toml", ref="abcdef")
-    debug.assert_not_called()
+    logger.debug.assert_not_called()
     r._registry.get_commits.return_value = []
     assert r._versions(min_age=delta) == {}
-    debug.assert_called_with("No registry commits were found")
+    logger.debug.assert_called_with("No registry commits were found")
     r._registry.get_contents.side_effect = UnknownObjectException(404, "???")
     assert r._versions() == {}
-    debug.assert_called_with("Versions.toml was not found ({})")
+    logger.debug.assert_called_with("Versions.toml was not found ({})")
     r._Repo__registry_path = Mock(__bool__=lambda self: False)
     assert r._versions() == {}
-    debug.assert_called_with("Package is not registered")
+    logger.debug.assert_called_with("Package is not registered")
 
 
 def test_run_url():
@@ -224,16 +224,16 @@ def test_run_url():
         assert r._run_url() == "https://github.com/Foo/Bar/actions"
 
 
-@patch("tagbot.action.repo.warn")
+@patch("tagbot.action.repo.logger")
 @patch("docker.from_env")
-def test_image_id(from_env, warn):
+def test_image_id(from_env, logger):
     r = _repo()
     from_env.return_value.containers.get.return_value.image.id = "sha"
     with patch.dict(os.environ, {"HOSTNAME": "foo"}):
         assert r._image_id() == "sha"
     with patch.dict(os.environ, clear=True):
         assert r._image_id() == "Unknown"
-    warn.assert_called_with("HOSTNAME is not set")
+    logger.warning.assert_called_with("HOSTNAME is not set")
 
 
 @patch("requests.post")
@@ -260,8 +260,7 @@ def test_report_error(post):
     )
 
 
-@patch("tagbot.action.repo.debug")
-def test_is_registered(debug):
+def test_is_registered():
     r = _repo(github="gh.com")
     r._repo = Mock(full_name="Foo/Bar.jl")
     r._Repo__registry_path = Mock(__bool__=lambda self: False)
@@ -430,8 +429,8 @@ def test_create_release():
 
 
 @patch("traceback.format_exc", return_value="ahh")
-@patch("tagbot.action.repo.error")
-def test_handle_error(error, format_exc):
+@patch("tagbot.action.repo.logger")
+def test_handle_error(logger, format_exc):
     r = _repo()
     r._report_error = Mock(side_effect=[None, RuntimeError("!")])
     r.handle_error(RequestException())
@@ -442,7 +441,7 @@ def test_handle_error(error, format_exc):
     r._report_error.assert_called_with("ahh")
     r.handle_error(RuntimeError("?"))
     r._report_error.assert_called_with("ahh")
-    error.assert_called_with("Issue reporting failed")
+    logger.error.assert_called_with("Issue reporting failed")
 
 
 def test_commit_sha_of_version():

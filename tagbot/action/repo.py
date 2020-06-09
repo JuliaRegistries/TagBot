@@ -22,7 +22,8 @@ from github import Github, GithubException, UnknownObjectException
 from gnupg import GPG
 from semver import VersionInfo
 
-from . import TAGBOT_WEB, Abort, InvalidProject, debug, info, warn, error
+from .. import logger
+from . import TAGBOT_WEB, Abort, InvalidProject
 from .changelog import Changelog
 from .git import Git
 
@@ -172,15 +173,17 @@ class Repo:
             version = f"v{version}"
             expected = self._commit_sha_of_tree(tree)
             if not expected:
-                warn(f"No matching commit was found for version {version} ({tree})")
+                logger.warning(
+                    f"No matching commit was found for version {version} ({tree})"
+                )
                 continue
             sha = self._commit_sha_of_tag(version)
             if sha:
                 if sha != expected:
                     msg = f"Existing tag {version} points at the wrong commit (expected {expected})"  # noqa: E501
-                    error(msg)
+                    logger.error(msg)
                 else:
-                    info(f"Tag {version} already exists")
+                    logger.info(f"Tag {version} already exists")
                 continue
             valid[version] = expected
         return valid
@@ -189,7 +192,7 @@ class Repo:
         """Get all package versions from the registry."""
         root = self._registry_path
         if not root:
-            debug("Package is not registered")
+            logger.debug("Package is not registered")
             return {}
         kwargs = {}
         if min_age:
@@ -201,14 +204,14 @@ class Repo:
                 kwargs["ref"] = commit.commit.sha
                 break
             else:
-                debug("No registry commits were found")
+                logger.debug("No registry commits were found")
                 return {}
         try:
             contents = self._only(
                 self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
             )
         except UnknownObjectException:
-            debug(f"Versions.toml was not found ({kwargs})")
+            logger.debug(f"Versions.toml was not found ({kwargs})")
             return {}
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
@@ -232,7 +235,7 @@ class Repo:
         """Get the Docker image ID."""
         host = os.getenv("HOSTNAME", "")
         if not host:
-            warn("HOSTNAME is not set")
+            logger.warning("HOSTNAME is not set")
             return "Unknown"
         client = docker.from_env()
         container = client.containers.get(host)
@@ -241,9 +244,9 @@ class Repo:
     def _report_error(self, trace: str) -> None:
         """Report an error."""
         if self._repo.private or os.getenv("GITHUB_ACTIONS") != "true":
-            debug("Not reporting")
+            logger.debug("Not reporting")
             return
-        debug("Reporting error")
+        logger.debug("Reporting error")
         data = {
             "image": self._image_id(),
             "repo": self._repo.full_name,
@@ -252,14 +255,14 @@ class Repo:
         }
         resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
         output = json.dumps(resp.json(), indent=2)
-        info(f"Response ({resp.status_code}): {output}")
+        logger.info(f"Response ({resp.status_code}): {output}")
 
     def is_registered(self) -> bool:
         """Check whether or not the repository belongs to a registered package."""
         try:
             root = self._registry_path
         except InvalidProject as e:
-            debug(e.message)
+            logger.debug(e.message)
             return False
         if not root:
             return False
@@ -279,9 +282,9 @@ class Repo:
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
-        debug(f"There are {len(current)} total versions")
+        logger.debug(f"There are {len(current)} total versions")
         old = self._versions(min_age=self._lookback)
-        debug(f"There are {len(current) - len(old)} new versions")
+        logger.debug(f"There are {len(current) - len(old)} new versions")
         # Make sure to insert items in SemVer order.
         versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
@@ -314,7 +317,7 @@ class Repo:
                 stderr=DEVNULL,
             )
         cmd = f"ssh -i {priv} -o UserKnownHostsFile={hosts}"
-        debug(f"SSH command: {cmd}")
+        logger.debug(f"SSH command: {cmd}")
         self._git.config("core.sshCommand", cmd)
         if password:
             # Start the SSH agent, apply the environment changes,
@@ -323,7 +326,7 @@ class Repo:
                 ["ssh-agent"], check=True, text=True, capture_output=True,
             )
             for (k, v) in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
-                debug(f"Setting environment variable {k}={v}")
+                logger.debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
             child = pexpect.spawn(f"ssh-add {priv}")
             child.expect("Enter passphrase")
@@ -334,21 +337,21 @@ class Repo:
         """Configure the repo to sign tags with GPG."""
         home = os.environ["GNUPGHOME"] = mkdtemp(prefix="tagbot_gpg_")
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
-        debug(f"Set GNUPGHOME to {home}")
+        logger.debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
         # For some reason, this doesn't require the password even though the CLI does.
         import_result = gpg.import_keys(self._maybe_b64(key))
         if import_result.sec_imported != 1:
-            warn(import_result.stderr)
+            logger.warning(import_result.stderr)
             raise Abort("Importing key failed")
         key_id = import_result.fingerprints[0]
-        debug(f"GPG key ID: {key_id}")
+        logger.debug(f"GPG key ID: {key_id}")
         if password:
             # Sign some dummy data to put our password into the GPG agent,
             # so that we don't need to supply the password when we create a tag.
             sign_result = gpg.sign("test", passphrase=password)
             if sign_result.status != "signature created":
-                warn(sign_result.stderr)
+                logger.warning(sign_result.stderr)
                 raise Abort("Testing GPG key failed")
         self._git.config("user.signingKey", key_id)
         self._git.config("tag.gpgSign", "true")
@@ -357,16 +360,18 @@ class Repo:
         """Merge an existing release branch or create a PR to merge it."""
         branch = f"release-{version[1:]}"
         if not self._git.fetch_branch(branch):
-            info(f"Release branch {branch} does not exist")
+            logger.info(f"Release branch {branch} does not exist")
         elif self._git.is_merged(branch):
-            info(f"Release branch {branch} is already merged")
+            logger.info(f"Release branch {branch} is already merged")
         elif self._git.can_fast_forward(branch):
-            info("Release branch can be fast-forwarded")
+            logger.info("Release branch can be fast-forwarded")
             self._git.merge_and_delete_branch(branch)
         elif self._pr_exists(branch):
-            info("Release branch already has a PR")
+            logger.info("Release branch already has a PR")
         else:
-            info("Release branch cannot be fast-forwarded, creating pull request")
+            logger.info(
+                "Release branch cannot be fast-forwarded, creating pull request"
+            )
             self._create_release_branch_pr(version, branch)
 
     def create_release(self, version: str, sha: str) -> None:
@@ -376,16 +381,16 @@ class Repo:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
             target = self._repo.default_branch
-        debug(f"Release {version} target: {target}")
+        logger.debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
         if self._ssh or self._gpg:
-            debug("Creating tag via Git CLI")
+            logger.debug("Creating tag via Git CLI")
             self._git.create_tag(version, sha, log)
         else:
-            debug("Creating tag via GitHub API")
+            logger.debug("Creating tag via GitHub API")
             tag = self._repo.create_git_tag(version, log, sha, "commit")
             self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
-        info(f"Creating release {version} at {sha}")
+        logger.info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)
 
     def handle_error(self, e: Exception) -> None:
@@ -393,22 +398,22 @@ class Repo:
         allowed = False
         trace = traceback.format_exc()
         if isinstance(e, RequestException):
-            warn("TagBot encountered a likely transient HTTP exception")
-            info(trace)
+            logger.warning("TagBot encountered a likely transient HTTP exception")
+            logger.info(trace)
             allowed = True
         elif isinstance(e, GithubException):
             if 500 <= e.status < 600:
-                warn("GitHub returned a 5xx error code")
-                info(trace)
+                logger.warning("GitHub returned a 5xx error code")
+                logger.info(trace)
                 allowed = True
         if not allowed:
-            error("TagBot experienced an unexpected internal failure")
-            info(trace)
+            logger.error("TagBot experienced an unexpected internal failure")
+            logger.info(trace)
             try:
                 self._report_error(trace)
             except Exception:
-                error("Issue reporting failed")
-                info(traceback.format_exc())
+                logger.error("Issue reporting failed")
+                logger.info(traceback.format_exc())
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
@@ -416,12 +421,12 @@ class Repo:
             version = version[1:]
         root = self._registry_path
         if not root:
-            error("Package is not registered")
+            logger.error("Package is not registered")
             return None
         contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
         versions = toml.loads(contents.decoded_content.decode())
         if version not in versions:
-            error(f"Version {version} is not registered")
+            logger.error(f"Version {version} is not registered")
             return None
         tree = versions[version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)

@@ -9,6 +9,7 @@ from github.Issue import Issue
 from github.IssueComment import IssueComment
 from pylev import levenshtein
 
+from .. import logger
 from . import TAGBOT_ISSUES_REPO_NAME
 
 _gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
@@ -17,7 +18,7 @@ TAGBOT_ISSUES_REPO = _gh.get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 def handler(event: Dict[str, str], ctx: object = None) -> None:
     """Lambda event handler."""
-    print(f"Event: {json.dumps(event, indent=2)}")
+    logger.info(f"Event: {json.dumps(event, indent=2)}")
     _handle_report(
         image=event["image"],
         repo=event["repo"],
@@ -30,19 +31,19 @@ def _handle_report(*, image: str, repo: str, run: str, stacktrace: str) -> None:
     """Report an error."""
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
-        print(f"Found a duplicate (#{duplicate.number})")
+        logger.info(f"Found a duplicate (#{duplicate.number})")
         if _already_commented(duplicate, repo=repo):
-            print("Already reported")
+            logger.info("Already reported")
         else:
-            print("Adding a comment")
+            logger.info("Adding a comment")
             comment = _add_duplicate_comment(
                 duplicate, image=image, repo=repo, run=run, stacktrace=stacktrace
             )
-            print(f"Created comment: {comment.html_url}")
+            logger.info(f"Created comment: {comment.html_url}")
     else:
-        print("Creating a new issue")
+        logger.info("Creating a new issue")
         issue = _create_issue(image=image, repo=repo, run=run, stacktrace=stacktrace)
-        print(f"Created issue: {issue.html_url}")
+        logger.info(f"Created issue: {issue.html_url}")
 
 
 def _already_commented(issue: Issue, *, repo: str) -> bool:
