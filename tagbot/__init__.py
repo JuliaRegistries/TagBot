@@ -30,8 +30,8 @@ class LogFormatter(Formatter):
             level = "warning"
         elif record.levelno == ERROR:
             level = "error"
-        # TODO: There is a better way to do multi-line messages.
-        return "\n".join(f"::{level} ::{line}" for line in message.splitlines())
+        trans = str.maketrans({"%": "%25", "\n": "%0A", "\r": "%0D"})
+        return f"::{level} ::{message.translate(trans)}"
 
     def _fmt_fallback(self, record: LogRecord) -> str:
         return Formatter.format(self, record)

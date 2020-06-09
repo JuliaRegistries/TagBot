@@ -19,15 +19,17 @@ def test_actions_logger():
     logger.info("2")
     logger.warning("3")
     logger.error("4")
-    logger.debug("a\nb")
+    logger.debug("a%b\nc\rd")
+    logger.info("a%b\nc\rd")
     stream.seek(start)
     assert stream.readlines() == [
         "::debug ::1\n",
         "2\n",
         "::warning ::3\n",
         "::error ::4\n",
-        "::debug ::a\n",
-        "::debug ::b\n",
+        "::debug ::a%25b%0Ac%0Dd\n",
+        "a%b\n",
+        "c\rd\n",
     ]
 
 
