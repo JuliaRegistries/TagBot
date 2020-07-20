@@ -18,6 +18,7 @@ name: TagBot
 on:
   schedule:
     - cron: 0 0 * * *
+  workflow_dispatch:
 jobs:
   TagBot:
     runs-on: ubuntu-latest
