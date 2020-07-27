@@ -26,6 +26,8 @@ ssh = os.getenv("INPUT_SSH")
 ssh_password = os.getenv("INPUT_SSH_PASSWORD")
 gpg = os.getenv("INPUT_GPG")
 gpg_password = os.getenv("INPUT_GPG_PASSWORD")
+user = os.getenv("INPUT_USER", "")
+email = os.getenv("INPUT_EMAIL", "")
 token = os.getenv("INPUT_TOKEN")
 
 if not token:
@@ -48,6 +50,8 @@ try:
         changelog_ignore=ignore,
         ssh=bool(ssh),
         gpg=bool(gpg),
+        user=user,
+        email=email,
         lookback=int(lookback),
     )
 

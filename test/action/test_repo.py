@@ -7,7 +7,7 @@ from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
-from github import GithubException, UnknownObjectException
+from github import GithubException, InputGitAuthor, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
@@ -27,6 +27,8 @@ def _repo(
     ignore=[],
     ssh=False,
     gpg=False,
+    user="",
+    email="",
     lookback=3,
 ):
     return Repo(
@@ -39,6 +41,8 @@ def _repo(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        user=user,
+        email=email,
         lookback=lookback,
     )
 
@@ -408,7 +412,7 @@ def test_handle_release_branch():
 
 
 def test_create_release():
-    r = _repo()
+    r = _repo(user="user", email="email")
     r._git.commit_sha_of_default = Mock(return_value="a")
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
@@ -416,7 +420,17 @@ def test_create_release():
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
     r._git.create_tag.assert_not_called()
-    r._repo.create_git_tag.assert_called_with("v1", "l", "a", "commit")
+    # InputGitAuthor doesn't support equality so we can't use a normal
+    # assert_called_with here.
+    r._repo.create_git_tag.assert_called_once()
+    call = r._repo.create_git_tag.mock_calls[0]
+    assert call.args == ("v1", "l", "a", "commit")
+    assert len(call.kwargs) == 1 and "tagger" in call.kwargs
+    tagger = call.kwargs["tagger"]
+    assert isinstance(tagger, InputGitAuthor) and tagger._identity == {
+        "name": "user",
+        "email": "email",
+    }
     r._repo.create_git_ref.assert_called_with("refs/tags/v1", "t")
     r._repo.create_git_release.assert_called_with(
         "v1", "v1", "l", target_commitish="default"

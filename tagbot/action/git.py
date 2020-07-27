@@ -13,10 +13,14 @@ from . import Abort
 class Git:
     """Provides access to a local Git repository."""
 
-    def __init__(self, github: str, repo: str, token: str) -> None:
+    def __init__(
+        self, github: str, repo: str, token: str, user: str, email: str
+    ) -> None:
         self._github = cast(str, urlparse(github).hostname)
         self._repo = repo
         self._token = token
+        self._user = user
+        self._email = email
         self.__default_branch: Optional[str] = None
         self.__dir: Optional[str] = None
 
@@ -97,8 +101,8 @@ class Git:
 
     def create_tag(self, version: str, sha: str, message: str) -> None:
         """Create and push a Git tag."""
-        self.config("user.name", "github-actions[bot]")
-        self.config("user.email", f"actions@{self._github}")
+        self.config("user.name", self._user)
+        self.config("user.email", self._email)
         self.command("tag", "-m", message, version, sha)
         self.command("push", "origin", version)
 

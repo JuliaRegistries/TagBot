@@ -12,6 +12,8 @@ with open(Path(__file__).parent.parent.parent / "action.yml") as f:
     GITHUB_API = action["inputs"]["github_api"]["default"]
     CHANGELOG = action["inputs"]["changelog"]["default"]
     REGISTRY = action["inputs"]["registry"]["default"]
+    USER = action["inputs"]["user"]["default"]
+    EMAIL = action["inputs"]["email"]["default"]
 
 
 parser = ArgumentParser()
@@ -42,6 +44,8 @@ repo = Repo(
     changelog_ignore=[],
     ssh=False,
     gpg=False,
+    user=USER,
+    email=EMAIL,
     lookback=0,
 )
 

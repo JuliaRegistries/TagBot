@@ -18,7 +18,7 @@ from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
-from github import Github, GithubException, UnknownObjectException
+from github import Github, GithubException, InputGitAuthor, UnknownObjectException
 from gnupg import GPG
 from semver import VersionInfo
 
@@ -46,6 +46,8 @@ class Repo:
         changelog_ignore: List[str],
         ssh: bool,
         gpg: bool,
+        user: str,
+        email: str,
         lookback: int,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
@@ -66,7 +68,9 @@ class Repo:
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
-        self._git = Git(self._gh_url, repo, token)
+        self._user = user
+        self._email = email
+        self._git = Git(self._gh_url, repo, token, user, email)
         self._lookback = timedelta(days=lookback, hours=1)
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
@@ -388,7 +392,13 @@ class Repo:
             self._git.create_tag(version, sha, log)
         else:
             logger.debug("Creating tag via GitHub API")
-            tag = self._repo.create_git_tag(version, log, sha, "commit")
+            tag = self._repo.create_git_tag(
+                version,
+                log,
+                sha,
+                "commit",
+                tagger=InputGitAuthor(self._user, self._email),
+            )
             self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
         logger.info(f"Creating release {version} at {sha}")
         self._repo.create_git_release(version, version, log, target_commitish=target)

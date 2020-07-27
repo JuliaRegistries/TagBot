@@ -23,6 +23,8 @@ def _changelog(*, template="", ignore=set()):
         changelog_ignore=ignore,
         ssh=False,
         gpg=False,
+        user="",
+        email="",
         lookback=3,
     )
     return r._changelog
