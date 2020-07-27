@@ -45,6 +45,14 @@ inputs:
   gpg_password:
     description: Password for the GPG key
     required: false
+  user:
+    description: Git username
+    required: false
+    default: github-actions[bot]
+  email:
+    description: Git email
+    required: false
+    default: 41898282+github-actions[bot]@users.noreply.github.com
   changelog:
     description: Changelog template
     required: false

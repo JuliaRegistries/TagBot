@@ -46,6 +46,7 @@ Read on for a full description of all of the available configuration options.
   - [Custom Registries](#custom-registries)
 - Advanced Configuration Options:
   - [Self-Hosted GitHub](#self-hosted-github)
+  - [Git configuration](#git-configuration)
   - [GPG Signing](#gpg-signing)
   - [Lookback Period](#lookback-period)
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
@@ -191,6 +192,18 @@ with:
   github_api: api.git.corp.com
 ```
 
+### Git Configuration
+
+By default, the Git tags that TagBot creates are authored by a user called `github-actions[bot]`, whose email is `41898282+github-actions[bot]@users.noreply.github.com`.
+If you want to use your own Git author info, you can set the `user` and `email` inputs:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  user: My Name
+  email: my.email@web.site
+```
+
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.
@@ -211,6 +224,9 @@ with:
   gpg: ${{ secrets.GPG_KEY }}
   gpg_password: ${{ secrets.GPG_PASSWORD }}
 ```
+
+It's also recommended to set your Git email address to one that is attached to the GPG key (see [Git Configuration](#git-configuration)).
+If you fail to do so, your tags will be marked "Unverified" in the GitHub UI.
 
 ### Lookback Period
 

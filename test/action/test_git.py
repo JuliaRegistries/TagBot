@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List, Union
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -9,13 +8,9 @@ from tagbot.action.git import Git
 
 
 def _git(
-    github: str = "",
-    repo: str = "",
-    token: str = "",
-    command: Union[str, List[str], None] = None,
-    check: Union[str, List[str], None] = None,
+    github="", repo="", token="", user="user", email="a@b.c", command=None, check=None,
 ) -> Git:
-    g = Git(github, repo, token)
+    g = Git(github, repo, token, user, email)
     if command:
         m = g.command = Mock()
         if isinstance(command, list):
@@ -33,7 +28,7 @@ def _git(
 
 @patch("subprocess.run")
 def test_command(run):
-    g = Git("", "Foo/Bar", "x")
+    g = Git("", "Foo/Bar", "x", "user", "email")
     g._Git__dir = "dir"
     run.return_value.configure_mock(stdout="out\n", returncode=0)
     assert g.command("a") == "out"
@@ -106,12 +101,12 @@ def test_config():
 
 
 def test_create_tag():
-    g = _git(github="https://gh.com", command="hm")
+    g = _git(user="me", email="hi@foo.bar", command="hm")
     g.config = Mock()
     g.create_tag("v1", "abcdef", "log")
     calls = [
-        call("user.name", "github-actions[bot]"),
-        call("user.email", "actions@gh.com"),
+        call("user.name", "me"),
+        call("user.email", "hi@foo.bar"),
     ]
     g.config.assert_has_calls(calls)
     calls = [
