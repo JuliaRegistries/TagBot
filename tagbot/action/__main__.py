@@ -29,6 +29,7 @@ gpg_password = os.getenv("INPUT_GPG_PASSWORD")
 user = os.getenv("INPUT_USER", "")
 email = os.getenv("INPUT_EMAIL", "")
 token = os.getenv("INPUT_TOKEN")
+branch = os.getenv("INPUT_BRANCH")
 
 if not token:
     logger.error("No GitHub API token supplied")
@@ -53,6 +54,7 @@ try:
         user=user,
         email=email,
         lookback=int(lookback),
+        branch=branch,
     )
 
     if not repo.is_registered():

@@ -26,6 +26,7 @@ def _changelog(*, template="", ignore=set()):
         user="",
         email="",
         lookback=3,
+        branch=None,
     )
     return r._changelog
 

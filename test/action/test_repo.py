@@ -30,6 +30,7 @@ def _repo(
     user="",
     email="",
     lookback=3,
+    branch=None,
 ):
     return Repo(
         repo=repo,
@@ -44,6 +45,7 @@ def _repo(
         user=user,
         email=email,
         lookback=lookback,
+        branch=branch,
     )
 
 
@@ -86,6 +88,14 @@ def test_registry_path():
     assert r._registry_path == "B/Bar"
     assert r._registry_path == "B/Bar"
     assert r._registry.get_contents.call_count == 2
+
+
+def test_release_branch():
+    r = _repo()
+    r._repo = Mock(default_branch="a")
+    assert r._release_branch == "a"
+    r = _repo(branch="b")
+    assert r._release_branch == "b"
 
 
 def test_only():
@@ -211,6 +221,14 @@ def test_commit_sha_of_tag():
     assert r._commit_sha_of_tag("v3.4.5") is None
     r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???")
     assert r._commit_sha_of_tag("v4.5.6") is None
+
+
+def test_commit_sha_of_release_branch():
+    r = _repo()
+    r._repo = Mock(default_branch="a")
+    r._repo.get_branch.return_value.commit.sha = "sha"
+    assert r._commit_sha_of_release_branch() == "sha"
+    r._repo.get_branch.assert_called_with("a")
 
 
 @patch("tagbot.action.repo.logger")
@@ -467,7 +485,7 @@ def test_handle_release_branch():
 
 def test_create_release():
     r = _repo(user="user", email="email")
-    r._git.commit_sha_of_default = Mock(return_value="a")
+    r._commit_sha_of_release_branch = Mock(return_value="a")
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
     r._repo.create_git_tag.return_value.sha = "t"

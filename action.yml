@@ -53,6 +53,9 @@ inputs:
     description: Git email
     required: false
     default: 41898282+github-actions[bot]@users.noreply.github.com
+  branch:
+    description: Branch to create releases against when possible
+    required: false
   changelog:
     description: Changelog template
     required: false

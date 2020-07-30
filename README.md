@@ -51,6 +51,7 @@ Read on for a full description of all of the available configuration options.
   - [Lookback Period](#lookback-period)
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
   - [Pre-Release Hooks](#pre-release-hooks)
+  - [Release Branch Selection](#release-branch-selection)
   - [Release Branch Management](#release-branch-management)
 - [Local Usage](#local-usage)
 
@@ -298,6 +299,18 @@ Avoid setting a delay longer than the interval between TagBot runs, since your d
 
 To use this feature, you must provide your own personal access token.
 For more details, see [Personal Access Tokens (PATs)](#personal-access-tokens-pats).
+
+### Release Branch Selection
+
+If you use a non-standard Git workflow where your default branch is not the main development branch, you may want to set the `branch` input to the name of your preferred release branch:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  branch: release
+```
+
+The branch you set will be the first one searched for a commit to tag, and releases will be anchored to that branch when possible.
 
 ### Release Branch Management
 

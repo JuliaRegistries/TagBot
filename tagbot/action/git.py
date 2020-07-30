@@ -87,10 +87,6 @@ class Git:
                 return c
         return None
 
-    def commit_sha_of_default(self) -> str:
-        """Get the commit SHA of the default branch."""
-        return self.command("rev-parse", self._default_branch)
-
     def set_remote_url(self, url: str) -> None:
         """Update the origin remote URL."""
         self.command("remote", "set-url", "origin", url)
