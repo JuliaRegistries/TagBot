@@ -2,7 +2,7 @@ import os.path
 import textwrap
 
 from datetime import datetime, timedelta
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import yaml
 
@@ -89,38 +89,6 @@ def test_issues_pulls():
     c._issues_and_pulls.assert_called_with(b, a)
 
 
-def test_registry_pr():
-    c = _changelog()
-    c._repo._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
-    registry = c._repo._registry = Mock(owner=Mock(login="Owner"))
-    now = datetime.now()
-    owner_pr = Mock(merged=True, merged_at=now)
-    registry.get_pulls.return_value = [owner_pr]
-    assert c._registry_pr("v1.2.3") is owner_pr
-    registry.get_pulls.assert_called_once_with(
-        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed",
-    )
-    registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
-    assert c._registry_pr("v2.3.4") is None
-    calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v2.3.4", state="closed"),
-        call(state="closed"),
-    ]
-    registry.get_pulls.assert_has_calls(calls)
-    good_pr = Mock(
-        closed_at=now - timedelta(days=2),
-        merged=True,
-        head=Mock(ref="registrator/pkgname/abcdef01/v3.4.5"),
-    )
-    registry.get_pulls.side_effect = [[], [good_pr]]
-    assert c._registry_pr("v3.4.5") is good_pr
-    calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v3.4.5", state="closed"),
-        call(state="closed"),
-    ]
-    registry.get_pulls.assert_has_calls(calls)
-
-
 def test_custom_release_notes():
     c = _changelog()
     notes = """
@@ -132,13 +100,13 @@ def test_custom_release_notes():
     blah blah blah
     """
     notes = textwrap.dedent(notes)
-    c._registry_pr = Mock(side_effect=[None, Mock(body="foo"), Mock(body=notes)])
+    c._repo._registry_pr = Mock(side_effect=[None, Mock(body="foo"), Mock(body=notes)])
     assert c._custom_release_notes("v1.2.3") is None
-    c._registry_pr.assert_called_with("v1.2.3")
+    c._repo._registry_pr.assert_called_with("v1.2.3")
     assert c._custom_release_notes("v2.3.4") is None
-    c._registry_pr.assert_called_with("v2.3.4")
+    c._repo._registry_pr.assert_called_with("v2.3.4")
     assert c._custom_release_notes("v3.4.5") == "Foo\nBar"
-    c._registry_pr.assert_called_with("v3.4.5")
+    c._repo._registry_pr.assert_called_with("v3.4.5")
 
 
 def test_format_user():

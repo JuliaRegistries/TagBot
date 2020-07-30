@@ -110,6 +110,59 @@ def test_create_release_branch_pr():
     )
 
 
+def test_registry_pr():
+    r = _repo()
+    r._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r._registry = Mock(owner=Mock(login="Owner"))
+    now = datetime.now()
+    owner_pr = Mock(merged=True, merged_at=now)
+    r._registry.get_pulls.return_value = [owner_pr]
+    assert r._registry_pr("v1.2.3") is owner_pr
+    r._registry.get_pulls.assert_called_once_with(
+        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed",
+    )
+    r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
+    assert r._registry_pr("v2.3.4") is None
+    calls = [
+        call(head="Owner:registrator/pkgname/abcdef01/v2.3.4", state="closed"),
+        call(state="closed"),
+    ]
+    r._registry.get_pulls.assert_has_calls(calls)
+    good_pr = Mock(
+        closed_at=now - timedelta(days=2),
+        merged=True,
+        head=Mock(ref="registrator/pkgname/abcdef01/v3.4.5"),
+    )
+    r._registry.get_pulls.side_effect = [[], [good_pr]]
+    assert r._registry_pr("v3.4.5") is good_pr
+    calls = [
+        call(head="Owner:registrator/pkgname/abcdef01/v3.4.5", state="closed"),
+        call(state="closed"),
+    ]
+    r._registry.get_pulls.assert_has_calls(calls)
+
+
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_from_registry_pr(logger):
+    r = _repo()
+    r._registry_pr = Mock(return_value=None)
+    assert r._commit_sha_from_registry_pr("v1.2.3", "abc") is None
+    logger.info.assert_called_with("Did not find registry PR")
+    r._registry_pr.return_value = Mock(body="")
+    assert r._commit_sha_from_registry_pr("v2.3.4", "bcd") is None
+    logger.info.assert_called_with("Registry PR body did not match")
+    r._registry_pr.return_value.body = f"foo\n- Commit: {'a' * 32}\nbar"
+    r._repo.get_commit = Mock()
+    r._repo.get_commit.return_value.commit.tree.sha = "def"
+    r._repo.get_commit.return_value.sha = "sha"
+    assert r._commit_sha_from_registry_pr("v3.4.5", "cde") is None
+    r._repo.get_commit.assert_called_with("a" * 32)
+    logger.warning.assert_called_with(
+        "Tree SHA of commit from registry PR does not match"
+    )
+    assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
+
+
 def test_commit_sha_of_tree_from_branch():
     r = _repo()
     since = datetime.now()
@@ -163,6 +216,7 @@ def test_commit_sha_of_tag():
 @patch("tagbot.action.repo.logger")
 def test_filter_map_versions(logger):
     r = _repo()
+    r._commit_sha_from_registry_pr = Mock(return_value=None)
     r._commit_sha_of_tree = Mock(return_value=None)
     assert not r._filter_map_versions({"1.2.3": "tree1"})
     logger.warning.assert_called_with(

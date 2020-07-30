@@ -2,7 +2,7 @@ import json
 import re
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from github.GitRelease import GitRelease
 from github.Issue import Issue
@@ -102,35 +102,10 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _registry_pr(self, version: str) -> Optional[PullRequest]:
-        """Look up a merged registry pull request for this version."""
-        name = self._repo._project("name")
-        uuid = self._repo._project("uuid")
-        # This is the format used by Registrator/PkgDev.
-        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
-        logger.debug(f"Looking for PR from branch {head}")
-        now = datetime.now()
-        # Check for an owner's PR first, since this is way faster (only one request).
-        registry = self._repo._registry
-        owner = registry.owner.login
-        logger.debug(f"Trying to find PR by registry owner first ({owner})")
-        prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
-        for pr in prs:
-            if pr.merged and now - pr.merged_at < self._repo._lookback:
-                return pr
-        logger.debug("Did not find registry PR by registry owner")
-        prs = registry.get_pulls(state="closed")
-        for pr in prs:
-            if now - cast(datetime, pr.closed_at) > self._repo._lookback:
-                break
-            if pr.merged and pr.head.ref == head:
-                return pr
-        return None
-
     def _custom_release_notes(self, version: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
-        pr = self._registry_pr(version)
+        pr = self._repo._registry_pr(version)
         if not pr:
             logger.warning("No registry pull request was found for this version")
             return None
