@@ -19,6 +19,7 @@ from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union
 from urllib.parse import urlparse
 
 from github import Github, GithubException, InputGitAuthor, UnknownObjectException
+from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
 
@@ -127,6 +128,48 @@ class Repo:
             base=self._repo.default_branch,
         )
 
+    def _registry_pr(self, version: str) -> Optional[PullRequest]:
+        """Look up a merged registry pull request for this version."""
+        name = self._project("name")
+        uuid = self._project("uuid")
+        # This is the format used by Registrator/PkgDev.
+        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
+        logger.debug(f"Looking for PR from branch {head}")
+        now = datetime.now()
+        # Check for an owner's PR first, since this is way faster (only one request).
+        registry = self._registry
+        owner = registry.owner.login
+        logger.debug(f"Trying to find PR by registry owner first ({owner})")
+        prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
+        for pr in prs:
+            if pr.merged and now - pr.merged_at < self._lookback:
+                return pr
+        logger.debug("Did not find registry PR by registry owner")
+        prs = registry.get_pulls(state="closed")
+        for pr in prs:
+            if now - cast(datetime, pr.closed_at) > self._lookback:
+                break
+            if pr.merged and pr.head.ref == head:
+                return pr
+        return None
+
+    def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
+        """Look up the commit SHA of version from its registry PR."""
+        pr = self._registry_pr(version)
+        if not pr:
+            logger.info("Did not find registry PR")
+            return None
+        m = re.search("- Commit: ([a-f0-9]{32})", pr.body)
+        if not m:
+            logger.info("Registry PR body did not match")
+            return None
+        commit = self._repo.get_commit(m[1])
+        if commit.commit.tree.sha == tree:
+            return commit.sha
+        else:
+            logger.warning("Tree SHA of commit from registry PR does not match")
+            return None
+
     def _commit_sha_of_tree_from_branch(
         self, branch: str, tree: str, since: datetime
     ) -> Optional[str]:
@@ -175,7 +218,9 @@ class Repo:
         valid = {}
         for version, tree in versions.items():
             version = f"v{version}"
-            expected = self._commit_sha_of_tree(tree)
+            expected = self._commit_sha_from_registry_pr(version, tree)
+            if not expected:
+                expected = self._commit_sha_of_tree(tree)
             if not expected:
                 logger.warning(
                     f"No matching commit was found for version {version} ({tree})"
