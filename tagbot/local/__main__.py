@@ -47,6 +47,7 @@ repo = Repo(
     user=USER,
     email=EMAIL,
     lookback=0,
+    branch=None,
 )
 
 version = args.version if args.version.startswith("v") else "v" + args.version

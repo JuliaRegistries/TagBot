@@ -81,13 +81,6 @@ def test_commit_sha_of_tree():
     assert g.commit_sha_of_tree("c") is None
 
 
-def test_commit_sha_of_default():
-    g = _git(command="abcdef")
-    g._Git__default_branch = "branch"
-    assert g.commit_sha_of_default() == "abcdef"
-    g.command.assert_called_once_with("rev-parse", "branch")
-
-
 def test_set_remote_url():
     g = _git(command="hi")
     g.set_remote_url("url")

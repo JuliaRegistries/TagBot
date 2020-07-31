@@ -50,6 +50,7 @@ class Repo:
         user: str,
         email: str,
         lookback: int,
+        branch: Optional[str],
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -73,6 +74,7 @@ class Repo:
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
         self._lookback = timedelta(days=lookback, hours=1)
+        self.__release_branch = branch
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
@@ -106,6 +108,11 @@ class Repo:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
         return None
+
+    @property
+    def _release_branch(self) -> str:
+        """Get the name of the release branch."""
+        return self.__release_branch or self._repo.default_branch
 
     def _only(self, val: Union[T, List[T]]) -> T:
         """Get the first element of a list or the thing itself if it's not a list."""
@@ -182,13 +189,11 @@ class Repo:
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
         since = datetime.now() - self._lookback
-        sha = self._commit_sha_of_tree_from_branch(
-            self._repo.default_branch, tree, since
-        )
+        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree, since)
         if sha:
             return sha
         for branch in self._repo.get_branches():
-            if branch.name == self._repo.default_branch:
+            if branch.name == self._release_branch:
                 continue
             sha = self._commit_sha_of_tree_from_branch(branch.name, tree, since)
             if sha:
@@ -212,6 +217,11 @@ class Repo:
             return tag.object.sha
         else:
             return None
+
+    def _commit_sha_of_release_branch(self) -> str:
+        """Get the latest commit SHA of the release branch."""
+        branch = self._repo.get_branch(self._release_branch)
+        return branch.commit.sha
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -426,10 +436,10 @@ class Repo:
     def create_release(self, version: str, sha: str) -> None:
         """Create a GitHub release."""
         target = sha
-        if self._git.commit_sha_of_default() == sha:
+        if self._commit_sha_of_release_branch() == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
-            target = self._repo.default_branch
+            target = self._release_branch
         logger.debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
         if self._ssh or self._gpg:
