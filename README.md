@@ -123,7 +123,7 @@ The data available to you looks like this:
       },
       "body": "issue body",
       "labels": ["label1", "label2"],
-      "merger": {"same format as": "issue author"},
+      "closer": {"same format as": "issue author but sometimes null"},
       "number": 123,
       "title": "issue title",
       "url": "https://github.com/Owner/Repo/issues/123"

@@ -115,6 +115,7 @@ def test_format_user():
     m = Mock(html_url="url", login="username")
     m.name = "Name"
     assert c._format_user(m) == {"name": "Name", "url": "url", "username": "username"}
+    assert c._format_user(None) == {}
 
 
 def test_format_issue_pull():

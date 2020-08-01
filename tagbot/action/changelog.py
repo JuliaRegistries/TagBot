@@ -118,13 +118,15 @@ class Changelog:
         logger.debug("No custom release notes were found")
         return None
 
-    def _format_user(self, user: NamedUser) -> Dict[str, object]:
+    def _format_user(self, user: Optional[NamedUser]) -> Dict[str, object]:
         """Format a user for the template."""
-        return {
-            "name": user.name or user.login,
-            "url": user.html_url,
-            "username": user.login,
-        }
+        if user:
+            return {
+                "name": user.name or user.login,
+                "url": user.html_url,
+                "username": user.login,
+            }
+        return {}
 
     def _format_issue(self, issue: Issue) -> Dict[str, object]:
         """Format an issue for the template."""
