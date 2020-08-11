@@ -35,3 +35,4 @@ functions:
   reports:
     handler: tagbot.web.reports.handler
     reservedConcurrency: 1
+    timeout: 30
