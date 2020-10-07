@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
 from github import Github, GithubException, InputGitAuthor, UnknownObjectException
@@ -44,14 +44,14 @@ class Repo:
         github_api: str,
         token: str,
         changelog: str,
-        changelog_ignore: List[str],
+        changelog_ignore: list[str],
         ssh: bool,
         gpg: bool,
         user: str,
         email: str,
         lookback: int,
         branch: Optional[str],
-        github_kwargs: Optional[Dict[str, object]] = None,
+        github_kwargs: Optional[dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
             github_kwargs = {}
@@ -114,7 +114,7 @@ class Repo:
         """Get the name of the release branch."""
         return self.__release_branch or self._repo.default_branch
 
-    def _only(self, val: Union[T, List[T]]) -> T:
+    def _only(self, val: Union[T, list[T]]) -> T:
         """Get the first element of a list or the thing itself if it's not a list."""
         return val[0] if isinstance(val, list) else val
 
@@ -223,7 +223,7 @@ class Repo:
         branch = self._repo.get_branch(self._release_branch)
         return branch.commit.sha
 
-    def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
+    def _filter_map_versions(self, versions: dict[str, str]) -> dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
         for version, tree in versions.items():
@@ -247,7 +247,7 @@ class Repo:
             valid[version] = expected
         return valid
 
-    def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
+    def _versions(self, min_age: Optional[timedelta] = None) -> dict[str, str]:
         """Get all package versions from the registry."""
         root = self._registry_path
         if not root:
@@ -338,7 +338,7 @@ class Repo:
         # I'm not really sure why mypy doesn't like this line without the cast.
         return cast(bool, m[1].casefold() == self._repo.full_name.casefold())
 
-    def new_versions(self) -> Dict[str, str]:
+    def new_versions(self) -> dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
         logger.debug(f"There are {len(current)} total versions")

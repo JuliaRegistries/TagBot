@@ -352,7 +352,7 @@ $ docker run --rm degraafc/tagbot python -m tagbot.local \
 
 If you don't want to provide a token on the command line, omit the `--token` option and you will be securely prompted for a token.
 
-You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
+You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.9.
 
 ```sh
 $ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C

@@ -2,7 +2,7 @@ import json
 import os
 import re
 
-from typing import Dict, Optional
+from typing import Optional
 
 from github import Github
 from github.Issue import Issue
@@ -16,7 +16,7 @@ _gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
 TAGBOT_ISSUES_REPO = _gh.get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 
-def handler(event: Dict[str, str], ctx: object = None) -> None:
+def handler(event: dict[str, str], ctx: object = None) -> None:
     """Lambda event handler."""
     logger.info(f"Event: {json.dumps(event, indent=2)}")
     _handle_report(

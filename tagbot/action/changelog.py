@@ -2,7 +2,7 @@ import json
 import re
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from github.GitRelease import GitRelease
 from github.Issue import Issue
@@ -30,12 +30,12 @@ class Changelog:
         "wont fix",
     ]
 
-    def __init__(self, repo: "Repo", template: str, ignore: List[str]) -> None:
+    def __init__(self, repo: "Repo", template: str, ignore: list[str]) -> None:
         self._repo = repo
         self._template = Template(template, trim_blocks=True)
         self._ignore = set(self._slug(s) for s in ignore)
-        self.__range: Optional[Tuple[datetime, datetime]] = None
-        self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
+        self.__range: Optional[tuple[datetime, datetime]] = None
+        self.__issues_and_pulls: Optional[list[Union[Issue, PullRequest]]] = None
 
     def _slug(self, s: str) -> str:
         """Return a version of the string that's easy to compare."""
@@ -65,13 +65,13 @@ class Changelog:
 
     def _issues_and_pulls(
         self, start: datetime, end: datetime
-    ) -> List[Union[Issue, PullRequest]]:
+    ) -> list[Union[Issue, PullRequest]]:
         """Collect issues and pull requests that were closed in the interval."""
         # Even if we've previously cached some data,
         # only return it if the interval is the same.
         if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
-        xs: List[Union[Issue, PullRequest]] = []
+        xs: list[Union[Issue, PullRequest]] = []
         # Get all closed issues and merged PRs that were closed/merged in the interval.
         for x in self._repo._repo.get_issues(state="closed", since=start):
             # If a previous release's last commit closed an issue, then that issue
@@ -92,11 +92,11 @@ class Changelog:
         self.__issues_and_pulls = xs
         return self.__issues_and_pulls
 
-    def _issues(self, start: datetime, end: datetime) -> List[Issue]:
+    def _issues(self, start: datetime, end: datetime) -> list[Issue]:
         """Collect just issues in the interval."""
         return [i for i in self._issues_and_pulls(start, end) if isinstance(i, Issue)]
 
-    def _pulls(self, start: datetime, end: datetime) -> List[PullRequest]:
+    def _pulls(self, start: datetime, end: datetime) -> list[PullRequest]:
         """Collect just pull requests in the interval."""
         return [
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
@@ -118,7 +118,7 @@ class Changelog:
         logger.debug("No custom release notes were found")
         return None
 
-    def _format_user(self, user: Optional[NamedUser]) -> Dict[str, object]:
+    def _format_user(self, user: Optional[NamedUser]) -> dict[str, object]:
         """Format a user for the template."""
         if user:
             return {
@@ -128,7 +128,7 @@ class Changelog:
             }
         return {}
 
-    def _format_issue(self, issue: Issue) -> Dict[str, object]:
+    def _format_issue(self, issue: Issue) -> dict[str, object]:
         """Format an issue for the template."""
         return {
             "author": self._format_user(issue.user),
@@ -140,7 +140,7 @@ class Changelog:
             "url": issue.html_url,
         }
 
-    def _format_pull(self, pull: PullRequest) -> Dict[str, object]:
+    def _format_pull(self, pull: PullRequest) -> dict[str, object]:
         """Format a pull request for the template."""
         return {
             "author": self._format_user(pull.user),
@@ -152,7 +152,7 @@ class Changelog:
             "url": pull.html_url,
         }
 
-    def _collect_data(self, version: str, sha: str) -> Dict[str, object]:
+    def _collect_data(self, version: str, sha: str) -> dict[str, object]:
         """Collect data needed to create the changelog."""
         previous = self._previous_release(version)
         start = datetime.fromtimestamp(0)
@@ -182,7 +182,7 @@ class Changelog:
             "version_url": f"{self._repo._repo.html_url}/tree/{version}",
         }
 
-    def _render(self, data: Dict[str, object]) -> str:
+    def _render(self, data: dict[str, object]) -> str:
         """Render the template."""
         return self._template.render(data).strip()
 

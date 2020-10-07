@@ -1,8 +1,8 @@
-from typing import List, Optional
+from typing import Optional
 
 class ImportResult:
     stderr: str
-    fingerprints: List[str]
+    fingerprints: list[str]
     sec_imported: int
 
 class Sign:

@@ -1,7 +1,7 @@
 import json
 import os
 
-from typing import Dict, Optional, Tuple, TypeVar, Union, cast
+from typing import Optional, TypeVar, Union, cast
 
 import boto3
 
@@ -11,9 +11,9 @@ from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
 from .. import log_handler
 
 T = TypeVar("T")
-StatusOptional = Union[T, Tuple[T, int]]
+StatusOptional = Union[T, tuple[T, int]]
 HTML = StatusOptional[str]
-JSON = StatusOptional[Dict[str, object]]
+JSON = StatusOptional[dict[str, object]]
 
 LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
 REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
