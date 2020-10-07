@@ -8,7 +8,7 @@ from tagbot.action.git import Git
 
 
 def _git(
-    github="", repo="", token="", user="user", email="a@b.c", command=None, check=None,
+    github="", repo="", token="", user="user", email="a@b.c", command=None, check=None
 ) -> Git:
     g = Git(github, repo, token, user, email)
     if command:

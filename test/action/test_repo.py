@@ -116,7 +116,7 @@ def test_create_release_branch_pr():
     r._repo = Mock(default_branch="default")
     r._create_release_branch_pr("v1.2.3", "branch")
     r._repo.create_pull.assert_called_once_with(
-        title="Merge release branch for v1.2.3", body="", head="branch", base="default",
+        title="Merge release branch for v1.2.3", body="", head="branch", base="default"
     )
 
 
@@ -129,7 +129,7 @@ def test_registry_pr():
     r._registry.get_pulls.return_value = [owner_pr]
     assert r._registry_pr("v1.2.3") is owner_pr
     r._registry.get_pulls.assert_called_once_with(
-        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed",
+        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed"
     )
     r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
     assert r._registry_pr("v2.3.4") is None
@@ -187,7 +187,7 @@ def test_commit_sha_of_tree_from_branch():
 def test_commit_sha_of_tree():
     r = _repo()
     now = datetime.now()
-    r._repo = Mock(default_branch="master",)
+    r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock(), Mock()]
     branches[0].name = "foo"
     branches[1].name = "master"
@@ -393,9 +393,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     with patch("builtins.open", open):
         r.configure_ssh(" sshkey ", None)
     r._git.set_remote_url.assert_called_with("sshurl")
-    open.assert_has_calls(
-        [call("abc", "w"), call("xyz", "w")], any_order=True,
-    )
+    open.assert_has_calls([call("abc", "w"), call("xyz", "w")], any_order=True)
     open.return_value.write.assert_called_with("sshkey\n")
     run.assert_called_with(
         ["ssh-keyscan", "-t", "rsa", "gh.com"],
@@ -405,7 +403,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
-        "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz",
+        "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz"
     )
     with patch("builtins.open", open):
         r.configure_ssh("Zm9v", None)
