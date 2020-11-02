@@ -359,6 +359,7 @@ You can also run the code outside of Docker, but you'll just need to install [Po
 
 ```sh
 $ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C
+$ cd TagBot
 $ poetry install
 $ poetry run python -m tagbot.local -h
 ```
