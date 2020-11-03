@@ -16,23 +16,24 @@ INPUTS: Optional[Dict[str, str]] = None
 
 def get_input(key: str, default: str = "") -> str:
     """Get an input from the environment, or from a workflow input if it's set."""
+    default = os.getenv(key.upper().replace("-", "_"), default)
     if INPUTS is None:
+        if "GITHUB_EVENT_PATH" not in os.environ:
+            return default
         with open(os.environ["GITHUB_EVENT_PATH"]) as f:
             event = json.load(f)
         global INPUTS
         INPUTS = event.get("inputs", {})
-    default = os.getenv(key.upper().replace("-", "_"), default)
     return INPUTS.get(key.lower(), default)
 
 
-ssh = get_input("ssh")
-gpg = get_input("gpg")
-token = get_input("token")
-if not token:
-    logger.error("No GitHub API token supplied")
-    sys.exit(1)
-
 try:
+    token = get_input("token")
+    if not token:
+        logger.error("No GitHub API token supplied")
+        sys.exit(1)
+    ssh = get_input("ssh")
+    gpg = get_input("gpg")
     changelog_ignore = get_input("changelog_ignore")
     if changelog_ignore:
         ignore = changelog_ignore.split(",")
@@ -83,4 +84,7 @@ try:
             repo.handle_release_branch(version)
         repo.create_release(version, sha)
 except Exception as e:
-    repo.handle_error(e)
+    try:
+        repo.handle_error(e)
+    except NameError:
+        logger.exception("An unexpected, unreportable error occurred")
