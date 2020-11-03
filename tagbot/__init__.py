@@ -1,6 +1,8 @@
 import os
 import sys
+import traceback
 
+from io import StringIO
 from logging import (
     DEBUG,
     INFO,
@@ -22,6 +24,12 @@ class LogFormatter(Formatter):
 
     def _fmt_actions(self, record: LogRecord) -> str:
         message = record.getMessage()
+        if record.exc_info:
+            buf = StringIO()
+            cls, inst, tb = record.exc_info
+            traceback.print_exception(cls, inst, tb, file=buf)
+            buf.seek(0)
+            message += "\n" + buf.read()
         if record.levelno == INFO:
             return message
         if record.levelno == DEBUG:
