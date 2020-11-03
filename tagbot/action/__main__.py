@@ -16,13 +16,13 @@ INPUTS: Optional[Dict[str, str]] = None
 
 def get_input(key: str, default: str = "") -> str:
     """Get an input from the environment, or from a workflow input if it's set."""
+    global INPUTS
     default = os.getenv(key.upper().replace("-", "_"), default)
     if INPUTS is None:
         if "GITHUB_EVENT_PATH" not in os.environ:
             return default
         with open(os.environ["GITHUB_EVENT_PATH"]) as f:
             event = json.load(f)
-        global INPUTS
         INPUTS = event.get("inputs", {})
     return INPUTS.get(key.lower(), default)
 
