@@ -258,6 +258,7 @@ To reduce the consequences of a secret being leaked, we recommend that you inste
 To use a PAT:
 
 - Create a PAT by following the instructions [here](https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line#creating-a-token).
+  Make sure that it has the `repo` scope.
 - Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
   Use whatever you like as the name, such as `TAGBOT_PAT`.
   Use the new PAT as the value.
@@ -354,6 +355,7 @@ $ docker run --rm degraafc/tagbot python -m tagbot.local \
 ```
 
 Only the `repo`, `version`, and `token` options are required, and you will be prompted if you don't provide them.
+For instructions on how to obtain a token, see [Personal Access Tokens (PATs)](#personal-access-tokens-pats).
 
 You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
 
