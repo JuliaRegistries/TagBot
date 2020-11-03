@@ -1,6 +1,9 @@
+import json
 import os
 import sys
 import time
+
+from typing import Dict, Optional
 
 import requests
 
@@ -12,49 +15,49 @@ from .repo import Repo
 
 RequestException = requests.RequestException
 
-repo_name = os.getenv("GITHUB_REPOSITORY", "")
-branches = os.getenv("INPUT_BRANCHES", "false") == "true"
-changelog = os.getenv("INPUT_CHANGELOG", "")
-changelog_ignore = os.getenv("INPUT_CHANGELOG_IGNORE", "")
-dispatch = os.getenv("INPUT_DISPATCH", "false") == "true"
-dispatch_delay = os.getenv("INPUT_DISPATCH_DELAY", "")
-github_url = os.getenv("INPUT_GITHUB", "")
-github_api_url = os.getenv("INPUT_GITHUB_API", "")
-lookback = os.getenv("INPUT_LOOKBACK", "")
-registry_name = os.getenv("INPUT_REGISTRY", "")
-ssh = os.getenv("INPUT_SSH")
-ssh_password = os.getenv("INPUT_SSH_PASSWORD")
-gpg = os.getenv("INPUT_GPG")
-gpg_password = os.getenv("INPUT_GPG_PASSWORD")
-user = os.getenv("INPUT_USER", "")
-email = os.getenv("INPUT_EMAIL", "")
-token = os.getenv("INPUT_TOKEN")
-branch = os.getenv("INPUT_BRANCH")
 
+INPUTS: Optional[Dict[str, str]] = None
+
+
+def get_input(key: str, default: str = "") -> str:
+    """Get an input from the environment, or from a workflow input if it's set."""
+    if INPUTS is None:
+        with open(os.environ["GITHUB_EVENT_PATH"]) as f:
+            event = json.load(f)
+        global INPUTS
+        INPUTS = event.get("inputs", {})
+    default = os.getenv(key.upper().replace("-", "_"), default)
+    return INPUTS.get(key.lower(), default)
+
+
+ssh = get_input("ssh")
+gpg = get_input("gpg")
+token = get_input("token")
 if not token:
     logger.error("No GitHub API token supplied")
     sys.exit(1)
 
 try:
+    changelog_ignore = get_input("changelog_ignore")
     if changelog_ignore:
         ignore = changelog_ignore.split(",")
     else:
         ignore = Changelog.DEFAULT_IGNORE
 
     repo = Repo(
-        repo=repo_name,
-        registry=registry_name,
-        github=github_url,
-        github_api=github_api_url,
+        repo=os.getenv("GITHUB_REPOSITORY", ""),
+        registry=get_input("registry"),
+        github=get_input("github"),
+        github_api=get_input("github_api"),
         token=token,
-        changelog=changelog,
+        changelog=get_input("changelog"),
         changelog_ignore=ignore,
         ssh=bool(ssh),
         gpg=bool(gpg),
-        user=user,
-        email=email,
-        lookback=int(lookback),
-        branch=branch,
+        user=get_input("user"),
+        email=get_input("email"),
+        lookback=int(get_input("lookback")),
+        branch=get_input("branch"),
     )
 
     if not repo.is_registered():
@@ -69,19 +72,19 @@ try:
         logger.info("No new versions to release")
         sys.exit()
 
-    if dispatch:
-        minutes = int(dispatch_delay)
+    if get_input("dispatch", "false") == "true":
+        minutes = int(get_input("dispatch_delay"))
         repo.create_dispatch_event(versions)
         logger.info(f"Waiting {minutes} minutes for any dispatch handlers")
         time.sleep(timedelta(minutes=minutes).total_seconds())
     if ssh:
-        repo.configure_ssh(ssh, ssh_password)
+        repo.configure_ssh(ssh, get_input("ssh_password"))
     if gpg:
-        repo.configure_gpg(gpg, gpg_password)
+        repo.configure_gpg(gpg, get_input("gpg_password"))
 
     for version, sha in versions.items():
         logger.info(f"Processing version {version} ({sha})")
-        if branches:
+        if get_input("branches", "false") == "true":
             repo.handle_release_branch(version)
         repo.create_release(version, sha)
 except Exception as e:
