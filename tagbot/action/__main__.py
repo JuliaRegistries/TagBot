@@ -5,16 +5,11 @@ import time
 
 from typing import Dict, Optional
 
-import requests
-
 from datetime import timedelta
 
 from .. import logger
 from .changelog import Changelog
 from .repo import Repo
-
-RequestException = requests.RequestException
-
 
 INPUTS: Optional[Dict[str, str]] = None
 
