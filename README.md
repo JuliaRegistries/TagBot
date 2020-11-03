@@ -334,18 +334,18 @@ The simplest way to run TagBot manually is through Docker and the `tagbot.local`
 
 ```sh
 $ docker pull degraafc/tagbot
-$ docker run --rm degraafc/tagbot python -m tagbot.local -h
-usage: __main__.py [-h] --repo  --version  [--token] [--github] [--github-api] [--changelog] [--registry]
+$ docker run --rm degraafc/tagbot python -m tagbot.local --help
+Usage: __main__.py [OPTIONS]
 
-optional arguments:
-  -h, --help     show this help message and exit
-  --repo         Repo to tag
-  --version      Version to tag
-  --token        GitHub API token
-  --github       GitHub URL
-  --github-api   GitHub API URL
-  --changelog    Changelog template
-  --registry     Registry to search
+Options:
+  --repo TEXT        Repo to tag
+  --version TEXT     Version to tag
+  --token TEXT       GitHub API token
+  --github TEXT      GitHub URL
+  --github-api TEXT  GitHub API URL
+  --changelog TEXT   Changelog template
+  --registry TEXT    Registry to search
+  --help             Show this message and exit.
 
 $ docker run --rm degraafc/tagbot python -m tagbot.local \
     --repo Owner/Name \
@@ -353,7 +353,7 @@ $ docker run --rm degraafc/tagbot python -m tagbot.local \
     --version v1.2.3
 ```
 
-If you don't want to provide a token on the command line, omit the `--token` option and you will be securely prompted for a token.
+Only the `repo`, `version`, and `token` options are required, and you will be prompted if you don't provide them.
 
 You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
 
@@ -361,5 +361,5 @@ You can also run the code outside of Docker, but you'll just need to install [Po
 $ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C
 $ cd TagBot
 $ poetry install
-$ poetry run python -m tagbot.local -h
+$ poetry run python -m tagbot.local --help
 ```
