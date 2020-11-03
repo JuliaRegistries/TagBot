@@ -24,7 +24,8 @@ def get_input(key: str, default: str = "") -> str:
         with open(os.environ["GITHUB_EVENT_PATH"]) as f:
             event = json.load(f)
         INPUTS = event.get("inputs", {})
-    return INPUTS.get(key.lower(), default)
+    val = INPUTS.get(key.lower(), default)
+    return val or default
 
 
 try:
