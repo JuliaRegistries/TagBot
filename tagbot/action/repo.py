@@ -382,7 +382,7 @@ class Repo:
             # Start the SSH agent, apply the environment changes,
             # then add our identity so that we don't need to supply a password anymore.
             proc = subprocess.run(
-                ["ssh-agent"], check=True, text=True, capture_output=True,
+                ["ssh-agent"], check=True, text=True, capture_output=True
             )
             for (k, v) in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
                 logger.debug(f"Setting environment variable {k}={v}")

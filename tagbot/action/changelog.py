@@ -110,7 +110,7 @@ class Changelog:
             logger.warning("No registry pull request was found for this version")
             return None
         m = re.search(
-            "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->", pr.body,
+            "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->", pr.body
         )
         if m:
             # Remove the '> ' at the beginning of each line.
