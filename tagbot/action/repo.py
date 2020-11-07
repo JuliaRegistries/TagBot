@@ -121,7 +121,11 @@ class Repo:
     def _maybe_b64(self, val: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         try:
-            val = b64decode(val, validate=True).decode()
+            # Stripping is necessary for encoded input, since it's easy to accidentally
+            # give a repo secret an extra trailing newline. This still works for
+            # unencoded input, since any SSH/GPG key will always have newlines
+            # in the middle.
+            val = b64decode(val.strip(), validate=True).decode()
         except binascii.Error:
             pass
         return val
