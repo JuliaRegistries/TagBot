@@ -109,6 +109,7 @@ def test_maybe_b64():
     r = _repo()
     assert r._maybe_b64("foo bar") == "foo bar"
     assert r._maybe_b64("Zm9v") == "foo"
+    assert r._maybe_b64("Zm9v\n") == "foo"
 
 
 def test_create_release_branch_pr():
