@@ -1,5 +1,6 @@
 import os
 
+from base64 import b64encode
 from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
@@ -105,11 +106,12 @@ def test_only():
     assert r._only([[1]]) == [1]
 
 
-def test_maybe_b64():
+def test_maybe_decode_private_key():
     r = _repo()
-    assert r._maybe_b64("foo bar") == "foo bar"
-    assert r._maybe_b64("Zm9v") == "foo"
-    assert r._maybe_b64("Zm9v\n") == "foo"
+    plain = "BEGIN OPENSSH PRIVATE KEY foo bar"
+    b64 = b64encode(plain.encode()).decode()
+    assert r._maybe_decode_private_key(plain) == plain
+    assert r._maybe_decode_private_key(b64) == plain
 
 
 def test_create_release_branch_pr():
@@ -392,12 +394,12 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     r._git.config = Mock()
     open = mock_open()
     with patch("builtins.open", open):
-        r.configure_ssh(" sshkey ", None)
+        r.configure_ssh(" BEGIN OPENSSH PRIVATE KEY ", None)
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_has_calls(
         [call("abc", "w"), call("xyz", "w")], any_order=True,
     )
-    open.return_value.write.assert_called_with("sshkey\n")
+    open.return_value.write.assert_called_with("BEGIN OPENSSH PRIVATE KEY\n")
     run.assert_called_with(
         ["ssh-keyscan", "-t", "rsa", "gh.com"],
         check=True,
@@ -418,7 +420,8 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     echo Agent pid 123;
     """
     with patch("builtins.open", open):
-        r.configure_ssh(" key ", "mypassword")
+        r.configure_ssh("Zm9v", "mypassword")
+    open.return_value.write.assert_called_with("foo\n")
     run.assert_called_with(["ssh-agent"], check=True, text=True, capture_output=True)
     assert os.getenv("VAR1") == "value"
     assert os.getenv("VAR2") == "123"
@@ -439,24 +442,24 @@ def test_configure_gpg(chmod, mkdtemp, GPG):
     r._git.config = Mock()
     gpg = GPG.return_value
     gpg.import_keys.return_value = Mock(sec_imported=1, fingerprints=["k"], stderr="e")
-    r.configure_gpg("foo bar", None)
+    r.configure_gpg("BEGIN PGP PRIVATE KEY", None)
     assert os.getenv("GNUPGHOME") == "gpgdir"
     chmod.assert_called_with("gpgdir", S_IREAD | S_IWRITE | S_IEXEC)
     GPG.assert_called_with(gnupghome="gpgdir", use_agent=True)
-    gpg.import_keys.assert_called_with("foo bar")
+    gpg.import_keys.assert_called_with("BEGIN PGP PRIVATE KEY")
     calls = [call("user.signingKey", "k"), call("tag.gpgSign", "true")]
     r._git.config.assert_has_calls(calls)
     r.configure_gpg("Zm9v", None)
     gpg.import_keys.assert_called_with("foo")
     gpg.sign.return_value = Mock(status="signature created")
-    r.configure_gpg("foo bar", "mypassword")
+    r.configure_gpg("Zm9v", "mypassword")
     gpg.sign.assert_called_with("test", passphrase="mypassword")
     gpg.sign.return_value = Mock(status=None, stderr="e")
     with pytest.raises(Abort):
-        r.configure_gpg("foo bar", "mypassword")
+        r.configure_gpg("Zm9v", "mypassword")
     gpg.import_keys.return_value.sec_imported = 0
     with pytest.raises(Abort):
-        r.configure_gpg("foo bar", None)
+        r.configure_gpg("Zm9v", None)
 
 
 def test_handle_release_branch():

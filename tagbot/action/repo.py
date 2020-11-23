@@ -1,4 +1,3 @@
-import binascii
 import json
 import os
 import re
@@ -118,17 +117,9 @@ class Repo:
         """Get the first element of a list or the thing itself if it's not a list."""
         return val[0] if isinstance(val, list) else val
 
-    def _maybe_b64(self, val: str) -> str:
+    def _maybe_decode_private_key(self, key: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
-        try:
-            # Stripping is necessary for encoded input, since it's easy to accidentally
-            # give a repo secret an extra trailing newline. This still works for
-            # unencoded input, since any SSH/GPG key will always have newlines
-            # in the middle.
-            val = b64decode(val.strip(), validate=True).decode()
-        except binascii.Error:
-            pass
-        return val
+        return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
     def _create_release_branch_pr(self, version: str, branch: str) -> None:
         """Create a pull request for the release branch."""
@@ -366,7 +357,7 @@ class Repo:
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
             # SSH keys must end with a single newline.
-            f.write(self._maybe_b64(key).strip() + "\n")
+            f.write(self._maybe_decode_private_key(key).strip() + "\n")
         os.chmod(priv, S_IREAD)
         # Add the host key to a known hosts file
         # so that we don't have to confirm anything when we try to push.
@@ -403,7 +394,7 @@ class Repo:
         logger.debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
         # For some reason, this doesn't require the password even though the CLI does.
-        import_result = gpg.import_keys(self._maybe_b64(key))
+        import_result = gpg.import_keys(self._maybe_decode_private_key(key))
         if import_result.sec_imported != 1:
             logger.warning(import_result.stderr)
             raise Abort("Importing key failed")
