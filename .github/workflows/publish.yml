@@ -1,17 +1,25 @@
-name: Publish Docker Image
+name: Publish Releases
 on:
-  release:
-    types: published
+  workflow_dispatch:
+    inputs:
+      bump:
+  pull_request:
+    types:
+      - closed
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.merged)
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v1
         with:
           python-version: 3.8
+      - run: pip install PyGithub semver
       - run: make publish
         env:
           DOCKER_IMAGE: tagbot
           DOCKER_USERNAME: degraafc
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
