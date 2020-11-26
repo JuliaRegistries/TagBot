@@ -143,10 +143,7 @@ def create_release(repo: Repository, pr: PullRequest) -> None:
 
 def get_release_notes(pr: PullRequest) -> str:
     for comment in pr.get_issue_comments():
-        m = re.search(
-            "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->",
-            comment.body,
-        )
+        m = re.search("(?si)Release notes:(.*)", comment.body)
         if m:
             return m[1].strip()
     return ""
