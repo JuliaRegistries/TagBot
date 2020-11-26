@@ -12,6 +12,10 @@ from .changelog import Changelog
 from .repo import Repo
 
 INPUTS: Optional[Dict[str, str]] = None
+CRON_WARNING = """\
+Your TagBot workflow should be updated to use issue comment triggers instead of cron.
+See this Discourse thread for more information: https://discourse.julialang.org/t/ann-required-updates-to-tagbot-yml/49249
+"""  # noqa: E501
 
 
 def get_input(key: str, default: str = "") -> str:
@@ -28,6 +32,8 @@ def get_input(key: str, default: str = "") -> str:
 
 
 try:
+    if os.getenv("GITHUB_EVENT_NAME") == "schedule":
+        logger.warning(CRON_WARNING)
     token = get_input("token")
     if not token:
         logger.error("No GitHub API token supplied")
