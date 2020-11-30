@@ -53,7 +53,7 @@ inputs:
       {% endif %}
 runs:
   using: docker
-  image: docker://degraafc/tagbot:1
+  image: docker://ghcr.io/juliaregistries/tagbot:1.4.0
 branding:
   icon: tag
   color: red
