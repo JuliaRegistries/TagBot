@@ -19,7 +19,7 @@ inputs:
     default: false
 runs:
   using: docker
-  image: docker://degraafc/tagbot:1
+  image: docker://ghcr.io/juliaregistries/tagbot:1.2.0
 branding:
   icon: tag
   color: red
