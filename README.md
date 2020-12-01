@@ -334,8 +334,7 @@ Perhaps TagBot failed for some reason, or GitHub's service was down, or you just
 The simplest way to run TagBot manually is through Docker and the `tagbot.local` module.
 
 ```sh
-$ docker pull degraafc/tagbot
-$ docker run --rm degraafc/tagbot python -m tagbot.local --help
+$ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local --help
 Usage: __main__.py [OPTIONS]
 
 Options:
@@ -348,7 +347,7 @@ Options:
   --registry TEXT    Registry to search
   --help             Show this message and exit.
 
-$ docker run --rm degraafc/tagbot python -m tagbot.local \
+$ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \
     --repo Owner/Name \
     --token <TOKEN> \
     --version v1.2.3

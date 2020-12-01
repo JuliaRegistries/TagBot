@@ -18,8 +18,8 @@ jobs:
       - run: pip install PyGithub semver
       - run: make publish
         env:
-          DOCKER_IMAGE: tagbot
-          DOCKER_USERNAME: degraafc
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_IMAGE: ghcr.io/juliaregistries/tagbot
+          DOCKER_USERNAME: christopher-dG
+          DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SSH_KEY: ${{ secrets.SSH_KEY }}

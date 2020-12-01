@@ -99,8 +99,7 @@ def update_action_yml(version: VersionInfo) -> None:
     path = repo_file("action.yml")
     with open(path) as f:
         action = f.read()
-    repo = f"{DOCKER_USERNAME}/{DOCKER_IMAGE}"
-    updated = re.sub(f"{repo}:.*", f"{repo}:{version}", action, count=1)
+    updated = re.sub(f"{DOCKER_IMAGE}:.*", f"{DOCKER_IMAGE}:{version}", action, count=1)
     with open(path, "w") as f:
         f.write(updated)
 
@@ -150,7 +149,6 @@ def get_release_notes(pr: PullRequest) -> str:
 
 
 def update_docker_images() -> None:
-    repo = f"{DOCKER_USERNAME}/{DOCKER_IMAGE}"
     docker("build", "--tag", DOCKER_IMAGE, WORKSPACE)
     docker(
         "login",
@@ -160,7 +158,7 @@ def update_docker_images() -> None:
         stdin=DOCKER_PASSWORD,
     )
     for version in expand_versions(v=False):
-        tag = f"{repo}:{version}"
+        tag = f"{DOCKER_IMAGE}:{version}"
         docker("tag", DOCKER_IMAGE, tag)
         docker("push", tag)
 
