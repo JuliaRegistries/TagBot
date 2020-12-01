@@ -9,7 +9,7 @@ from subprocess import DEVNULL
 from tempfile import mkstemp
 from typing import List, Optional
 
-from github import Github
+from github import Github, GithubException
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 from semver import VersionInfo
@@ -135,9 +135,18 @@ def expand_versions(*, v: bool) -> List[str]:
 def create_release(repo: Repository, pr: PullRequest) -> None:
     notes = get_release_notes(pr)
     release = "v" + str(current_version())
-    repo.create_git_release(
-        tag=release, name=release, message=notes, target_commitish=pr.merge_commit_sha
-    )
+    try:
+        repo.create_git_release(
+            tag=release,
+            name=release,
+            message=notes,
+            target_commitish=pr.merge_commit_sha,
+        )
+    except GithubException as e:
+        if e.status == 422:
+            print("This release already exists, ignoring")
+        else:
+            raise
 
 
 def get_release_notes(pr: PullRequest) -> str:
@@ -150,11 +159,13 @@ def get_release_notes(pr: PullRequest) -> str:
 
 def update_docker_images() -> None:
     docker("build", "--tag", DOCKER_IMAGE, WORKSPACE)
+    server = [DOCKER_IMAGE.split("/")[0]] if DOCKER_IMAGE.count("/") > 1 else []
     docker(
         "login",
         "--username",
         DOCKER_USERNAME,
         "--password-stdin",
+        *server,
         stdin=DOCKER_PASSWORD,
     )
     for version in expand_versions(v=False):
