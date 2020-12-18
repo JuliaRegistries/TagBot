@@ -159,7 +159,9 @@ def get_release_notes(pr: PullRequest) -> str:
 
 def update_docker_images() -> None:
     docker("build", "--tag", DOCKER_IMAGE, WORKSPACE)
-    server = [DOCKER_IMAGE.split("/")[0]] if DOCKER_IMAGE.count("/") > 1 else []
+    server = []
+    if DOCKER_IMAGE.count("/") > 1:
+        server.append("/".join(DOCKER_IMAGE.split("/")[:-2]))
     docker(
         "login",
         "--username",
