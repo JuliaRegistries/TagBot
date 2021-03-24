@@ -62,6 +62,11 @@ try:
         branch=get_input("branch"),
     )
 
+    if ssh:
+        repo.configure_ssh(ssh, get_input("ssh_password"))
+    if gpg:
+        repo.configure_gpg(gpg, get_input("gpg_password"))
+
     if not repo.is_registered():
         logger.info("This package is not registered, skipping")
         logger.info(
@@ -79,10 +84,6 @@ try:
         repo.create_dispatch_event(versions)
         logger.info(f"Waiting {minutes} minutes for any dispatch handlers")
         time.sleep(timedelta(minutes=minutes).total_seconds())
-    if ssh:
-        repo.configure_ssh(ssh, get_input("ssh_password"))
-    if gpg:
-        repo.configure_gpg(gpg, get_input("gpg_password"))
 
     for version, sha in versions.items():
         logger.info(f"Processing version {version} ({sha})")

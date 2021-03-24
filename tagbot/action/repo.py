@@ -64,7 +64,18 @@ class Repo:
             token, base_url=self._gh_api, per_page=100, **github_kwargs  # type: ignore
         )
         self._repo = self._gh.get_repo(repo, lazy=True)
-        self._registry = self._gh.get_repo(registry, lazy=True)
+        self._registry_name = registry
+        try:
+            self._registry = self._gh.get_repo(registry)
+        except UnknownObjectException:
+            # This gets raised if the registry is private and the token lacks
+            # permissions to read it. In this case, we need to use SSH.
+            if not ssh:
+                raise Abort(f"Registry {registry }is not accessible")
+            logger.debug("Will access registry via Git clone")
+            self._clone_registry = True
+        else:
+            self._clone_registry = False
         self._token = token
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
@@ -73,6 +84,7 @@ class Repo:
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
         self._lookback = timedelta(days=lookback, hours=1)
+        self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
@@ -93,19 +105,30 @@ class Repo:
         return str(self.__project[k])
 
     @property
+    def _registry_clone_dir(self) -> str:
+        if self.__registry_clone_dir is not None:
+            return self.__registry_clone_dir
+        url = f"git@{urlparse(self._gh_url).hostname}:{self._registry_name}"
+        self.__registry_clone_dir = self._git.clone(url)
+        return self.__registry_clone_dir
+
+    @property
     def _registry_path(self) -> Optional[str]:
         """Get the package's path in the registry repo."""
         if self.__registry_path is not None:
             return self.__registry_path
-        contents = self._only(self._registry.get_contents("Registry.toml"))
-        registry = toml.loads(contents.decoded_content.decode())
         try:
             uuid = self._project("uuid")
         except KeyError:
             raise InvalidProject("Project file has no UUID")
+        if self._clone_registry:
+            with open(os.path.join(self._registry_clone_dir, "Registry.toml")) as f:
+                registry = toml.load(f)
+        else:
+            contents = self._only(self._registry.get_contents("Registry.toml"))
+            registry = toml.loads(contents.decoded_content.decode())
         if uuid in registry["packages"]:
-            self.__registry_path = registry["packages"][uuid]["path"]
-            return self.__registry_path
+            return registry["packages"][uuid]["path"]
         return None
 
     @property
@@ -132,6 +155,9 @@ class Repo:
 
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
+        if self._clone_registry:
+            # I think this is actually possible, but it looks pretty complicated.
+            return None
         name = self._project("name")
         uuid = self._project("uuid")
         # This is the format used by Registrator/PkgDev.
@@ -244,6 +270,8 @@ class Repo:
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Get all package versions from the registry."""
+        if self._clone_registry:
+            return self._versions_clone(min_age=min_age)
         root = self._registry_path
         if not root:
             logger.debug("Package is not registered")
@@ -269,6 +297,38 @@ class Repo:
             return {}
         versions = toml.loads(contents.decoded_content.decode())
         return {v: versions[v]["git-tree-sha1"] for v in versions}
+
+    def _versions_clone(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
+        """Same as _versions, but uses a Git clone to access the registry."""
+        registry = self._registry_clone_dir
+        if min_age:
+            # TODO: Time zone stuff?
+            default_sha = self._git.command("rev-parse", "HEAD", repo=registry)
+            earliest = datetime.now() - min_age
+            shas = self._git.command("log", "--format=%H", repo=registry).split("\n")
+            for sha in shas:
+                dt = self._git.time_of_commit(sha)
+                if dt < earliest:
+                    self._git.command("checkout", sha, repo=registry)
+                    break
+            else:
+                logger.debug("No registry commits were found")
+                return {}
+        try:
+            root = self._registry_path
+            if not root:
+                logger.debug("Package is not registered")
+                return {}
+            path = os.path.join(registry, root, "Versions.toml")
+            if not os.path.isfile(path):
+                logger.debug("Versions.toml was not found")
+                return {}
+            with open(path) as f:
+                versions = toml.load(f)
+            return {v: versions[v]["git-tree-sha1"] for v in versions}
+        finally:
+            if min_age:
+                self._git.command("checkout", default_sha, repo=registry)
 
     def _pr_exists(self, branch: str) -> bool:
         """Check whether a PR exists for a given branch."""
@@ -320,8 +380,12 @@ class Repo:
             return False
         if not root:
             return False
-        contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
-        package = toml.loads(contents.decoded_content.decode())
+        if self._clone_registry:
+            with open(os.path.join(self._registry_clone_dir, root, "Package.toml")) as f:
+                package = toml.load(f)
+        else:
+            contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
+            package = toml.loads(contents.decoded_content.decode())
         gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")
         if "@" in package["repo"]:
             pattern = rf"{gh}:(.*?)(?:\.git)?$"
@@ -483,8 +547,12 @@ class Repo:
         if not root:
             logger.error("Package is not registered")
             return None
-        contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
-        versions = toml.loads(contents.decoded_content.decode())
+        if self._clone_registry:
+            with open(os.path.join(self._registry_clone_dir, root, "Versions.toml")) as f:
+                versions = toml.load(f)
+        else:
+            contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
+            versions = toml.loads(contents.decoded_content.decode())
         if version not in versions:
             logger.error(f"Version {version} is not registered")
             return None
