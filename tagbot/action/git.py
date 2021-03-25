@@ -30,7 +30,9 @@ class Git:
         if self.__dir is not None:
             return self.__dir
         url = f"https://oauth2:{self._token}@{self._github}/{self._repo}"
-        self.__dir = self.clone(url)
+        dest = mkdtemp(prefix="tagbot_repo_")
+        self.command("clone", url, dest, repo=None)
+        self.__dir = dest
         return self.__dir
 
     def default_branch(self, repo: str = "") -> str:
@@ -85,11 +87,6 @@ class Git:
             if t == tree:
                 return c
         return None
-
-    def clone(self, url: str) -> str:
-        dest = mkdtemp(prefix="tagbot_clone_")
-        self.command("clone", url, dest, repo=None)
-        return dest
 
     def set_remote_url(self, url: str) -> None:
         """Update the origin remote URL."""
