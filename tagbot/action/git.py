@@ -135,10 +135,10 @@ class Git:
         self.command("push", "origin", self.default_branch())
         self.command("push", "-d", "origin", branch)
 
-    def time_of_commit(self, sha: str) -> datetime:
+    def time_of_commit(self, sha: str, repo: str = "") -> datetime:
         """Get the time that a commit was made."""
         # The format %cI is "committer date, strict ISO 8601 format".
-        date = self.command("show", "-s", "--format=%cI", sha)
+        date = self.command("show", "-s", "--format=%cI", sha, repo=repo)
         dt = datetime.fromisoformat(date)
         # Convert to UTC and remove time zone information.
         offset = dt.utcoffset()

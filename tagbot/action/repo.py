@@ -119,11 +119,11 @@ class Repo:
         if self.__registry_clone_dir is not None:
             return self.__registry_clone_dir
         repo = mkdtemp(prefix="tagbot_registry_")
-        self._git.command("init", repo)
+        self._git.command("init", repo, repo=None)
         self.configure_ssh(self._registry_ssh_key, None, repo=repo)
         url = f"git@{urlparse(self._gh_url).hostname}:{self._registry_name}.git"
-        self._git.command("remote", "add", "origin", url)
-        self._git.command("fetch", "origin")
+        self._git.command("remote", "add", "origin", url, repo=repo)
+        self._git.command("fetch", "origin", repo=repo)
         self._git.command("checkout", self._git.default_branch(repo=repo), repo=repo)
         self.__registry_clone_dir = repo
         return repo
@@ -324,7 +324,7 @@ class Repo:
             earliest = datetime.now() - min_age
             shas = self._git.command("log", "--format=%H", repo=registry).split("\n")
             for sha in shas:
-                dt = self._git.time_of_commit(sha)
+                dt = self._git.time_of_commit(sha, repo=registry)
                 if dt < earliest:
                     self._git.command("checkout", sha, repo=registry)
                     break

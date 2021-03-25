@@ -151,4 +151,4 @@ def test_merge_and_delete_branch():
 def test_time_of_commit():
     g = _git(command="2019-12-22T12:49:26+07:00")
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 5, 49, 26)
-    g.command.assert_called_with("show", "-s", "--format=%cI", "a")
+    g.command.assert_called_with("show", "-s", "--format=%cI", "a", repo="")
