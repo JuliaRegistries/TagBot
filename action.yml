@@ -45,6 +45,9 @@ inputs:
   gpg_password:
     description: Password for the GPG key
     required: false
+  registry_ssh:
+    description: SSH private key for accessing a private registry
+    required: false
   user:
     description: Git username
     required: false

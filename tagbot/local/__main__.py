@@ -42,6 +42,7 @@ def main(
         changelog_ignore=[],
         ssh=False,
         gpg=False,
+        registry_ssh="",
         user=USER,
         email=EMAIL,
         lookback=0,

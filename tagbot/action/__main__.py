@@ -56,6 +56,7 @@ try:
         changelog_ignore=ignore,
         ssh=bool(ssh),
         gpg=bool(gpg),
+        registry_ssh=get_input("registry_ssh"),
         user=get_input("user"),
         email=get_input("email"),
         lookback=int(get_input("lookback")),
@@ -79,6 +80,7 @@ try:
         repo.create_dispatch_event(versions)
         logger.info(f"Waiting {minutes} minutes for any dispatch handlers")
         time.sleep(timedelta(minutes=minutes).total_seconds())
+
     if ssh:
         repo.configure_ssh(ssh, get_input("ssh_password"))
     if gpg:
