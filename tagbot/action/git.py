@@ -33,19 +33,20 @@ class Git:
         self.__dir = self.clone(url)
         return self.__dir
 
-    @property
-    def _default_branch(self) -> str:
+    def default_branch(self, repo: str = "") -> str:
         """Get the name of the default branch."""
-        if self.__default_branch is not None:
+        if not repo and self.__default_branch is not None:
             return self.__default_branch
-        remote = self.command("remote", "show", "origin")
+        remote = self.command("remote", "show", "origin", repo=repo)
         m = re.search("HEAD branch:(.+)", remote)
         if m:
-            self.__default_branch = m[1].strip()
+            branch = m[1].strip()
         else:
             logger.warning("Looking up default branch name failed, assuming master")
-            self.__default_branch = "master"
-        return self.__default_branch
+            branch = "master"
+        if not repo:
+            self.__default_branch = branch
+        return branch
 
     def command(self, *argv: str, repo: Optional[str] = "") -> str:
         """Run a Git command."""
@@ -94,9 +95,9 @@ class Git:
         """Update the origin remote URL."""
         self.command("remote", "set-url", "origin", url)
 
-    def config(self, key: str, val: str) -> None:
+    def config(self, key: str, val: str, repo: str = "") -> None:
         """Configure the repository."""
-        self.command("config", key, val)
+        self.command("config", key, val, repo=repo)
 
     def create_tag(self, version: str, sha: str, message: str) -> None:
         """Create and push a Git tag."""
@@ -113,25 +114,25 @@ class Git:
         # before we call merge_and_delete_branch.
         if not self.check("checkout", branch):
             return False
-        self.command("checkout", self._default_branch)
+        self.command("checkout", self.default_branch())
         return True
 
     def is_merged(self, branch: str) -> bool:
         """Determine if a branch has been merged."""
         head = self.command("rev-parse", branch)
-        shas = self.command("log", self._default_branch, "--format=%H").splitlines()
+        shas = self.command("log", self.default_branch(), "--format=%H").splitlines()
         return head in shas
 
     def can_fast_forward(self, branch: str) -> bool:
         """Check whether the default branch can be fast-forwarded to branch."""
         # https://stackoverflow.com/a/49272912
-        return self.check("merge-base", "--is-ancestor", self._default_branch, branch)
+        return self.check("merge-base", "--is-ancestor", self.default_branch(), branch)
 
     def merge_and_delete_branch(self, branch: str) -> None:
         """Merge a branch into master and delete the branch."""
-        self.command("checkout", self._default_branch)
+        self.command("checkout", self.default_branch())
         self.command("merge", branch)
-        self.command("push", "origin", self._default_branch)
+        self.command("push", "origin", self.default_branch())
         self.command("push", "-d", "origin", branch)
 
     def time_of_commit(self, sha: str) -> datetime:

@@ -56,6 +56,7 @@ try:
         changelog_ignore=ignore,
         ssh=bool(ssh),
         gpg=bool(gpg),
+        registry_ssh=get_input("registry_ssh"),
         user=get_input("user"),
         email=get_input("email"),
         lookback=int(get_input("lookback")),

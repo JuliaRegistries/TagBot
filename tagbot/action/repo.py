@@ -46,6 +46,7 @@ class Repo:
         changelog_ignore: List[str],
         ssh: bool,
         gpg: bool,
+        registry_ssh: str,
         user: str,
         email: str,
         lookback: int,
@@ -70,8 +71,9 @@ class Repo:
         except UnknownObjectException:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
-            if not ssh:
+            if not registry_ssh:
                 raise Abort(f"Registry {registry }is not accessible")
+            self._registry_ssh_key = registry_ssh
             logger.debug("Will access registry via Git clone")
             self._clone_registry = True
         else:
@@ -108,9 +110,15 @@ class Repo:
     def _registry_clone_dir(self) -> str:
         if self.__registry_clone_dir is not None:
             return self.__registry_clone_dir
-        url = f"git@{urlparse(self._gh_url).hostname}:{self._registry_name}"
-        self.__registry_clone_dir = self._git.clone(url)
-        return self.__registry_clone_dir
+        repo = mkdtemp(prefix="tagbot_registry_")
+        self._git.command("init", repo)
+        self.configure_ssh(self._registry_ssh_key, None, repo=repo)
+        url = f"git@{urlparse(self._gh_url).hostname}:{self._registry_name}.git"
+        self._git.command("remote", "add", "origin", url)
+        self._git.command("fetch", "origin")
+        self._git.command("checkout", self._git.default_branch(repo=repo), repo=repo)
+        self.__registry_clone_dir = repo
+        return repo
 
     @property
     def _registry_path(self) -> Optional[str]:
@@ -415,9 +423,10 @@ class Repo:
         # TODO: Remove the comment when PyGithub#1502 is published.
         self._repo.create_repository_dispatch("TagBot", payload)  # type: ignore
 
-    def configure_ssh(self, key: str, password: Optional[str]) -> None:
+    def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
         """Configure the repo to use an SSH key for authentication."""
-        self._git.set_remote_url(self._repo.ssh_url)
+        if not repo:
+            self._git.set_remote_url(self._repo.ssh_url)
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
             # SSH keys must end with a single newline.
@@ -436,7 +445,7 @@ class Repo:
             )
         cmd = f"ssh -i {priv} -o UserKnownHostsFile={hosts}"
         logger.debug(f"SSH command: {cmd}")
-        self._git.config("core.sshCommand", cmd)
+        self._git.config("core.sshCommand", cmd, repo=repo)
         if password:
             # Start the SSH agent, apply the environment changes,
             # then add our identity so that we don't need to supply a password anymore.

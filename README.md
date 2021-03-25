@@ -184,6 +184,24 @@ with:
   registry: MyOrg/MyRegistry
 ```
 
+If your registry is public, this is all you need to do.
+If your registry is private, you'll need to configure access to it via one of two options.
+
+The first option is to change the `token` input to a [PAT](#personal-access-tokens-pats) that has access to both your package repository and the registry.
+Take a look at the warnings about PATs in mind if you choose this option.
+
+The other option is to use the `registry_ssh` input, like so:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  registry: MyOrg/MyRegistry
+  registry_ssh: ${{ secrets.REGISTRY_SSH_KEY }}
+```
+
+Here, the `REGISTRY_SSH_KEY` is the private key portion of a read-only [SSH deploy key](#ssh-deploy-keys) for your registry.
+By using this method, the only extra access that TagBot receives is read access to your private registry, not to any other repositories in your user/organization account.
+
 ## Advanced Configuration Options
 
 ### Self-Hosted GitHub
