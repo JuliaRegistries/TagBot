@@ -389,7 +389,9 @@ class Repo:
         if not root:
             return False
         if self._clone_registry:
-            with open(os.path.join(self._registry_clone_dir, root, "Package.toml")) as f:
+            with open(
+                os.path.join(self._registry_clone_dir, root, "Package.toml")
+            ) as f:
                 package = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
@@ -557,7 +559,9 @@ class Repo:
             logger.error("Package is not registered")
             return None
         if self._clone_registry:
-            with open(os.path.join(self._registry_clone_dir, root, "Versions.toml")) as f:
+            with open(
+                os.path.join(self._registry_clone_dir, root, "Versions.toml")
+            ) as f:
                 versions = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
