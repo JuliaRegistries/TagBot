@@ -66,11 +66,11 @@ def test_dir(mkdtemp):
 
 def test_default_branch():
     g = _git(command=["foo\nHEAD branch: default\nbar", "uhhhh"])
-    assert g._default_branch == "default"
-    assert g._default_branch == "default"
-    g.command.assert_called_once_with("remote", "show", "origin")
+    assert g.default_branch() == "default"
+    assert g.default_branch() == "default"
+    g.command.assert_called_once_with("remote", "show", "origin", repo="")
     g._Git__default_branch = None
-    assert g._default_branch == "master"
+    assert g.default_branch() == "master"
 
 
 def test_commit_sha_of_tree():
@@ -90,7 +90,7 @@ def test_set_remote_url():
 def test_config():
     g = _git(command="ok")
     g.config("a", "b")
-    g.command.assert_called_with("config", "a", "b")
+    g.command.assert_called_with("config", "a", "b", repo="")
 
 
 def test_create_tag():

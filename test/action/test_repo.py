@@ -28,6 +28,7 @@ def _repo(
     ignore=[],
     ssh=False,
     gpg=False,
+    registry_ssh="",
     user="",
     email="",
     lookback=3,
@@ -43,6 +44,7 @@ def _repo(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        registry_ssh=registry_ssh,
         user=user,
         email=email,
         lookback=lookback,
@@ -406,7 +408,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
-        "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz"
+        "core.sshCommand", "ssh -i abc -o UserKnownHostsFile=xyz", repo=""
     )
     with patch("builtins.open", open):
         r.configure_ssh("Zm9v", None)
