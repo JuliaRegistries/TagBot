@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tagbot"
-version = "1.12.8"
+version = "1.13.0"
 description = "Creates tags, releases, and changelogs for your Julia packages when they're registered"
 authors = ["Chris de Graaf <me@cdg.dev>"]
 license = "MIT"
