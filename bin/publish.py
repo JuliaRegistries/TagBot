@@ -44,7 +44,6 @@ def on_workflow_dispatch(version: str) -> None:
     if semver.build is not None or semver.prerelease is not None:
         # TODO: It might actually be nice to properly support prereleases.
         raise ValueError("Only major, minor, and patch components should be set")
-    update_pyproject_toml(semver)
     update_action_yml(semver)
     branch = git_push(semver)
     repo = GH.get_repo(REPO)
@@ -84,15 +83,6 @@ def current_version() -> VersionInfo:
 
 def repo_file(*paths: str) -> str:
     return os.path.join(os.path.dirname(__file__), "..", *paths)
-
-
-def update_pyproject_toml(version: VersionInfo) -> None:
-    path = repo_file("pyproject.toml")
-    with open(path) as f:
-        pyproject = f.read()
-    updated = re.sub(r"version = .*", f'version = "{version}"', pyproject, count=1)
-    with open(path, "w") as f:
-        f.write(updated)
 
 
 def update_action_yml(version: VersionInfo) -> None:

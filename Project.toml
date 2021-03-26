@@ -1,0 +1,23 @@
+name = "TagBot"
+uuid = "b383d08f-aaaf-4742-9b4e-c7cbe0661049"
+
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Expect = "6a31a4e8-6e70-5a2d-b005-bc2d500d80a5"
+GitHub = "bc5e4493-9b4d-5f90-b8aa-2b2bcaad7a26"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+
+[compat]
+Expect = "0.3"
+GitHub = "5"
+HTTP = "0.9"
+PyCall = "1"
+YAML = "0.4"
+julia = "1.6"
+
+[python]
+Jinja2 = "2.11.3"
+python-gnupg = "0.4.7"
