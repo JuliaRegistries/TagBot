@@ -7,7 +7,8 @@ on:
       - cdg/julia  # TODO: Remove
   pull_request:
 jobs:
-  test:
+  test_action:
+    name: Test GitHub Action
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -16,3 +17,16 @@ jobs:
           version: 1.6
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+  test_web:
+    name: Test web service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+      - run: |
+          pip install -r requirements.txt pytest
+          python -m pytest
+        working-directory: web
+  # TODO: Linting jobs.
