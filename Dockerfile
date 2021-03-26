@@ -6,7 +6,8 @@ RUN \
   apt-get update && \
   apt-get -y install build-essential curl git gnupg openssh-client && \
   mkdir /opt/julia && \
-  curl https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.0-linux-x86_64.tar.gz | tar -zxC /opt/julia --strip-components=1
+  curl https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.0-linux-x86_64.tar.gz | tar -zxC /opt/julia --strip-components=1 && \
+  bash -c 'rm -rf /opt/julia/share/{appdata,applications,doc,man,julia/test}'
 
 ENV PATH /opt/julia/bin:$PATH
 ENV JULIA_PROJECT /opt/TagBot

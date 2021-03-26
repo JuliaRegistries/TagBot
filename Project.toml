@@ -2,6 +2,7 @@ name = "TagBot"
 uuid = "b383d08f-aaaf-4742-9b4e-c7cbe0661049"
 
 [deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Expect = "6a31a4e8-6e70-5a2d-b005-bc2d500d80a5"
 GitHub = "bc5e4493-9b4d-5f90-b8aa-2b2bcaad7a26"
