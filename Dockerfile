@@ -15,6 +15,7 @@ WORKDIR $JULIA_PROJECT
 # TODO: This will eventually need to be split up to cache better.
 COPY bin bin
 COPY src src
+COPY test test
 COPY Project.toml Manifest.toml action.yml ./
 RUN \
   julia bin/docker_build.jl && \

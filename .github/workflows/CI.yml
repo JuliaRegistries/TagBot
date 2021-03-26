@@ -12,11 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: 1.6
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      - run: docker build -t tagbot .
+      - run: docker run -t tagbot julia -e 'using Pkg; Pkg.test()'
   test_web:
     name: Test web service
     runs-on: ubuntu-latest
