@@ -1,0 +1,4 @@
+Flask==1.1.2
+boto3==1.17.37
+pylev==1.3.0
+PyGithub==1.54.1

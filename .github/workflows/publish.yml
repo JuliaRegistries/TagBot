@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: 3.8
       - run: pip install PyGithub semver
-      - run: make publish
+      - run: ./bin/publish.py
         env:
           DOCKER_IMAGE: ghcr.io/juliaregistries/tagbot
           DOCKER_USERNAME: christopher-dG

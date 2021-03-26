@@ -13,7 +13,7 @@ custom:
     enabled: ${self:custom.prod.${opt:stage, 'dev'}}
   reports: ${self:service}-${opt:stage, 'dev'}-reports
   wsgi:
-    app: tagbot.web.app
+    app: src.app
 provider:
   name: aws
   runtime: python3.8
@@ -33,6 +33,6 @@ functions:
       - http: ANY /
       - http: ANY /{any+}
   reports:
-    handler: tagbot.web.reports.handler
+    handler: src.reports.handler
     reservedConcurrency: 1
     timeout: 30

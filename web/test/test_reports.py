@@ -1,20 +1,20 @@
 from textwrap import dedent
 from unittest.mock import Mock, patch
 
-from tagbot.web import reports
+from src import reports
 
 
-@patch("tagbot.web.reports._handle_report")
+@patch("src.reports._handle_report")
 def test_handler(handle_report):
     event = {"image": "i", "repo": "re", "run": "ru", "stacktrace": "s"}
     reports.handler(event)
     handle_report.assert_called_with(image="i", repo="re", run="ru", stacktrace="s")
 
 
-@patch("tagbot.web.reports._find_duplicate", return_value=None)
-@patch("tagbot.web.reports._already_commented", side_effect=[True, False])
-@patch("tagbot.web.reports._add_duplicate_comment")
-@patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
+@patch("src.reports._find_duplicate", return_value=None)
+@patch("src.reports._already_commented", side_effect=[True, False])
+@patch("src.reports._add_duplicate_comment")
+@patch("src.reports._create_issue", return_value=Mock(html_url="new"))
 def test_handle_report(
     create_issue, add_duplicate_comment, already_commented, find_duplicate
 ):
@@ -47,7 +47,7 @@ def test_is_duplicate():
     assert not reports._is_duplicate("hello", "friend")
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
+@patch("src.reports.TAGBOT_ISSUES_REPO")
 def test_find_duplicate(TAGBOT_ISSUES_REPO):
     body = "foo\n```py\nstack\n```\nbar"
     TAGBOT_ISSUES_REPO.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
@@ -89,7 +89,7 @@ def test_add_duplicate_comment():
     issue.create_comment.assert_called_with(dedent(expected))
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
+@patch("src.reports.TAGBOT_ISSUES_REPO")
 def test_create_issue(TAGBOT_ISSUES_REPO):
     reports._create_issue(image="img", repo="Foo/Bar", run="123", stacktrace="ow")
     expected = """\

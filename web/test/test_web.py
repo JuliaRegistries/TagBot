@@ -2,17 +2,17 @@ import json
 
 from unittest.mock import Mock, patch
 
-from tagbot import web
+import src
 
 
 def test_request_id():
     with_id = {"context": Mock(aws_request_id="id")}
-    with web.app.test_request_context(environ_base=with_id):
-        assert web._request_id() == "id"
-    with web.app.test_request_context(environ_base={}):
-        assert web._request_id() is None
-    with web.app.test_request_context():
-        assert web._request_id() is None
+    with src.app.test_request_context(environ_base=with_id):
+        assert src._request_id() == "id"
+    with src.app.test_request_context(environ_base={}):
+        assert src._request_id() is None
+    with src.app.test_request_context():
+        assert src._request_id() is None
 
 
 def test_not_found(client):
@@ -37,9 +37,9 @@ def test_method_not_allowed(client):
     assert resp.json["error"] == "Method not allowed"
 
 
-@patch("tagbot.web.TAGBOT_REPO_NAME", __str__=lambda x: "Foo/Bar")
-@patch("tagbot.web._request_id", return_value=None)
-@patch("tagbot.web.after_request", lambda r: r)
+@patch("src.TAGBOT_REPO_NAME", __str__=lambda x: "Foo/Bar")
+@patch("src._request_id", return_value=None)
+@patch("src.after_request", lambda r: r)
 def test_error(request_id, repo_name, client):
     resp = client.get("/die")
     assert resp.status_code == 500
@@ -61,8 +61,8 @@ def test_index(client):
     assert b"Home" in resp.data
 
 
-@patch("tagbot.web.REPORTS_FUNCTION_NAME")
-@patch("tagbot.web.LAMBDA")
+@patch("src.REPORTS_FUNCTION_NAME")
+@patch("src.LAMBDA")
 def test_report(LAMBDA, REPORTS, client):
     payload = {"image": "img", "repo": "repo", "run": "123", "stacktrace": "ow"}
     resp = client.post("/report", json=payload)

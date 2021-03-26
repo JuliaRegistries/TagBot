@@ -1,0 +1,8 @@
+.coverage
+.mypy_cache/
+.pytest_cache/
+.requirements/
+.serverless/
+__pycache__/
+htmlcov/
+node_modules/
