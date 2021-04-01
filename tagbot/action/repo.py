@@ -73,7 +73,7 @@ class Repo:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
             if not registry_ssh:
-                raise Abort(f"Registry {registry }is not accessible")
+                raise Abort(f"Registry {registry} is not accessible")
             self._registry_ssh_key = registry_ssh
             logger.debug("Will access registry via Git clone")
             self._clone_registry = True
