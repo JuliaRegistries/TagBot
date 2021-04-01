@@ -477,8 +477,9 @@ class Repo:
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         logger.debug(f"Set GNUPGHOME to {home}")
         gpg = GPG(gnupghome=home, use_agent=True)
-        # For some reason, this doesn't require the password even though the CLI does.
-        import_result = gpg.import_keys(self._maybe_decode_private_key(key))
+        import_result = gpg.import_keys(
+            self._maybe_decode_private_key(key), passphrase=password
+        )
         if import_result.sec_imported != 1:
             logger.warning(import_result.stderr)
             raise Abort("Importing key failed")
@@ -491,8 +492,11 @@ class Repo:
             if sign_result.status != "signature created":
                 logger.warning(sign_result.stderr)
                 raise Abort("Testing GPG key failed")
-        self._git.config("user.signingKey", key_id)
+        # On Debian, the Git version is too old to recognize tag.gpgSign,
+        # so the tag command will need to use --sign.
+        self._git._gpgsign = True
         self._git.config("tag.gpgSign", "true")
+        self._git.config("user.signingKey", key_id)
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""

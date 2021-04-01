@@ -21,6 +21,7 @@ class Git:
         self._token = token
         self._user = user
         self._email = email
+        self._gpgsign = False
         self.__default_branch: Optional[str] = None
         self.__dir: Optional[str] = None
 
@@ -100,7 +101,9 @@ class Git:
         """Create and push a Git tag."""
         self.config("user.name", self._user)
         self.config("user.email", self._email)
-        self.command("tag", "-m", message, version, sha)
+        # As mentioned in configure_gpg, we can't fully configure automatic signing.
+        sign = ["--sign"] if self._gpgsign else []
+        self.command("tag", *sign, "-m", message, version, sha)
         self.command("push", "origin", version)
 
     def fetch_branch(self, branch: str) -> bool:
