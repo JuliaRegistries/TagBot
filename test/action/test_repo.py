@@ -446,11 +446,11 @@ def test_configure_gpg(chmod, mkdtemp, GPG):
     assert os.getenv("GNUPGHOME") == "gpgdir"
     chmod.assert_called_with("gpgdir", S_IREAD | S_IWRITE | S_IEXEC)
     GPG.assert_called_with(gnupghome="gpgdir", use_agent=True)
-    gpg.import_keys.assert_called_with("BEGIN PGP PRIVATE KEY")
-    calls = [call("user.signingKey", "k"), call("tag.gpgSign", "true")]
+    gpg.import_keys.assert_called_with("BEGIN PGP PRIVATE KEY", passphrase=None)
+    calls = [call("tag.gpgSign", "true"), call("user.signingKey", "k")]
     r._git.config.assert_has_calls(calls)
     r.configure_gpg("Zm9v", None)
-    gpg.import_keys.assert_called_with("foo")
+    gpg.import_keys.assert_called_with("foo", passphrase=None)
     gpg.sign.return_value = Mock(status="signature created")
     r.configure_gpg("Zm9v", "mypassword")
     gpg.sign.assert_called_with("test", passphrase="mypassword")
