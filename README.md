@@ -293,7 +293,7 @@ If you want to make something happen just before releases are created, you can d
 
 ```yml
 with:
-  token: ${{ secrets.GITHUB_TOKEN }}
+  token: ${{ secrets.TAGBOT_PAT }}
   dispatch: true
 ```
 
@@ -312,14 +312,14 @@ These actions will have 5 minutes to run by default, but you can customize the n
 
 ```yml
 with:
-  token: ${{ secrets.GITHUB_TOKEN }}
+  token: ${{ secrets.TAGBOT_PAT }}
   dispatch: true
   dispatch_delay: 30
 ```
 
 Avoid setting a delay longer than the interval between TagBot runs, since your dispatch event will probably be triggered multiple times and the same release will also be attempted more than once.
 
-To use this feature, you must provide your own personal access token.
+To use the `dispatch` feature, you must provide your own personal access token.
 For more details, see [Personal Access Tokens (PATs)](#personal-access-tokens-pats).
 
 ### Release Branch Selection
