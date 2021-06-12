@@ -11,7 +11,7 @@ Other benefits of using TagBot include the ability for you and your users to bro
 
 ## Setup
 
-Create a file at `.github/workflows/TagBot.yml` with the following contents:
+Create a file at `.github/workflows/TagBot.yml` with the following contents. Please note: the file **must** have exactly the name `.github/workflows/TagBot.yml`.
 
 ```yml
 name: TagBot
