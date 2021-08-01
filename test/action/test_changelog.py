@@ -164,6 +164,7 @@ def test_collect_data():
     c._previous_release = Mock(
         side_effect=[Mock(tag_name="v1.2.2", created_at=datetime.now()), None]
     )
+    c._is_backport = Mock(return_value=False)
     c._repo._git.time_of_commit = Mock(return_value=datetime.now())
     # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
