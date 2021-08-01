@@ -82,8 +82,8 @@ inputs:
       Automated changelogs for backports tend to be wildly incorrect.
       Therefore, the list of issues and pull requests is hidden.
       <!--
-      {% endif %}
 
+      {% endif %}
       {% if issues %}
       **Closed issues:**
       {% for issue in issues %}
