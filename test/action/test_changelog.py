@@ -262,6 +262,7 @@ def test_render():
     data = {
         "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
         "custom": "Custom release notes",
+        "is_backport": False,
         "issues": [{"number": 1, "title": "Issue title", "labels": []}],
         "package": "PkgName",
         "previous_release": "v1.2.2",
