@@ -226,6 +226,7 @@ def test_collect_data():
     assert c._collect_data("v1.2.3", "abcdef") == {
         "compare_url": "https://github.com/A/B.jl/compare/v1.2.2...v1.2.3",
         "custom": "custom",
+        "backport": False,
         "issues": [],
         "package": "B",
         "previous_release": "v1.2.2",

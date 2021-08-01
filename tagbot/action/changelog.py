@@ -67,6 +67,22 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
+    def _is_backport(self, version: str) -> bool:
+        """Determine whether or not the version is a backport."""
+        cur_ver = VersionInfo.parse(version[1:])
+        for r in self._repo._repo.get_releases():
+            if not r.tag_name.startswith("v"):
+                continue
+            try:
+                ver = VersionInfo.parse(r.tag_name[1:])
+            except ValueError:
+                continue
+            if ver.prerelease or ver.build:
+                continue
+            if ver > cur_ver:
+                return True
+        return False
+
     def _issues_and_pulls(
         self, start: datetime, end: datetime
     ) -> List[Union[Issue, PullRequest]]:
@@ -189,6 +205,7 @@ class Changelog:
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
+            "backport": self._is_backport(version_tag),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": prev_tag,
