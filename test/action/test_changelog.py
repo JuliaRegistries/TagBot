@@ -217,6 +217,7 @@ def test_collect_data():
             None,
         ]
     )
+    c._is_backport = Mock(return_value=False)
     commit = Mock(author=Mock(date=datetime.now(timezone.utc)))
     c._repo._repo.get_commit = Mock(return_value=Mock(commit=commit))
     # TODO: Put stuff here.
