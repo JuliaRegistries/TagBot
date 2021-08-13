@@ -48,6 +48,10 @@ inputs:
   registry_ssh:
     description: SSH private key for accessing a private registry
     required: false
+  draft:
+    description: Create draft releases
+    required: false
+    default: false
   user:
     description: Git username
     required: false

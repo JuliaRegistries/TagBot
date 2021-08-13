@@ -28,6 +28,7 @@ def _repo(
     ignore=[],
     ssh=False,
     gpg=False,
+    draft=False,
     registry_ssh="",
     user="",
     email="",
@@ -44,6 +45,7 @@ def _repo(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        draft=draft,
         registry_ssh=registry_ssh,
         user=user,
         email=email,
@@ -509,13 +511,26 @@ def test_create_release():
     }
     r._repo.create_git_ref.assert_called_with("refs/tags/v1", "t")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="default"
+        "v1", "v1", "l", target_commitish="default", draft=False
     )
     r.create_release("v1", "b")
-    r._repo.create_git_release.assert_called_with("v1", "v1", "l", target_commitish="b")
+    r._repo.create_git_release.assert_called_with(
+        "v1", "v1", "l", target_commitish="b", draft=False
+    )
     r._ssh = True
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("v1", "c", "l")
+    r._draft = True
+    r._git.create_tag.reset_mock()
+    r._repo.create_git_tag.reset_mock()
+    r._repo.create_git_ref.reset_mock()
+    r.create_release("v1", "d")
+    r._git.create_tag.assert_not_called()
+    r._repo.create_git_tag.assert_not_called()
+    r._repo.create_git_ref.assert_not_called()
+    r._repo.create_git_release.assert_called_with(
+        "v1", "v1", "l", target_commitish="d", draft=True
+    )
 
 
 @patch("traceback.format_exc", return_value="ahh")

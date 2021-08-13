@@ -56,6 +56,7 @@ try:
         changelog_ignore=ignore,
         ssh=bool(ssh),
         gpg=bool(gpg),
+        draft=get_input("draft").lower() in ["true", "yes"],
         registry_ssh=get_input("registry_ssh"),
         user=get_input("user"),
         email=get_input("email"),

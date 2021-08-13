@@ -47,6 +47,7 @@ class Repo:
         changelog_ignore: List[str],
         ssh: bool,
         gpg: bool,
+        draft: bool,
         registry_ssh: str,
         user: str,
         email: str,
@@ -90,6 +91,7 @@ class Repo:
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
+        self._draft = draft
         self._user = user
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
@@ -525,21 +527,24 @@ class Repo:
             target = self._release_branch
         logger.debug(f"Release {version} target: {target}")
         log = self._changelog.get(version, sha)
-        if self._ssh or self._gpg:
-            logger.debug("Creating tag via Git CLI")
-            self._git.create_tag(version, sha, log)
-        else:
-            logger.debug("Creating tag via GitHub API")
-            tag = self._repo.create_git_tag(
-                version,
-                log,
-                sha,
-                "commit",
-                tagger=InputGitAuthor(self._user, self._email),
-            )
-            self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
+        if not self._draft:
+            if self._ssh or self._gpg:
+                logger.debug("Creating tag via Git CLI")
+                self._git.create_tag(version, sha, log)
+            else:
+                logger.debug("Creating tag via GitHub API")
+                tag = self._repo.create_git_tag(
+                    version,
+                    log,
+                    sha,
+                    "commit",
+                    tagger=InputGitAuthor(self._user, self._email),
+                )
+                self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
         logger.info(f"Creating release {version} at {sha}")
-        self._repo.create_git_release(version, version, log, target_commitish=target)
+        self._repo.create_git_release(
+            version, version, log, target_commitish=target, draft=self._draft
+        )
 
     def handle_error(self, e: Exception) -> None:
         """Handle an unexpected error."""

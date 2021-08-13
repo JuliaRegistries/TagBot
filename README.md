@@ -226,6 +226,17 @@ with:
   email: my.email@web.site
 ```
 
+### Draft Releases
+
+If you'd prefer to create a draft GitHub release instead of a full Git tag + GitHub release, use the `draft` input:
+
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  draft: true
+```
+
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.

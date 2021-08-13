@@ -23,6 +23,7 @@ def _changelog(*, template="", ignore=set()):
         changelog_ignore=ignore,
         ssh=False,
         gpg=False,
+        draft=False,
         registry_ssh="",
         user="",
         email="",
