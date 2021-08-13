@@ -11,7 +11,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
     GITHUB_API = action["inputs"]["github_api"]["default"]
     CHANGELOG = action["inputs"]["changelog"]["default"]
     REGISTRY = action["inputs"]["registry"]["default"]
-    DRAFT = action["inputs"]["registry"]["draft"].lower() in ["true", "yes"]
+    DRAFT = action["inputs"]["draft"]["default"]
     USER = action["inputs"]["user"]["default"]
     EMAIL = action["inputs"]["email"]["default"]
 

@@ -51,6 +51,7 @@ inputs:
   draft:
     description: Create draft releases
     required: false
+    default: false
   user:
     description: Git username
     required: false
