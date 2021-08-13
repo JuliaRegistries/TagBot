@@ -528,7 +528,9 @@ def test_create_release():
     r._git.create_tag.assert_not_called()
     r._repo.create_git_tag.assert_not_called()
     r._repo.create_git_ref.assert_not_called()
-    r._repo.create_git_release.assert_called_with("v1", "d", "l", draft=True)
+    r._repo.create_git_release.assert_called_with(
+        "v1", "d", "l", target_commitish="d", draft=True
+    )
 
 
 @patch("traceback.format_exc", return_value="ahh")
