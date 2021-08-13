@@ -11,6 +11,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
     GITHUB_API = action["inputs"]["github_api"]["default"]
     CHANGELOG = action["inputs"]["changelog"]["default"]
     REGISTRY = action["inputs"]["registry"]["default"]
+    DRAFT = action["inputs"]["registry"]["draft"]
     USER = action["inputs"]["user"]["default"]
     EMAIL = action["inputs"]["email"]["default"]
 
@@ -23,6 +24,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--github-api", default=GITHUB_API, help="GitHub API URL")
 @click.option("--changelog", default=CHANGELOG, help="Changelog template")
 @click.option("--registry", default=REGISTRY, help="Registry to search")
+@click.option("--draft", default=DRAFT, help="Create a draft release")
 def main(
     repo: str,
     version: str,
@@ -31,6 +33,7 @@ def main(
     github_api: str,
     changelog: str,
     registry: str,
+    draft: bool,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -42,6 +45,7 @@ def main(
         changelog_ignore=[],
         ssh=False,
         gpg=False,
+        draft=draft,
         registry_ssh="",
         user=USER,
         email=EMAIL,
