@@ -45,6 +45,7 @@ def _repo(
         changelog_ignore=ignore,
         ssh=ssh,
         gpg=gpg,
+        draft=draft,
         registry_ssh=registry_ssh,
         user=user,
         email=email,
