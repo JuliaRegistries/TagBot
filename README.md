@@ -27,7 +27,6 @@ jobs:
     steps:
       - uses: JuliaRegistries/TagBot@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
 ```
 

@@ -4,7 +4,8 @@ description: Creates GitHub releases for your registered Julia packages
 inputs:
   token:
     description: GitHub API token
-    required: true
+    required: false
+    default: ${{ github.token }}
   registry:
     description: Owner/name of the registry repository
     required: false
