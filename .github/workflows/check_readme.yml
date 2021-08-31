@@ -1,4 +1,4 @@
-name: Check README
+name: Compare example workflows
 on:
   pull_request:
     branches:
