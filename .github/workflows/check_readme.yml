@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-    tags:
-      - '*'
 jobs:
   readme:
     runs-on: ubuntu-latest
