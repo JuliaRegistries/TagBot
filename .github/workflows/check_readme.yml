@@ -9,9 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: '1'
-      - run: julia --color=yes --project=.ci -e 'import Pkg; Pkg.instantiate()'
-      - run: julia --color=yes --project=.ci -e 'import Pkg; Pkg.precompile()'
-      - run: julia --color=yes --project=.ci -e 'include(".ci/check_readme.jl"); check_readme(pwd())'
+      - run: |
+          readme="$(<README.md)"
+          example="$(echo -e "\`\`\`yml\n$(<example.yml)\n\`\`\`")"
+          [[ "$readme" == *"$example"* ]]
