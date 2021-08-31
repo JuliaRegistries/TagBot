@@ -8,4 +8,3 @@ htmlcov/
 node_modules/
 requirements.txt
 tagbot.egg-info/
-.ci/Manifest.toml
