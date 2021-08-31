@@ -1,8 +1,6 @@
 name: Compare example workflows
 on:
   pull_request:
-    branches:
-      - master
   push:
     branches:
       - master
