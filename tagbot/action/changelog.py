@@ -22,12 +22,12 @@ class Changelog:
 
     DEFAULT_IGNORE = [
         "changelog skip",
-        "skip changelog",
         "duplicate",
         "exclude from changelog",
         "invalid",
         "no changelog",
         "question",
+        "skip changelog",
         "wont fix",
     ]
 
