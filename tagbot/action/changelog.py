@@ -27,6 +27,7 @@ class Changelog:
         "invalid",
         "no changelog",
         "question",
+        "skip changelog",
         "wont fix",
     ]
 
