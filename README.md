@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       lookback:
-        default: "3"
+        default: 3
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
