@@ -23,6 +23,8 @@ on:
     inputs:
       lookback:
         default: 3
+permissions:
+  contents: write
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
