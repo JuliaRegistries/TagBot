@@ -33,7 +33,7 @@ jobs:
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          ssh: ${{ secrets.SSH_KEY }}
 ```
 
 No further action is required on your part.
