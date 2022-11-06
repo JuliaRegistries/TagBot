@@ -45,7 +45,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
-
 ```
 
 No further action is required on your part.
