@@ -53,6 +53,7 @@ class Repo:
         email: str,
         lookback: int,
         branch: Optional[str],
+        subpackage: Optional[str],
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -98,6 +99,7 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
+        self.__release_subpackage = subpackage
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
