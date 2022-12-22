@@ -29,6 +29,7 @@ def _changelog(*, template="", ignore=set()):
         email="",
         lookback=3,
         branch=None,
+        subpackage="",
     )
     return r._changelog
 

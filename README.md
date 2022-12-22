@@ -405,6 +405,7 @@ Options:
   --github-api TEXT  GitHub API URL
   --changelog TEXT   Changelog template
   --registry TEXT    Registry to search
+  --subpackage TEXT  Subpackage in repo
   --help             Show this message and exit.
 
 $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \

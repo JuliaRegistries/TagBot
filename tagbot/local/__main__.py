@@ -25,6 +25,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--changelog", default=CHANGELOG, help="Changelog template")
 @click.option("--registry", default=REGISTRY, help="Registry to search")
 @click.option("--draft", default=DRAFT, help="Create a draft release", is_flag=True)
+@click.option("--subpackage", default="", help="Subpackage in repo")
 def main(
     repo: str,
     version: str,
@@ -34,6 +35,7 @@ def main(
     changelog: str,
     registry: str,
     draft: bool,
+    subpackage: str,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -51,6 +53,7 @@ def main(
         email=EMAIL,
         lookback=0,
         branch=None,
+        subpackage="",
     )
     version = version if version.startswith("v") else f"v{version}"
     sha = r.commit_sha_of_version(version)
