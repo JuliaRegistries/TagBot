@@ -74,6 +74,7 @@ Read on for a full description of all of the available configuration options.
   - [Pre-Release Hooks](#pre-release-hooks)
   - [Release Branch Selection](#release-branch-selection)
   - [Release Branch Management](#release-branch-management)
+  - [Subpackage Configuration](#subpackage-configuration)
 - [Local Usage](#local-usage)
 
 ## Basic Configuration Options
@@ -373,6 +374,18 @@ with:
   token: ${{ secrets.GITHUB_TOKEN }}
   branches: true
 ```
+
+### Subpackage Configuration
+
+If your package is not at the top-level of your repository, you should set the `subpackage` input to the name of that package (without the `.jl` suffix):
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  subpackage: SubpackageName
+```
+
+This will be the package searched for a commit to tag, and releases will be prefixed with that package's name: `{PACKAGE}-v{VERSION}`. 
 
 ## Local Usage
 
