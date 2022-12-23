@@ -72,14 +72,14 @@ try:
         )
         sys.exit()
 
-    versions = repo.new_versions()
-    if not versions:
+    package_versions = repo.new_package_versions() #TODO: to trace
+    if not package_versions:
         logger.info("No new versions to release")
         sys.exit()
 
     if get_input("dispatch", "false") == "true":
         minutes = int(get_input("dispatch_delay"))
-        repo.create_dispatch_event(versions)
+        repo.create_dispatch_event(package_versions)
         logger.info(f"Waiting {minutes} minutes for any dispatch handlers")
         time.sleep(timedelta(minutes=minutes).total_seconds())
 
@@ -88,11 +88,11 @@ try:
     if gpg:
         repo.configure_gpg(gpg, get_input("gpg_password"))
 
-    for version, sha in versions.items():
-        logger.info(f"Processing version {version} ({sha})")
+    for package_version, sha in package_versions.items():
+        logger.info(f"Processing version {package_version} ({sha})")
         if get_input("branches", "false") == "true":
-            repo.handle_release_branch(version)
-        repo.create_release(version, sha)
+            repo.handle_release_branch(package_version)
+        repo.create_release(package_version, sha)
 except Exception as e:
     try:
         repo.handle_error(e)

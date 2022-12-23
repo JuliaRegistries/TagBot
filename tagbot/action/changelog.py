@@ -42,16 +42,18 @@ class Changelog:
         """Return a version of the string that's easy to compare."""
         return re.sub(r"[\s_-]", "", s.casefold())
 
-    def _previous_release(self, version: str) -> Optional[GitRelease]:
+    def _previous_release(self, tag_version: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        cur_ver = VersionInfo.parse(version[1:])
+        tag_prefix = self._repo._tag_prefix()
+        package_version = self._package_version_from_tag_version(tag_version)
+        cur_ver = VersionInfo.parse(package_version)
         prev_ver = VersionInfo(0)
         prev_rel = None
         for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith("v"):
+            if not r.tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(r.tag_name[1:])
+                ver = VersionInfo.parse(r.tag_name[len(tag_prefix):])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -103,10 +105,16 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _custom_release_notes(self, version: str) -> Optional[str]:
+    def _package_version_from_tag_version(self, tag_version: str) -> str
+        """Return package version by stripping tag prefix from tag version"""
+        tag_prefix = self._repo._tag_prefix()
+        return tag_version[len(tag_prefix):]
+
+    def _custom_release_notes(self, tag_version: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
-        pr = self._repo._registry_pr(version)
+        package_version = self._package_version_from_tag_version(tag_version)
+        pr = self._repo._registry_pr(package_version)
         if not pr:
             logger.warning("No registry pull request was found for this version")
             return None
@@ -153,16 +161,16 @@ class Changelog:
             "url": pull.html_url,
         }
 
-    def _collect_data(self, version: str, sha: str) -> Dict[str, object]:
+    def _collect_data(self, tag_version: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
-        previous = self._previous_release(version)
+        previous = self._previous_release(tag_version)
         start = datetime.fromtimestamp(0)
         prev_tag = None
         compare = None
         if previous:
             start = previous.created_at
             prev_tag = previous.tag_name
-            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
+            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{tag_version}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
         end = self._repo._git.time_of_commit(sha) + timedelta(minutes=1)
@@ -173,23 +181,23 @@ class Changelog:
         pulls = self._pulls(start, end)
         return {
             "compare_url": compare,
-            "custom": self._custom_release_notes(version),
+            "custom": self._custom_release_notes(tag_version),
             "issues": [self._format_issue(i) for i in issues],
-            "package": self._repo._project("name"),
+            "package": self._package_name(),
             "previous_release": prev_tag,
             "pulls": [self._format_pull(p) for p in pulls],
             "sha": sha,
-            "version": version,
-            "version_url": f"{self._repo._repo.html_url}/tree/{version}",
+            "version": tag_version,
+            "version_url": f"{self._repo._repo.html_url}/tree/{tag_version}",
         }
 
     def _render(self, data: Dict[str, object]) -> str:
         """Render the template."""
         return self._template.render(data).strip()
 
-    def get(self, version: str, sha: str) -> str:
+    def get(self, tag_version: str, sha: str) -> str:
         """Get the changelog for a specific version."""
-        logger.info(f"Generating changelog for version {version} ({sha})")
-        data = self._collect_data(version, sha)
+        logger.info(f"Generating changelog for version {tag_version} ({sha})")
+        data = self._collect_data(tag_version, sha)
         logger.debug(f"Changelog data: {json.dumps(data, indent=2)}")
         return self._render(data)

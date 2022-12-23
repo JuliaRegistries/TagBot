@@ -99,7 +99,7 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
-        self.__release_subpackage = subpackage
+        self.__subpackage_uuid = subpackage #TODO: name and uuid??
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
@@ -137,10 +137,9 @@ class Repo:
         """Get the package's path in the registry repo."""
         if self.__registry_path is not None:
             return self.__registry_path
-        try:
-            uuid = self._project("uuid")
-        except KeyError:
-            raise InvalidProject("Project file has no UUID")
+
+        uuid = self._package_uuid()
+
         if self._clone_registry:
             with open(os.path.join(self._registry_clone_dir, "Registry.toml")) as f:
                 registry = toml.load(f)
@@ -165,24 +164,54 @@ class Repo:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
-    def _create_release_branch_pr(self, version: str, branch: str) -> None:
+    def _create_release_branch_pr(self, tag_version: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
-            title=f"Merge release branch for {version}",
+            title=f"Merge release branch for {tag_version}",
             body="",
             head=branch,
             base=self._repo.default_branch,
         )
 
-    def _registry_pr(self, version: str) -> Optional[PullRequest]:
+    def _package_name(self) -> str:
+        """Return the package name."""
+        if self.__subpackage_name is "":
+            try:
+                name = self._project("name")
+            except KeyError:
+                raise InvalidProject("Project file has no name")
+        else:
+            name = self.__subpackage_name
+        return name
+
+    def _package_uuid(self) -> str:
+        """Return the package uuid."""
+        if self.__subpackage_uuid is "":
+            try:
+                uuid = self._project("uuid")
+            except KeyError:
+                raise InvalidProject("Project file has no UUID")
+        else:
+            uuid = self.__subpackage_uuid
+        return uuid
+
+    def _tag_prefix(self) -> str:
+        """Return the package's tag prefix."""
+        if self.__subpackage_uuid is "":
+            prefix = "v"
+        else:
+            prefix = self._package_name() + "-v"
+        return prefix
+
+    def _registry_pr(self, package_version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
         if self._clone_registry:
             # I think this is actually possible, but it looks pretty complicated.
             return None
-        name = self._project("name")
-        uuid = self._project("uuid")
+        name = self._package_name()
+        uuid = self._package_uuid()
         # This is the format used by Registrator/PkgDev.
-        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
+        head = f"registrator/{name.lower()}/{uuid[:8]}/{package_version}"
         logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
@@ -202,9 +231,9 @@ class Repo:
                 return pr
         return None
 
-    def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
+    def _commit_sha_from_registry_pr(self, package_version: str, tree: str) -> Optional[str]:
         """Look up the commit SHA of version from its registry PR."""
-        pr = self._registry_pr(version)
+        pr = self._registry_pr(package_version)
         if not pr:
             logger.info("Did not find registry PR")
             return None
@@ -245,10 +274,10 @@ class Repo:
         # Fall back to cloning the repo in that case.
         return self._git.commit_sha_of_tree(tree)
 
-    def _commit_sha_of_tag(self, version: str) -> Optional[str]:
+    def _commit_sha_of_tag(self, tag_version: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
         try:
-            ref = self._repo.get_git_ref(f"tags/{version}")
+            ref = self._repo.get_git_ref(f"tags/{tag_version}")
         except UnknownObjectException:
             return None
         ref_type = getattr(ref.object, "type", None)
@@ -265,28 +294,29 @@ class Repo:
         branch = self._repo.get_branch(self._release_branch)
         return branch.commit.sha
 
-    def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
+    def _filter_map_versions(self, package_versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
-        for version, tree in versions.items():
-            version = f"v{version}"
-            expected = self._commit_sha_from_registry_pr(version, tree)
+        for package_version, tree in package_versions.items():
+            package_version = f"v{package_version}"
+            expected = self._commit_sha_from_registry_pr(package_version, tree)
             if not expected:
                 expected = self._commit_sha_of_tree(tree)
             if not expected:
                 logger.warning(
-                    f"No matching commit was found for version {version} ({tree})"
+                    f"No matching commit was found for version {package_version} ({tree})"
                 )
                 continue
-            sha = self._commit_sha_of_tag(version)
+            tag_version = package_version #TODO: make this correctly
+            sha = self._commit_sha_of_tag(tag_version)
             if sha:
                 if sha != expected:
-                    msg = f"Existing tag {version} points at the wrong commit (expected {expected})"  # noqa: E501
+                    msg = f"Existing tag {tag_version} points at the wrong commit (expected {expected})"  # noqa: E501
                     logger.error(msg)
                 else:
-                    logger.info(f"Tag {version} already exists")
+                    logger.info(f"Tag {tag_version} already exists")
                 continue
-            valid[version] = expected
+            valid[package_version] = expected
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
@@ -316,8 +346,8 @@ class Repo:
         except UnknownObjectException:
             logger.debug(f"Versions.toml was not found ({kwargs})")
             return {}
-        versions = toml.loads(contents.decoded_content.decode())
-        return {v: versions[v]["git-tree-sha1"] for v in versions}
+        package_versions = toml.loads(contents.decoded_content.decode())
+        return {v: package_versions[v]["git-tree-sha1"] for v in package_versions}
 
     def _versions_clone(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Same as _versions, but uses a Git clone to access the registry."""
@@ -345,8 +375,8 @@ class Repo:
                 logger.debug("Versions.toml was not found")
                 return {}
             with open(path) as f:
-                versions = toml.load(f)
-            return {v: versions[v]["git-tree-sha1"] for v in versions}
+                package_versions = toml.load(f)
+            return {v: package_versions[v]["git-tree-sha1"] for v in package_versions}
         finally:
             if min_age:
                 self._git.command("checkout", default_sha, repo=registry)
@@ -420,18 +450,18 @@ class Repo:
         # I'm not really sure why mypy doesn't like this line without the cast.
         return cast(bool, m[1].casefold() == self._repo.full_name.casefold())
 
-    def new_versions(self) -> Dict[str, str]:
+    def new_package_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
         logger.debug(f"There are {len(current)} total versions")
         old = self._versions(min_age=self._lookback)
         logger.debug(f"There are {len(current) - len(old)} new versions")
         # Make sure to insert items in SemVer order.
-        versions = {}
+        package_versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
             if v not in old:
-                versions[v] = current[v]
-        return self._filter_map_versions(versions)
+                package_versions[v] = current[v]
+        return self._filter_map_versions(package_versions)
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
@@ -504,7 +534,7 @@ class Repo:
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
-        branch = f"release-{version[1:]}"
+        branch = f"release-{version[1:]}" #TODO: handle tag prefix if present
         if not self._git.fetch_branch(branch):
             logger.info(f"Release branch {branch} does not exist")
         elif self._git.is_merged(branch):
@@ -518,34 +548,34 @@ class Repo:
             logger.info(
                 "Release branch cannot be fast-forwarded, creating pull request"
             )
-            self._create_release_branch_pr(version, branch)
+            self._create_release_branch_pr(version, branch) #TODO: make sure version has appropriate stuff...
 
-    def create_release(self, version: str, sha: str) -> None:
+    def create_release(self, tag_version: str, sha: str) -> None:
         """Create a GitHub release."""
         target = sha
         if self._commit_sha_of_release_branch() == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
             target = self._release_branch
-        logger.debug(f"Release {version} target: {target}")
-        log = self._changelog.get(version, sha)
+        logger.debug(f"Release {tag_version} target: {target}")
+        log = self._changelog.get(tag_version, sha)
         if not self._draft:
             if self._ssh or self._gpg:
                 logger.debug("Creating tag via Git CLI")
-                self._git.create_tag(version, sha, log)
+                self._git.create_tag(tag_version, sha, log)
             else:
                 logger.debug("Creating tag via GitHub API")
                 tag = self._repo.create_git_tag(
-                    version,
+                    tag_version,
                     log,
                     sha,
                     "commit",
                     tagger=InputGitAuthor(self._user, self._email),
                 )
-                self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
-        logger.info(f"Creating release {version} at {sha}")
+                self._repo.create_git_ref(f"refs/tags/{tag_version}", tag.sha)
+        logger.info(f"Creating release {tag_version} at {sha}")
         self._repo.create_git_release(
-            version, version, log, target_commitish=target, draft=self._draft
+            tag_version, tag_version, log, target_commitish=target, draft=self._draft
         )
 
     def handle_error(self, e: Exception) -> None:
@@ -570,24 +600,24 @@ class Repo:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
 
-    def commit_sha_of_version(self, version: str) -> Optional[str]:
+    def commit_sha_of_version(self, package_version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
-        if version.startswith("v"):
-            version = version[1:]
-        root = self._registry_path
+        if package_version.startswith("v"):
+            package_version = package_version[1:]
+        root = self._registry_path #TODO: check if this is correct...whould be 
         if not root:
             logger.error("Package is not registered")
             return None
         if self._clone_registry:
             with open(
-                os.path.join(self._registry_clone_dir, root, "Versions.toml")
+                os.path.join(self._registry_clone_dir, root, "Versions.toml") #TODO: check path is correct
             ) as f:
                 versions = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
             versions = toml.loads(contents.decoded_content.decode())
-        if version not in versions:
-            logger.error(f"Version {version} is not registered")
+        if package_version not in versions:
+            logger.error(f"Version {package_version} is not registered")
             return None
-        tree = versions[version]["git-tree-sha1"]
+        tree = versions[package_version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)
