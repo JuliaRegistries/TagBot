@@ -25,7 +25,8 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--changelog", default=CHANGELOG, help="Changelog template")
 @click.option("--registry", default=REGISTRY, help="Registry to search")
 @click.option("--draft", default=DRAFT, help="Create a draft release", is_flag=True)
-@click.option("--subpackage", default="", help="Subpackage in repo")
+@click.option("--subpackage_name", default=None, help="Name of subpackage in repo")
+@click.option("--subpackage_uuid", default=None, help="UUID of subpackage in repo")
 def main(
     repo: str,
     version: str,
@@ -35,7 +36,8 @@ def main(
     changelog: str,
     registry: str,
     draft: bool,
-    subpackage: str,
+    subpackage_name: str,
+    subpackage_uuid: str,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -53,12 +55,17 @@ def main(
         email=EMAIL,
         lookback=0,
         branch=None,
-        subpackage="",
+        subpackage_name=subpackage_name,
+        subpackage_uuid=subpackage_uuid,
     )
-    version = version if version.startswith("v") else f"v{version}"
-    sha = r.commit_sha_of_version(version)
+    #TODO: parse version into these correctly here
+    package_version = ""
+    tag_version = ""
+
+    package_version = package_version if package_version.startswith("v") else f"v{package_version}"
+    sha = r.commit_sha_of_version(package_version)
     if sha:
-        r.create_release(version, sha)
+        r.create_release(tag_version, sha)
     else:
         print(f"Commit for {version} was not found")
 

@@ -63,8 +63,11 @@ inputs:
   branch:
     description: Branch to create releases against when possible
     required: false
-  subpackage:
-    description: Name of subpackage in repo if not at top level
+  subpackage_name:
+    description: Name of subpackage in repo if not at top level (omit ".jl")
+    required: false
+  subpackage_uuid:
+    description: UUID of subpackage in repo if not at top level
     required: false
   changelog:
     description: Changelog template

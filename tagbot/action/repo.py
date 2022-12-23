@@ -53,7 +53,8 @@ class Repo:
         email: str,
         lookback: int,
         branch: Optional[str],
-        subpackage: Optional[str],
+        subpackage_name: Optional[str] = None,
+        subpackage_uuid: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -99,7 +100,8 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
-        self.__subpackage_uuid = subpackage #TODO: name and uuid??
+        self.__subpackage_name = subpackage_name
+        self.__subpackage_uuid = subpackage_uuid
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
@@ -175,7 +177,7 @@ class Repo:
 
     def _package_name(self) -> str:
         """Return the package name."""
-        if self.__subpackage_name is "":
+        if self.__subpackage_name is None:
             try:
                 name = self._project("name")
             except KeyError:
@@ -186,7 +188,7 @@ class Repo:
 
     def _package_uuid(self) -> str:
         """Return the package uuid."""
-        if self.__subpackage_uuid is "":
+        if self.__subpackage_uuid is None:
             try:
                 uuid = self._project("uuid")
             except KeyError:
@@ -197,7 +199,7 @@ class Repo:
 
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        if self.__subpackage_uuid is "":
+        if self.__subpackage_name is None:
             prefix = "v"
         else:
             prefix = self._package_name() + "-v"

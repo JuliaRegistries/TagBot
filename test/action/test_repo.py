@@ -34,7 +34,6 @@ def _repo(
     email="",
     lookback=3,
     branch=None,
-    subpackage="",
 ):
     return Repo(
         repo=repo,
@@ -52,7 +51,6 @@ def _repo(
         email=email,
         lookback=lookback,
         branch=branch,
-        subpackage="",
     )
 
 
