@@ -90,7 +90,7 @@ try:
 
     for package_version, sha in package_versions.items():
         logger.info(f"Processing version {package_version} ({sha})")
-        if get_input("branches", "false") == "true":
+        if get_input("branches", "false") == "true": #TODO: what happens here and why?!
             repo.handle_release_branch(package_version)
         repo.create_release(package_version, sha)
 except Exception as e:

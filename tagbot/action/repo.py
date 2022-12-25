@@ -417,7 +417,6 @@ class Repo:
             ) as f:
                 package = toml.load(f)
         else:
-            #TODO: check this path
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
             package = toml.loads(contents.decoded_content.decode())
         gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")
@@ -513,9 +512,11 @@ class Repo:
         self._git.config("tag.gpgSign", "true")
         self._git.config("user.signingKey", key_id)
 
-    def handle_release_branch(self, version: str) -> None:
+    def handle_release_branch(self, package_version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
-        branch = f"release-{version[1:]}" #TODO: handle tag prefix if present
+        # Exclude "v" from version: `0.0.0` or `SubPackage-0.0.0`
+        branch_version = tag_prefix()[:-1] + package_version
+        branch = f"release-{branch_version}"
         if not self._git.fetch_branch(branch):
             logger.info(f"Release branch {branch} does not exist")
         elif self._git.is_merged(branch):
@@ -529,34 +530,37 @@ class Repo:
             logger.info(
                 "Release branch cannot be fast-forwarded, creating pull request"
             )
-            self._create_release_branch_pr(version, branch) #TODO: make sure version has appropriate stuff...
+            tag_version = tag_prefix() + package_version
+            self._create_release_branch_pr(tag_version, branch)
 
-    def create_release(self, tag_version: str, sha: str) -> None:
+    def create_release(self, package_version: str, sha: str) -> None:
         """Create a GitHub release."""
         target = sha
         if self._commit_sha_of_release_branch() == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
             target = self._release_branch
+
+        version_tag = tag_prefix() + package_version
         logger.debug(f"Release {tag_version} target: {target}")
-        log = self._changelog.get(tag_version, sha)
+        log = self._changelog.get(version_tag, sha) #TODO: this might not be right for submodule.....
         if not self._draft:
             if self._ssh or self._gpg:
                 logger.debug("Creating tag via Git CLI")
-                self._git.create_tag(tag_version, sha, log)
+                self._git.create_tag(version_tag, sha, log)
             else:
                 logger.debug("Creating tag via GitHub API")
                 tag = self._repo.create_git_tag(
-                    tag_version,
+                    version_tag,
                     log,
                     sha,
                     "commit",
                     tagger=InputGitAuthor(self._user, self._email),
                 )
-                self._repo.create_git_ref(f"refs/tags/{tag_version}", tag.sha)
-        logger.info(f"Creating release {tag_version} at {sha}")
+                self._repo.create_git_ref(f"refs/tags/{version_tag}", tag.sha)
+        logger.info(f"Creating release {version_tag} at {sha}")
         self._repo.create_git_release(
-            tag_version, tag_version, log, target_commitish=target, draft=self._draft
+            version_tag, version_tag, log, target_commitish=target, draft=self._draft
         )
 
     def handle_error(self, e: Exception) -> None:
