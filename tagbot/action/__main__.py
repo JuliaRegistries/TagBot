@@ -62,8 +62,7 @@ try:
         email=get_input("email"),
         lookback=int(get_input("lookback")),
         branch=get_input("branch"),
-        subpackage_name=get_input("subpackage_name"),
-        subpackage_uuid=get_input("subpackage_uuid"),
+        subdir=get_input("subdir"),
     )
 
     if not repo.is_registered():

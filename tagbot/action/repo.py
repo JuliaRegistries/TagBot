@@ -175,31 +175,9 @@ class Repo:
             base=self._repo.default_branch,
         )
 
-    def _package_name(self) -> str:
-        """Return the package name."""
-        if self.__subpackage_name is None:
-            try:
-                name = self._project("name")
-            except KeyError:
-                raise InvalidProject("Project file has no name")
-        else:
-            name = self.__subpackage_name
-        return name
-
-    def _package_uuid(self) -> str:
-        """Return the package uuid."""
-        if self.__subpackage_uuid is None:
-            try:
-                uuid = self._project("uuid")
-            except KeyError:
-                raise InvalidProject("Project file has no UUID")
-        else:
-            uuid = self.__subpackage_uuid
-        return uuid
-
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        if self.__subpackage_name is None:
+        if self.__subdir is None:
             prefix = "v"
         else:
             prefix = self._package_name() + "-v"
@@ -210,8 +188,8 @@ class Repo:
         if self._clone_registry:
             # I think this is actually possible, but it looks pretty complicated.
             return None
-        name = self._package_name()
-        uuid = self._package_uuid()
+        name = self._project("name")
+        uuid = self._project("uuid")
         # This is the format used by Registrator/PkgDev.
         head = f"registrator/{name.lower()}/{uuid[:8]}/{package_version}"
         logger.debug(f"Looking for PR from branch {head}")

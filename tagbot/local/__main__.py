@@ -25,8 +25,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--changelog", default=CHANGELOG, help="Changelog template")
 @click.option("--registry", default=REGISTRY, help="Registry to search")
 @click.option("--draft", default=DRAFT, help="Create a draft release", is_flag=True)
-@click.option("--subpackage_name", default=None, help="Name of subpackage in repo")
-@click.option("--subpackage_uuid", default=None, help="UUID of subpackage in repo")
+@click.option("--subdir", default=None, help="Subdirectory path in repo")
 def main(
     repo: str,
     version: str,
@@ -36,8 +35,7 @@ def main(
     changelog: str,
     registry: str,
     draft: bool,
-    subpackage_name: str,
-    subpackage_uuid: str,
+    subdir: str,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -55,8 +53,7 @@ def main(
         email=EMAIL,
         lookback=0,
         branch=None,
-        subpackage_name=subpackage_name,
-        subpackage_uuid=subpackage_uuid,
+        subdir=subdir,
     )
     ## TODO: parse version into these correctly here
     package_version = ""

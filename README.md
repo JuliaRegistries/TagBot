@@ -377,16 +377,62 @@ with:
 
 ### Subpackage Configuration
 
-If your package is not at the top-level of your repository, you should set the  `subpackage_uuid` and `subpackage_name` inputs to the uuid and name of the package (without the `.jl` suffix):
+If your package is not at the top-level of your repository, you should set the  `subdir` input:  
 
 ```yml
 with:
   token: ${{ secrets.GITHUB_TOKEN }}
-  subpackage_name: SubpackageName
-  subpackage_uuid: 6eeaa9e1-5bf4-4477-849f-dc20c0b87e53
+  subdir: path/to/SubpackageName.jl
 ```
 
-Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.)
+Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.) 
+
+To tag releases from a monorepo containing multiple subpackages and an optional top-level package, set up a separate step for each package you want to tag. For example, to tag all three packages in the following repository,
+
+```
+.
+├── SubpackageA.jl
+│   ├── Package.toml
+│   └── src/...
+├── path
+│   └── to
+│       └── SubpackageB.jl
+│           ├── Package.toml
+│           └── src/...
+├── Package.toml
+└── src/...
+```
+
+the action configuration should look something like
+
+```yml
+    steps:
+      - name: Tag top-level package
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+      - name: Tag subpackage A
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          subdir: SubpackageA.jl
+      - name: Tag subpackage B
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          subdir: path/to/SubpackageB.jl
+```
+
+Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and `SubpackageB-v2.3.1`.
 
 ## Local Usage
 
@@ -399,16 +445,15 @@ $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local --help
 Usage: __main__.py [OPTIONS]
 
 Options:
-  --repo TEXT             Repo to tag
-  --version TEXT          Version to tag
-  --token TEXT            GitHub API token
-  --github TEXT           GitHub URL
-  --github-api TEXT       GitHub API URL
-  --changelog TEXT        Changelog template
-  --registry TEXT         Registry to search
-  --subpackage_name TEXT  Subpackage in repo
-  --subpackage_uuid TEXT  Subpackage in repo
-  --help                  Show this message and exit.
+  --repo TEXT        Repo to tag
+  --version TEXT     Version to tag
+  --token TEXT       GitHub API token
+  --github TEXT      GitHub URL
+  --github-api TEXT  GitHub API URL
+  --changelog TEXT   Changelog template
+  --registry TEXT    Registry to search
+  --subdir TEXT      Subdirectory path in repo
+  --help             Show this message and exit.
 
 $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \
     --repo Owner/Name \
