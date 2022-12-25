@@ -439,6 +439,7 @@ class Repo:
             ) as f:
                 package = toml.load(f)
         else:
+            #TODO: check this path
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
             package = toml.loads(contents.decoded_content.decode())
         gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")

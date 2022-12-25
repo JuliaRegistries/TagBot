@@ -367,7 +367,7 @@ def test_is_registered():
     # but I'm not really sure how it's possible.
 
 
-def test_new_versions():
+def test_new_package_versions():
     r = _repo()
     r._versions = (
         lambda min_age=None: {"1.2.3": "abc"}
@@ -375,7 +375,7 @@ def test_new_versions():
         else {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
     r._filter_map_versions = lambda vs: vs
-    assert list(r.new_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
+    assert list(r.new_package_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
 
 
 def test_create_dispatch_event():

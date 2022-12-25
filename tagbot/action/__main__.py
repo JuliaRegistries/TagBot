@@ -73,7 +73,7 @@ try:
         )
         sys.exit()
 
-    package_versions = repo.new_package_versions() #TODO: to trace
+    package_versions = repo.new_package_versions()
     if not package_versions:
         logger.info("No new versions to release")
         sys.exit()

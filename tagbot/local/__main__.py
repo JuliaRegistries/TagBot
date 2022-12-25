@@ -58,11 +58,13 @@ def main(
         subpackage_name=subpackage_name,
         subpackage_uuid=subpackage_uuid,
     )
-    #TODO: parse version into these correctly here
+    ## TODO: parse version into these correctly here
     package_version = ""
     tag_version = ""
 
-    package_version = package_version if package_version.startswith("v") else f"v{package_version}"
+    package_version = package_version 
+    if not package_version.startswith("v"):
+        package_version = f"v{package_version}"
     sha = r.commit_sha_of_version(package_version)
     if sha:
         r.create_release(tag_version, sha)

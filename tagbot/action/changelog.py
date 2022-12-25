@@ -105,7 +105,7 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _package_version_from_tag_version(self, tag_version: str) -> str
+    def _package_version_from_tag_version(self, tag_version: str) -> str:
         """Return package version by stripping tag prefix from tag version"""
         tag_prefix = self._repo._tag_prefix()
         return tag_version[len(tag_prefix):]
@@ -183,7 +183,7 @@ class Changelog:
             "compare_url": compare,
             "custom": self._custom_release_notes(tag_version),
             "issues": [self._format_issue(i) for i in issues],
-            "package": self._package_name(),
+            "package": self._repo._package_name(),
             "previous_release": prev_tag,
             "pulls": [self._format_pull(p) for p in pulls],
             "sha": sha,
