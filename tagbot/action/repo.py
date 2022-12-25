@@ -589,7 +589,7 @@ class Repo:
         """Get the commit SHA from a registered version."""
         if package_version.startswith("v"):
             package_version = package_version[1:]
-        root = self._registry_path #TODO: check if this is correct...whould be 
+        root = self._registry_path
         if not root:
             logger.error("Package is not registered")
             return None

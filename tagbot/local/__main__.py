@@ -55,16 +55,10 @@ def main(
         branch=None,
         subdir=subdir,
     )
-    ## TODO: parse version into these correctly here
-    package_version = ""
-    tag_version = ""
-
-    package_version = package_version 
-    if not package_version.startswith("v"):
-        package_version = f"v{package_version}"
-    sha = r.commit_sha_of_version(package_version)
+    version = version if version.startswith("v") else f"v{version}"
+    sha = r.commit_sha_of_version(version)
     if sha:
-        r.create_release(tag_version, sha)
+        r.create_release(version, sha)
     else:
         print(f"Commit for {version} was not found")
 
