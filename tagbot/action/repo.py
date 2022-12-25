@@ -166,10 +166,10 @@ class Repo:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
-    def _create_release_branch_pr(self, tag_version: str, branch: str) -> None:
+    def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
-            title=f"Merge release branch for {tag_version}",
+            title=f"Merge release branch for {version_tag}",
             body="",
             head=branch,
             base=self._repo.default_branch,
@@ -512,10 +512,10 @@ class Repo:
         self._git.config("tag.gpgSign", "true")
         self._git.config("user.signingKey", key_id)
 
-    def handle_release_branch(self, package_version: str) -> None:
+    def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
         # Exclude "v" from version: `0.0.0` or `SubPackage-0.0.0`
-        branch_version = tag_prefix()[:-1] + package_version
+        branch_version = tag_prefix()[:-1] + version
         branch = f"release-{branch_version}"
         if not self._git.fetch_branch(branch):
             logger.info(f"Release branch {branch} does not exist")
@@ -530,8 +530,8 @@ class Repo:
             logger.info(
                 "Release branch cannot be fast-forwarded, creating pull request"
             )
-            tag_version = tag_prefix() + package_version
-            self._create_release_branch_pr(tag_version, branch)
+            version_tag = tag_prefix() + package_version
+            self._create_release_branch_pr(version_tag, branch)
 
     def create_release(self, package_version: str, sha: str) -> None:
         """Create a GitHub release."""
@@ -585,11 +585,11 @@ class Repo:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
 
-    def commit_sha_of_version(self, package_version: str) -> Optional[str]:
+    def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
-        if package_version.startswith("v"):
-            package_version = package_version[1:]
-        root = self._registry_path
+        if version.startswith("v"):
+            version = version[1:]
+        root = self._registry_path #TODO: check if this is correct...whould be 
         if not root:
             logger.error("Package is not registered")
             return None
@@ -601,8 +601,8 @@ class Repo:
         else:
             contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
             versions = toml.loads(contents.decoded_content.decode())
-        if package_version not in versions:
-            logger.error(f"Version {package_version} is not registered")
+        if version not in versions:
+            logger.error(f"Version {version} is not registered")
             return None
-        tree = versions[package_version]["git-tree-sha1"]
+        tree = versions[version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)
