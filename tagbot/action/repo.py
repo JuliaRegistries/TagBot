@@ -430,7 +430,7 @@ class Repo:
         # I'm not really sure why mypy doesn't like this line without the cast.
         return cast(bool, m[1].casefold() == self._repo.full_name.casefold())
 
-    def new_package_versions(self) -> Dict[str, str]:
+    def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
         current = self._versions()
         logger.debug(f"There are {len(current)} total versions")
