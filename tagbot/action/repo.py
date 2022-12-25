@@ -53,9 +53,9 @@ class Repo:
         email: str,
         lookback: int,
         branch: Optional[str],
-        subpackage_name: Optional[str] = None,
-        subpackage_uuid: Optional[str] = None,
+        subdir: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
+        registry_path: Optional[str] = None
     ) -> None:
         if github_kwargs is None:
             github_kwargs = {}
@@ -100,8 +100,7 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
-        self.__subpackage_name = subpackage_name
-        self.__subpackage_uuid = subpackage_uuid
+        self.__subdir = subdir
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
 
@@ -111,7 +110,7 @@ class Repo:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             try:
-                contents = self._only(self._repo.get_contents(name))
+                contents = self._only(self._repo.get_contents(os.path.join(self.__subdir, name)))
                 break
             except UnknownObjectException:
                 pass
@@ -139,9 +138,10 @@ class Repo:
         """Get the package's path in the registry repo."""
         if self.__registry_path is not None:
             return self.__registry_path
-
-        uuid = self._package_uuid()
-
+        try:
+            uuid = self._project("uuid")
+        except KeyError:
+            raise InvalidProject("Project file has no UUID")
         if self._clone_registry:
             with open(os.path.join(self._registry_clone_dir, "Registry.toml")) as f:
                 registry = toml.load(f)
