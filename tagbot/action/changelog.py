@@ -44,11 +44,9 @@ class Changelog:
 
     def _previous_release(self, version_tag: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        # package_version = self._package_version_from_version_tag(version_tag)
         tag_prefix = self._repo._tag_prefix()
-        package_version = version_tag[len(tag_prefix):]
-
-        cur_ver = VersionInfo.parse(package_version)
+        i_start = len(tag_prefix)
+        cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_ver = VersionInfo(0)
         prev_rel = None
         tag_prefix = self._repo._tag_prefix()
@@ -56,7 +54,7 @@ class Changelog:
             if not r.tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(r.tag_name[len(tag_prefix)-1:])
+                ver = VersionInfo.parse(r.tag_name[i_start:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -113,7 +111,8 @@ class Changelog:
         logger.debug("Looking up custom release notes")
 
         tag_prefix = self._repo._tag_prefix()
-        package_version = version_tag[len(tag_prefix)-1:]
+        i_start = len(tag_prefix) - 1
+        package_version = version_tag[i_start:]
 
         pr = self._repo._registry_pr(package_version)
         if not pr:
