@@ -180,7 +180,7 @@ class Repo:
 
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        if self.__subdir is None:
+        if self.__subdir is None or self.__subdir == "":
             prefix = "v"
         else:
             prefix = self._project("name") + "-v"
