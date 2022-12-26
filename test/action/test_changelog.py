@@ -33,9 +33,9 @@ def _changelog(*, template="", ignore=set()):
     return r._changelog
 
 
-# def test_slug():
-#     c = _changelog()
-#     assert c._slug("A b-c_d") == "abcd"
+def test_slug():
+    c = _changelog()
+    assert c._slug("A b-c_d") == "abcd"
 
 
 def test_previous_release():

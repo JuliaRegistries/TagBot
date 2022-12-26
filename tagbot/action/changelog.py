@@ -44,7 +44,10 @@ class Changelog:
 
     def _previous_release(self, version_tag: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        package_version = self._package_version_from_version_tag(version_tag)
+        # package_version = self._package_version_from_version_tag(version_tag)
+        tag_prefix = self._repo._tag_prefix()
+        package_version = version_tag[len(tag_prefix):]
+
         cur_ver = VersionInfo.parse(package_version)
         prev_ver = VersionInfo(0)
         prev_rel = None
@@ -105,15 +108,13 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _package_version_from_version_tag(self, version_tag: str) -> str:
-        """Return package version by stripping subpackage prefix (if present) from tag version"""
-        tag_prefix = self._repo._tag_prefix()
-        return version_tag[len(tag_prefix)-1:]
-
     def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
-        package_version = self._package_version_from_version_tag(version_tag)
+
+        tag_prefix = self._repo._tag_prefix()
+        package_version = version_tag[len(tag_prefix)-1:]
+
         pr = self._repo._registry_pr(package_version)
         if not pr:
             logger.warning("No registry pull request was found for this version")
