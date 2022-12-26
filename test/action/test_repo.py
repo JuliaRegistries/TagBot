@@ -511,7 +511,7 @@ def test_handle_release_branch():
     r._create_release_branch_pr.assert_called_with("v5", "release-5")
 
 
-def test_handle_release_branch_subpackage():
+def test_handle_release_branch_subdir():
     r = _repo(subdir="path/to/Foo.jl")
     r._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
@@ -583,7 +583,7 @@ def test_create_release():
     )
 
 
-def test_create_release_subpackage():
+def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
     r._commit_sha_of_release_branch = Mock(return_value="a")
     r._repo.get_contents = Mock(
@@ -681,10 +681,10 @@ def test_tag_prefix_and_get_version_tag():
     assert r._get_version_tag("v0.1.3") == "v0.1.3"
     assert r._get_version_tag("0.1.3") == "v0.1.3"
 
-    r_subpackage = _repo(subdir="FooBar")
-    r_subpackage._repo.get_contents = Mock(
+    r_subdir = _repo(subdir="FooBar")
+    r_subdir._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
     )
-    assert r_subpackage._tag_prefix() == "FooBar-v"
-    assert r_subpackage._get_version_tag("v0.1.3") == "FooBar-v0.1.3"
-    assert r_subpackage._get_version_tag("0.1.3") == "FooBar-v0.1.3"
+    assert r_subdir._tag_prefix() == "FooBar-v"
+    assert r_subdir._get_version_tag("v0.1.3") == "FooBar-v0.1.3"
+    assert r_subdir._get_version_tag("0.1.3") == "FooBar-v0.1.3"
