@@ -109,7 +109,11 @@ class Repo:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             try:
-                contents = self._only(self._repo.get_contents(os.path.join(self.__subdir, name)))
+                if self.__subdir is not None:
+                    filepath = os.path.join(self.__subdir, name)
+                else:
+                    filepath = name
+                contents = self._only(self._repo.get_contents(filepath))
                 break
             except UnknownObjectException:
                 pass
@@ -185,7 +189,7 @@ class Repo:
     def _get_version_tag(self, package_version: str) -> str:
         """Return the package-prefixed version tag."""
         if package_version.startswith("v"):
-            package_version = version[1:]
+            package_version = package_version[1:]
         return self._tag_prefix() + package_version
 
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
@@ -520,7 +524,7 @@ class Repo:
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
         # Exclude "v" from version: `0.0.0` or `SubPackage-0.0.0`
-        branch_version = self._tag_prefix()[:-1] + version
+        branch_version = self._tag_prefix()[:-1] + version[1:]
         branch = f"release-{branch_version}"
         if not self._git.fetch_branch(branch):
             logger.info(f"Release branch {branch} does not exist")

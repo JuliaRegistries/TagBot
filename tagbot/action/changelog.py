@@ -106,9 +106,9 @@ class Changelog:
         ]
 
     def _package_version_from_version_tag(self, version_tag: str) -> str:
-        """Return package version by stripping tag prefix from tag version"""
+        """Return package version by stripping subpackage prefix (if present) from tag version"""
         tag_prefix = self._repo._tag_prefix()
-        return version_tag[len(tag_prefix):]
+        return version_tag[len(tag_prefix)-1:]
 
     def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
