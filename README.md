@@ -434,8 +434,9 @@ the action configuration should look something like
 
 Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and `SubpackageB-v2.3.1`.
 
-> **Note: Monorepo-specific changelog behavior**
-> Each subpackage will include all issues and pull requests in its changelogs, such that a single issue will be duplicated up in all of the repository's subpackages' release notes. Careful [`changelog_ignore` and/or custom changelog settings](#changelogs) on a per-subpackage basis can mitigate this duplication.  
+**:information_source: Monorepo-specific changelog behavior**
+  
+  Each subpackage will include all issues and pull requests in its changelogs, such that a single issue will be duplicated up in all of the repository's subpackages' release notes. Careful [`changelog_ignore` and/or custom changelog settings](#changelogs) on a per-subpackage basis can mitigate this duplication.  
 
 ## Local Usage
 
