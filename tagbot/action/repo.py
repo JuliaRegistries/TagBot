@@ -55,7 +55,6 @@ class Repo:
         branch: Optional[str],
         subdir: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
-        registry_path: Optional[str] = None
     ) -> None:
         if github_kwargs is None:
             github_kwargs = {}
@@ -190,7 +189,7 @@ class Repo:
         return self._tag_prefix() + package_version
 
 
-    def _registry_pr(self, package_version: str) -> Optional[PullRequest]:
+    def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
         if self._clone_registry:
             # I think this is actually possible, but it looks pretty complicated.
@@ -198,7 +197,7 @@ class Repo:
         name = self._project("name")
         uuid = self._project("uuid")
         # This is the format used by Registrator/PkgDev.
-        head = f"registrator/{name.lower()}/{uuid[:8]}/{package_version}"
+        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
         logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
@@ -291,7 +290,7 @@ class Repo:
                 expected = self._commit_sha_of_tree(tree)
             if not expected:
                 logger.warning(
-                    f"No matching commit was found for version {package_version} ({tree})"
+                    f"No matching commit was found for version {version} ({tree})"
                 )
                 continue
             version_tag = self._get_version_tag(version)
@@ -362,8 +361,8 @@ class Repo:
                 logger.debug("Versions.toml was not found")
                 return {}
             with open(path) as f:
-                package_versions = toml.load(f)
-            return {v: package_versions[v]["git-tree-sha1"] for v in package_versions}
+                versions = toml.load(f)
+            return {v: versions[v]["git-tree-sha1"] for v in versions}
         finally:
             if min_age:
                 self._git.command("checkout", default_sha, repo=registry)
@@ -447,7 +446,7 @@ class Repo:
         versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
             if v not in old:
-                package_versions[v] = current[v]
+                versions[v] = current[v]
         return self._filter_map_versions(versions)
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
