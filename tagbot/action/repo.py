@@ -550,7 +550,7 @@ class Repo:
 
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
-        log = self._changelog.get(version_tag, sha) #TODO: this might not be right for submodule.....
+        log = self._changelog.get(version_tag, sha)
         if not self._draft:
             if self._ssh or self._gpg:
                 logger.debug("Creating tag via Git CLI")
@@ -596,13 +596,13 @@ class Repo:
         """Get the commit SHA from a registered version."""
         if version.startswith("v"):
             version = version[1:]
-        root = self._registry_path #TODO: check if this is correct...whould be 
+        root = self._registry_path
         if not root:
             logger.error("Package is not registered")
             return None
         if self._clone_registry:
             with open(
-                os.path.join(self._registry_clone_dir, root, "Versions.toml") #TODO: check path is correct
+                os.path.join(self._registry_clone_dir, root, "Versions.toml")
             ) as f:
                 versions = toml.load(f)
         else:
