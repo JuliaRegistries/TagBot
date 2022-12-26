@@ -179,15 +179,14 @@ class Repo:
         if self.__subdir is None:
             prefix = "v"
         else:
-            prefix = self._package_name() + "-v"
+            prefix = self._project("name") + "-v"
         return prefix
 
     def _get_version_tag(self, package_version: str) -> str:
-        """Return the package's tag prefix."""
+        """Return the package-prefixed version tag."""
         if package_version.startswith("v"):
             package_version = version[1:]
         return self._tag_prefix() + package_version
-
 
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
@@ -546,7 +545,6 @@ class Repo:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
             target = self._release_branch
-
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         log = self._changelog.get(version_tag, sha)

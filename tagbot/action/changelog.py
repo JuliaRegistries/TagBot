@@ -183,7 +183,7 @@ class Changelog:
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
             "issues": [self._format_issue(i) for i in issues],
-            "package": self._repo._package_name(),
+            "package": self._repo._project("name"),
             "previous_release": prev_tag,
             "pulls": [self._format_pull(p) for p in pulls],
             "sha": sha,
