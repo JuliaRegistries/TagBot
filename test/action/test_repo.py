@@ -145,7 +145,10 @@ def test_create_release_branch_pr():
     r._repo = Mock(default_branch="default")
     r._create_release_branch_pr("Foo-v1.2.3", "branch")
     r._repo.create_pull.assert_called_once_with(
-        title="Merge release branch for Foo-v1.2.3", body="", head="branch", base="default"
+        title="Merge release branch for Foo-v1.2.3",
+        body="",
+        head="branch",
+        base="default",
     )
 
 

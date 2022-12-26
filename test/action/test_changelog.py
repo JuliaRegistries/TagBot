@@ -57,7 +57,16 @@ def test_previous_release_subdir():
     c._repo._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
     )
-    tags = ["ignore", "v1.2.4-ignore", "Foo-v1.2.3", "Foo-v1.2.2", "Foo-v1.0.2", "Foo-v1.0.10", "v2.0.1", "Foo-v2.0.0"]
+    tags = [
+        "ignore",
+        "v1.2.4-ignore",
+        "Foo-v1.2.3",
+        "Foo-v1.2.2",
+        "Foo-v1.0.2",
+        "Foo-v1.0.10",
+        "v2.0.1",
+        "Foo-v2.0.0",
+    ]
     c._repo._repo.get_releases = Mock(return_value=[Mock(tag_name=t) for t in tags])
     assert c._previous_release("Foo-v1.0.0") is None
     assert c._previous_release("Foo-v1.0.2") is None
