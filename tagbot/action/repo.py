@@ -1,10 +1,10 @@
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
 import traceback
-import hashlib
 
 import docker
 import pexpect
@@ -197,13 +197,13 @@ class Repo:
         uuid = self._project("uuid")
         url = self._registry_url
         if not url:
-            raise InvalidProject("Could not find url of package in registry")
+            logger.info("Could not find url of package in registry")
+            return None
         url_hash = hashlib.sha256(url.encode()).hexdigest()
-        url_hash_trunc = url_hash[:10]
         # This is the format used by Registrator/PkgDev.
         # see https://github.com/JuliaRegistries/RegistryTools.jl/blob/
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
-        head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash_trunc}"
+        head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
