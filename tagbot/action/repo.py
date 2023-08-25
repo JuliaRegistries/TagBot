@@ -109,10 +109,7 @@ class Repo:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             try:
-                if self.__subdir is not None:
-                    filepath = os.path.join(self.__subdir, name)
-                else:
-                    filepath = name
+                filepath = os.path.join(self.__subdir, name) if self.__subdir else name
                 contents = self._only(self._repo.get_contents(filepath))
                 break
             except UnknownObjectException:
@@ -180,11 +177,7 @@ class Repo:
 
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        if self.__subdir is None or self.__subdir == "":
-            prefix = "v"
-        else:
-            prefix = self._project("name") + "-v"
-        return prefix
+        return self._project("name") + "-v" if self.__subdir else "v"
 
     def _get_version_tag(self, package_version: str) -> str:
         """Return the package-prefixed version tag."""

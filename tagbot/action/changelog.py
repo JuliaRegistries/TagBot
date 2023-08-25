@@ -109,11 +109,9 @@ class Changelog:
     def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
-
         tag_prefix = self._repo._tag_prefix()
         i_start = len(tag_prefix) - 1
         package_version = version_tag[i_start:]
-
         pr = self._repo._registry_pr(package_version)
         if not pr:
             logger.warning("No registry pull request was found for this version")
