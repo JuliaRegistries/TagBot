@@ -42,16 +42,19 @@ class Changelog:
         """Return a version of the string that's easy to compare."""
         return re.sub(r"[\s_-]", "", s.casefold())
 
-    def _previous_release(self, version: str) -> Optional[GitRelease]:
+    def _previous_release(self, version_tag: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        cur_ver = VersionInfo.parse(version[1:])
+        tag_prefix = self._repo._tag_prefix()
+        i_start = len(tag_prefix)
+        cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_ver = VersionInfo(0)
         prev_rel = None
+        tag_prefix = self._repo._tag_prefix()
         for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith("v"):
+            if not r.tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(r.tag_name[1:])
+                ver = VersionInfo.parse(r.tag_name[i_start:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -103,10 +106,13 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
-    def _custom_release_notes(self, version: str) -> Optional[str]:
+    def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
-        pr = self._repo._registry_pr(version)
+        tag_prefix = self._repo._tag_prefix()
+        i_start = len(tag_prefix) - 1
+        package_version = version_tag[i_start:]
+        pr = self._repo._registry_pr(package_version)
         if not pr:
             logger.warning("No registry pull request was found for this version")
             return None
@@ -153,16 +159,16 @@ class Changelog:
             "url": pull.html_url,
         }
 
-    def _collect_data(self, version: str, sha: str) -> Dict[str, object]:
+    def _collect_data(self, version_tag: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
-        previous = self._previous_release(version)
+        previous = self._previous_release(version_tag)
         start = datetime.fromtimestamp(0)
         prev_tag = None
         compare = None
         if previous:
             start = previous.created_at
             prev_tag = previous.tag_name
-            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version}"
+            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
         end = self._repo._git.time_of_commit(sha) + timedelta(minutes=1)
@@ -173,23 +179,23 @@ class Changelog:
         pulls = self._pulls(start, end)
         return {
             "compare_url": compare,
-            "custom": self._custom_release_notes(version),
+            "custom": self._custom_release_notes(version_tag),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": prev_tag,
             "pulls": [self._format_pull(p) for p in pulls],
             "sha": sha,
-            "version": version,
-            "version_url": f"{self._repo._repo.html_url}/tree/{version}",
+            "version": version_tag,
+            "version_url": f"{self._repo._repo.html_url}/tree/{version_tag}",
         }
 
     def _render(self, data: Dict[str, object]) -> str:
         """Render the template."""
         return self._template.render(data).strip()
 
-    def get(self, version: str, sha: str) -> str:
+    def get(self, version_tag: str, sha: str) -> str:
         """Get the changelog for a specific version."""
-        logger.info(f"Generating changelog for version {version} ({sha})")
-        data = self._collect_data(version, sha)
+        logger.info(f"Generating changelog for version {version_tag} ({sha})")
+        data = self._collect_data(version_tag, sha)
         logger.debug(f"Changelog data: {json.dumps(data, indent=2)}")
         return self._render(data)
