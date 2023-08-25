@@ -95,6 +95,20 @@ def test_registry_path():
     assert r._registry.get_contents.call_count == 2
 
 
+def test_registry_url():
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    r._registry.get_contents.return_value.decoded_content = b"""
+    name = "Example"
+    uuid = "7876af07-990d-54b4-ab0e-23690620f79a"
+    repo = "https://github.com/JuliaLang/Example.jl.git"
+    """
+    assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
+    assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
+    assert r._registry.get_contents.call_count == 1
+
+
 def test_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
@@ -134,26 +148,31 @@ def test_registry_pr():
     now = datetime.now()
     owner_pr = Mock(merged=True, merged_at=now)
     r._registry.get_pulls.return_value = [owner_pr]
+    r._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
     assert r._registry_pr("v1.2.3") is owner_pr
     r._registry.get_pulls.assert_called_once_with(
-        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed"
+        head="Owner:registrator-pkgname-abcdef01-v1.2.3-d745cc13b3", state="closed"
     )
     r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
     assert r._registry_pr("v2.3.4") is None
     calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v2.3.4", state="closed"),
+        call(
+            head="Owner:registrator-pkgname-abcdef01-v2.3.4-d745cc13b3", state="closed"
+        ),
         call(state="closed"),
     ]
     r._registry.get_pulls.assert_has_calls(calls)
     good_pr = Mock(
         closed_at=now - timedelta(days=2),
         merged=True,
-        head=Mock(ref="registrator/pkgname/abcdef01/v3.4.5"),
+        head=Mock(ref="registrator-pkgname-abcdef01-v3.4.5-d745cc13b3"),
     )
     r._registry.get_pulls.side_effect = [[], [good_pr]]
     assert r._registry_pr("v3.4.5") is good_pr
     calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v3.4.5", state="closed"),
+        call(
+            head="Owner:registrator-pkgname-abcdef01-v3.4.5-d745cc13b3", state="closed"
+        ),
         call(state="closed"),
     ]
     r._registry.get_pulls.assert_has_calls(calls)
