@@ -164,6 +164,7 @@ def test_collect_data():
     c._previous_release = Mock(
         side_effect=[Mock(tag_name="v1.2.2", created_at=datetime.now()), None]
     )
+    c._is_backport = Mock(return_value=False)
     c._repo._git.time_of_commit = Mock(return_value=datetime.now())
     # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
@@ -172,6 +173,7 @@ def test_collect_data():
     assert c._collect_data("v1.2.3", "abcdef") == {
         "compare_url": "https://github.com/A/B.jl/compare/v1.2.2...v1.2.3",
         "custom": "custom",
+        "backport": False,
         "issues": [],
         "package": "B",
         "previous_release": "v1.2.2",
@@ -207,6 +209,7 @@ def test_render():
     data = {
         "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
         "custom": "Custom release notes",
+        "is_backport": False,
         "issues": [{"number": 1, "title": "Issue title", "labels": []}],
         "package": "PkgName",
         "previous_release": "v1.2.2",

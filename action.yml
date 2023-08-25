@@ -77,6 +77,13 @@ inputs:
       {{ custom }}
       {% endif %}
 
+      {% if backport %}
+      This release has been identified as a backport.
+      Automated changelogs for backports tend to be wildly incorrect.
+      Therefore, the list of issues and pull requests is hidden.
+      <!--
+
+      {% endif %}
       {% if issues %}
       **Closed issues:**
       {% for issue in issues %}
@@ -89,6 +96,10 @@ inputs:
       {% for pull in pulls %}
       - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
       {% endfor %}
+      {% endif %}
+
+      {% if backport %}
+      -->
       {% endif %}
   changelog_ignore:
     description: Labels for issues and pull requests to be ignored (comma-delimited)
