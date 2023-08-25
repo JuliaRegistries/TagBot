@@ -34,6 +34,7 @@ def _repo(
     email="",
     lookback=3,
     branch=None,
+    subdir=None,
 ):
     return Repo(
         repo=repo,
@@ -51,6 +52,7 @@ def _repo(
         email=email,
         lookback=lookback,
         branch=branch,
+        subdir=subdir,
     )
 
 
@@ -80,6 +82,20 @@ def test_project():
         r._project("name")
 
 
+def test_project_subdir():
+    r = _repo(subdir="path/to/FooBar.jl")
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r._project("name") == "FooBar"
+    assert r._project("uuid") == "abc-def"
+    r._repo.get_contents.assert_called_once_with("path/to/FooBar.jl/Project.toml")
+    r._repo.get_contents.side_effect = UnknownObjectException(404, "???")
+    r._Repo__project = None
+    with pytest.raises(InvalidProject):
+        r._project("name")
+
+
 def test_registry_path():
     r = _repo()
     r._registry = Mock()
@@ -93,6 +109,20 @@ def test_registry_path():
     assert r._registry_path == "B/Bar"
     assert r._registry_path == "B/Bar"
     assert r._registry.get_contents.call_count == 2
+
+
+def test_registry_url():
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    r._registry.get_contents.return_value.decoded_content = b"""
+    name = "Example"
+    uuid = "7876af07-990d-54b4-ab0e-23690620f79a"
+    repo = "https://github.com/JuliaLang/Example.jl.git"
+    """
+    assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
+    assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
+    assert r._registry.get_contents.call_count == 1
 
 
 def test_release_branch():
@@ -126,6 +156,15 @@ def test_create_release_branch_pr():
         title="Merge release branch for v1.2.3", body="", head="branch", base="default"
     )
 
+    r._repo = Mock(default_branch="default")
+    r._create_release_branch_pr("Foo-v1.2.3", "branch")
+    r._repo.create_pull.assert_called_once_with(
+        title="Merge release branch for Foo-v1.2.3",
+        body="",
+        head="branch",
+        base="default",
+    )
+
 
 def test_registry_pr():
     r = _repo()
@@ -134,26 +173,31 @@ def test_registry_pr():
     now = datetime.now()
     owner_pr = Mock(merged=True, merged_at=now)
     r._registry.get_pulls.return_value = [owner_pr]
+    r._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
     assert r._registry_pr("v1.2.3") is owner_pr
     r._registry.get_pulls.assert_called_once_with(
-        head="Owner:registrator/pkgname/abcdef01/v1.2.3", state="closed"
+        head="Owner:registrator-pkgname-abcdef01-v1.2.3-d745cc13b3", state="closed"
     )
     r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
     assert r._registry_pr("v2.3.4") is None
     calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v2.3.4", state="closed"),
+        call(
+            head="Owner:registrator-pkgname-abcdef01-v2.3.4-d745cc13b3", state="closed"
+        ),
         call(state="closed"),
     ]
     r._registry.get_pulls.assert_has_calls(calls)
     good_pr = Mock(
         closed_at=now - timedelta(days=2),
         merged=True,
-        head=Mock(ref="registrator/pkgname/abcdef01/v3.4.5"),
+        head=Mock(ref="registrator-pkgname-abcdef01-v3.4.5-d745cc13b3"),
     )
     r._registry.get_pulls.side_effect = [[], [good_pr]]
     assert r._registry_pr("v3.4.5") is good_pr
     calls = [
-        call(head="Owner:registrator/pkgname/abcdef01/v3.4.5", state="closed"),
+        call(
+            head="Owner:registrator-pkgname-abcdef01-v3.4.5-d745cc13b3", state="closed"
+        ),
         call(state="closed"),
     ]
     r._registry.get_pulls.assert_has_calls(calls)
@@ -489,6 +533,34 @@ def test_handle_release_branch():
     r._create_release_branch_pr.assert_called_with("v5", "release-5")
 
 
+def test_handle_release_branch_subdir():
+    r = _repo(subdir="path/to/Foo.jl")
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
+    )
+    r._create_release_branch_pr = Mock()
+    r._git = Mock(
+        fetch_branch=Mock(side_effect=[False, True, True, True, True]),
+        is_merged=Mock(side_effect=[True, False, False, False]),
+        can_fast_forward=Mock(side_effect=[True, False, False]),
+    )
+    r._pr_exists = Mock(side_effect=[True, False])
+    r.handle_release_branch("v1")
+    r._git.fetch_branch.assert_called_with("release-Foo-1")
+    r._git.is_merged.assert_not_called()
+    r.handle_release_branch("v2")
+    r._git.is_merged.assert_called_with("release-Foo-2")
+    r._git.can_fast_forward.assert_not_called()
+    r.handle_release_branch("v3")
+    r._git.merge_and_delete_branch.assert_called_with("release-Foo-3")
+    r._pr_exists.assert_not_called()
+    r.handle_release_branch("v4")
+    r._pr_exists.assert_called_with("release-Foo-4")
+    r._create_release_branch_pr.assert_not_called()
+    r.handle_release_branch("v5")
+    r._create_release_branch_pr.assert_called_with("Foo-v5", "release-Foo-5")
+
+
 def test_create_release():
     r = _repo(user="user", email="email")
     r._commit_sha_of_release_branch = Mock(return_value="a")
@@ -533,6 +605,54 @@ def test_create_release():
     )
 
 
+def test_create_release_subdir():
+    r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
+    r._commit_sha_of_release_branch = Mock(return_value="a")
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
+    )
+    assert r._tag_prefix() == "Foo-v"
+    r._git.create_tag = Mock()
+    r._repo = Mock(default_branch="default")
+    r._repo.create_git_tag.return_value.sha = "t"
+    r._changelog.get = Mock(return_value="l")
+    r.create_release("v1", "a")
+    r._git.create_tag.assert_not_called()
+    # InputGitAuthor doesn't support equality so we can't use a normal
+    # assert_called_with here.
+    r._repo.create_git_tag.assert_called_once()
+    call = r._repo.create_git_tag.mock_calls[0]
+    assert call.args == ("Foo-v1", "l", "a", "commit")
+    assert len(call.kwargs) == 1 and "tagger" in call.kwargs
+    tagger = call.kwargs["tagger"]
+    assert isinstance(tagger, InputGitAuthor) and tagger._identity == {
+        "name": "user",
+        "email": "email",
+    }
+    r._repo.create_git_ref.assert_called_with("refs/tags/Foo-v1", "t")
+    r._repo.create_git_release.assert_called_with(
+        "Foo-v1", "Foo-v1", "l", target_commitish="default", draft=False
+    )
+    r.create_release("v1", "b")
+    r._repo.create_git_release.assert_called_with(
+        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False
+    )
+    r._ssh = True
+    r.create_release("v1", "c")
+    r._git.create_tag.assert_called_with("Foo-v1", "c", "l")
+    r._draft = True
+    r._git.create_tag.reset_mock()
+    r._repo.create_git_tag.reset_mock()
+    r._repo.create_git_ref.reset_mock()
+    r.create_release("v1", "d")
+    r._git.create_tag.assert_not_called()
+    r._repo.create_git_tag.assert_not_called()
+    r._repo.create_git_ref.assert_not_called()
+    r._repo.create_git_release.assert_called_with(
+        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True
+    )
+
+
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
 def test_handle_error(logger, format_exc):
@@ -564,3 +684,29 @@ def test_commit_sha_of_version():
     r._commit_sha_of_tree.assert_not_called()
     assert r.commit_sha_of_version("v3.4.5") == "def"
     r._commit_sha_of_tree.assert_called_with("abc")
+
+
+def test_tag_prefix_and_get_version_tag():
+    r = _repo()
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r._tag_prefix() == "v"
+    assert r._get_version_tag("v0.1.3") == "v0.1.3"
+    assert r._get_version_tag("0.1.3") == "v0.1.3"
+
+    r = _repo(subdir="")
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r._tag_prefix() == "v"
+    assert r._get_version_tag("v0.1.3") == "v0.1.3"
+    assert r._get_version_tag("0.1.3") == "v0.1.3"
+
+    r_subdir = _repo(subdir="FooBar")
+    r_subdir._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r_subdir._tag_prefix() == "FooBar-v"
+    assert r_subdir._get_version_tag("v0.1.3") == "FooBar-v0.1.3"
+    assert r_subdir._get_version_tag("0.1.3") == "FooBar-v0.1.3"

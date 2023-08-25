@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -53,6 +54,7 @@ class Repo:
         email: str,
         lookback: int,
         branch: Optional[str],
+        subdir: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -98,8 +100,10 @@ class Repo:
         self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
+        self.__subdir = subdir
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
+        self.__registry_url: Optional[str] = None
 
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""
@@ -107,7 +111,8 @@ class Repo:
             return str(self.__project[k])
         for name in ["Project.toml", "JuliaProject.toml"]:
             try:
-                contents = self._only(self._repo.get_contents(name))
+                filepath = os.path.join(self.__subdir, name) if self.__subdir else name
+                contents = self._only(self._repo.get_contents(filepath))
                 break
             except UnknownObjectException:
                 pass
@@ -151,6 +156,20 @@ class Repo:
         return None
 
     @property
+    def _registry_url(self) -> Optional[str]:
+        """Get the package's url in the registry repo."""
+        if self.__registry_url is not None:
+            return self.__registry_url
+        root = self._registry_path
+        try:
+            contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
+        except UnknownObjectException:
+            raise InvalidProject("Package.toml was not found")
+        package = toml.loads(contents.decoded_content.decode())
+        self.__registry_url = package["repo"]
+        return self.__registry_url
+
+    @property
     def _release_branch(self) -> str:
         """Get the name of the release branch."""
         return self.__release_branch or self._repo.default_branch
@@ -163,14 +182,24 @@ class Repo:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
-    def _create_release_branch_pr(self, version: str, branch: str) -> None:
+    def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
-            title=f"Merge release branch for {version}",
+            title=f"Merge release branch for {version_tag}",
             body="",
             head=branch,
             base=self._repo.default_branch,
         )
+
+    def _tag_prefix(self) -> str:
+        """Return the package's tag prefix."""
+        return self._project("name") + "-v" if self.__subdir else "v"
+
+    def _get_version_tag(self, package_version: str) -> str:
+        """Return the package-prefixed version tag."""
+        if package_version.startswith("v"):
+            package_version = package_version[1:]
+        return self._tag_prefix() + package_version
 
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
@@ -179,8 +208,15 @@ class Repo:
             return None
         name = self._project("name")
         uuid = self._project("uuid")
+        url = self._registry_url
+        if not url:
+            logger.info("Could not find url of package in registry")
+            return None
+        url_hash = hashlib.sha256(url.encode()).hexdigest()
         # This is the format used by Registrator/PkgDev.
-        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
+        # see https://github.com/JuliaRegistries/RegistryTools.jl/blob/
+        # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
+        head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
@@ -243,10 +279,10 @@ class Repo:
         # Fall back to cloning the repo in that case.
         return self._git.commit_sha_of_tree(tree)
 
-    def _commit_sha_of_tag(self, version: str) -> Optional[str]:
+    def _commit_sha_of_tag(self, version_tag: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
         try:
-            ref = self._repo.get_git_ref(f"tags/{version}")
+            ref = self._repo.get_git_ref(f"tags/{version_tag}")
         except UnknownObjectException:
             return None
         ref_type = getattr(ref.object, "type", None)
@@ -276,13 +312,14 @@ class Repo:
                     f"No matching commit was found for version {version} ({tree})"
                 )
                 continue
-            sha = self._commit_sha_of_tag(version)
+            version_tag = self._get_version_tag(version)
+            sha = self._commit_sha_of_tag(version_tag)
             if sha:
                 if sha != expected:
-                    msg = f"Existing tag {version} points at the wrong commit (expected {expected})"  # noqa: E501
+                    msg = f"Existing tag {version_tag} points at the wrong commit (expected {expected})"  # noqa: E501
                     logger.error(msg)
                 else:
-                    logger.info(f"Tag {version} already exists")
+                    logger.info(f"Tag {version_tag} already exists")
                 continue
             valid[version] = expected
         return valid
@@ -502,7 +539,9 @@ class Repo:
 
     def handle_release_branch(self, version: str) -> None:
         """Merge an existing release branch or create a PR to merge it."""
-        branch = f"release-{version[1:]}"
+        # Exclude "v" from version: `0.0.0` or `SubPackage-0.0.0`
+        branch_version = self._tag_prefix()[:-1] + version[1:]
+        branch = f"release-{branch_version}"
         if not self._git.fetch_branch(branch):
             logger.info(f"Release branch {branch} does not exist")
         elif self._git.is_merged(branch):
@@ -516,7 +555,8 @@ class Repo:
             logger.info(
                 "Release branch cannot be fast-forwarded, creating pull request"
             )
-            self._create_release_branch_pr(version, branch)
+            version_tag = self._get_version_tag(version)
+            self._create_release_branch_pr(version_tag, branch)
 
     def create_release(self, version: str, sha: str) -> None:
         """Create a GitHub release."""
@@ -525,25 +565,26 @@ class Repo:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
             target = self._release_branch
-        logger.debug(f"Release {version} target: {target}")
-        log = self._changelog.get(version, sha)
+        version_tag = self._get_version_tag(version)
+        logger.debug(f"Release {version_tag} target: {target}")
+        log = self._changelog.get(version_tag, sha)
         if not self._draft:
             if self._ssh or self._gpg:
                 logger.debug("Creating tag via Git CLI")
-                self._git.create_tag(version, sha, log)
+                self._git.create_tag(version_tag, sha, log)
             else:
                 logger.debug("Creating tag via GitHub API")
                 tag = self._repo.create_git_tag(
-                    version,
+                    version_tag,
                     log,
                     sha,
                     "commit",
                     tagger=InputGitAuthor(self._user, self._email),
                 )
-                self._repo.create_git_ref(f"refs/tags/{version}", tag.sha)
-        logger.info(f"Creating release {version} at {sha}")
+                self._repo.create_git_ref(f"refs/tags/{version_tag}", tag.sha)
+        logger.info(f"Creating release {version_tag} at {sha}")
         self._repo.create_git_release(
-            version, version, log, target_commitish=target, draft=self._draft
+            version_tag, version_tag, log, target_commitish=target, draft=self._draft
         )
 
     def handle_error(self, e: Exception) -> None:

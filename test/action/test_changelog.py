@@ -12,7 +12,7 @@ from github.PullRequest import PullRequest
 from tagbot.action.repo import Repo
 
 
-def _changelog(*, template="", ignore=set()):
+def _changelog(*, template="", ignore=set(), subdir=None):
     r = Repo(
         repo="",
         registry="",
@@ -29,6 +29,7 @@ def _changelog(*, template="", ignore=set()):
         email="",
         lookback=3,
         branch=None,
+        subdir=subdir,
     )
     return r._changelog
 
@@ -48,6 +49,33 @@ def test_previous_release():
     assert rel and rel.tag_name == "v1.2.3"
     rel = c._previous_release("v1.0.3")
     assert rel and rel.tag_name == "v1.0.2"
+
+
+def test_previous_release_subdir():
+    True
+    c = _changelog(subdir="Foo")
+    c._repo._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
+    )
+    tags = [
+        "ignore",
+        "v1.2.4-ignore",
+        "Foo-v1.2.3",
+        "Foo-v1.2.2",
+        "Foo-v1.0.2",
+        "Foo-v1.0.10",
+        "v2.0.1",
+        "Foo-v2.0.0",
+    ]
+    c._repo._repo.get_releases = Mock(return_value=[Mock(tag_name=t) for t in tags])
+    assert c._previous_release("Foo-v1.0.0") is None
+    assert c._previous_release("Foo-v1.0.2") is None
+    rel = c._previous_release("Foo-v1.2.5")
+    assert rel and rel.tag_name == "Foo-v1.2.3"
+    rel = c._previous_release("Foo-v1.0.3")
+    assert rel and rel.tag_name == "Foo-v1.0.2"
+    rel = c._previous_release("Foo-v2.1.0")
+    assert rel and rel.tag_name == "Foo-v2.0.0"
 
 
 def test_issues_and_pulls():
@@ -235,3 +263,8 @@ def test_get():
     c._collect_data = Mock(return_value={"version": "v1.2.3"})
     assert c.get("v1.2.3", "abc") == "v1.2.3"
     c._collect_data.assert_called_once_with("v1.2.3", "abc")
+
+    c = _changelog(template="{{ version }}")
+    c._collect_data = Mock(return_value={"version": "Foo-v1.2.3"})
+    assert c.get("Foo-v1.2.3", "abc") == "Foo-v1.2.3"
+    c._collect_data.assert_called_once_with("Foo-v1.2.3", "abc")
