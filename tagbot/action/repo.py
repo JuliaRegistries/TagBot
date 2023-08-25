@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -102,6 +103,7 @@ class Repo:
         self.__subdir = subdir
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
+        self.__registry_url: Optional[str] = None
 
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""
@@ -154,6 +156,20 @@ class Repo:
         return None
 
     @property
+    def _registry_url(self) -> Optional[str]:
+        """Get the package's url in the registry repo."""
+        if self.__registry_url is not None:
+            return self.__registry_url
+        root = self._registry_path
+        try:
+            contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
+        except UnknownObjectException:
+            raise InvalidProject("Package.toml was not found")
+        package = toml.loads(contents.decoded_content.decode())
+        self.__registry_url = package["repo"]
+        return self.__registry_url
+
+    @property
     def _release_branch(self) -> str:
         """Get the name of the release branch."""
         return self.__release_branch or self._repo.default_branch
@@ -192,8 +208,15 @@ class Repo:
             return None
         name = self._project("name")
         uuid = self._project("uuid")
+        url = self._registry_url
+        if not url:
+            logger.info("Could not find url of package in registry")
+            return None
+        url_hash = hashlib.sha256(url.encode()).hexdigest()
         # This is the format used by Registrator/PkgDev.
-        head = f"registrator/{name.lower()}/{uuid[:8]}/{version}"
+        # see https://github.com/JuliaRegistries/RegistryTools.jl/blob/
+        # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
+        head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
         now = datetime.now()
         # Check for an owner's PR first, since this is way faster (only one request).
