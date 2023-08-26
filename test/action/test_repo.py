@@ -662,11 +662,19 @@ def test_handle_error(logger, format_exc):
     r._report_error.assert_not_called()
     r.handle_error(GithubException(502, "oops"))
     r._report_error.assert_not_called()
-    with logger.assertRaises(Abort) as context:
+    try:
         r.handle_error(GithubException(404, "???"))
+    except Abort:
+        assert True
+    else:
+        assert False
     r._report_error.assert_called_with("ahh")
-    with logger.assertRaises(Abort) as context:
+    try:
         r.handle_error(RuntimeError("?"))
+    except Abort:
+        assert True
+    else:
+        assert False
     r._report_error.assert_called_with("ahh")
     logger.error.assert_called_with("Issue reporting failed")
 
