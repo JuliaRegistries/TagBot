@@ -609,7 +609,7 @@ class Repo:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
             finally:
-                sys.exit(1)
+                raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
