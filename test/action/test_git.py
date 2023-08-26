@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, call, patch, ANY
 
 import pytest
 
@@ -103,7 +103,7 @@ def test_create_tag():
     ]
     g.config.assert_has_calls(calls)
     calls = [
-        call("tag", "-m", "log", "v1", "abcdef"),
+        call("tag", "-F", ANY, "v1", "abcdef"),
         call("push", "origin", "v1"),
     ]
     g.command.assert_has_calls(calls)

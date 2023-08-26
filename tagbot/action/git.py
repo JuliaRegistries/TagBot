@@ -2,7 +2,7 @@ import re
 import subprocess
 
 from datetime import datetime
-from tempfile import mkdtemp
+from tempfile import mkdtemp, mkstemp
 from typing import Optional, cast
 from urllib.parse import urlparse
 
@@ -103,7 +103,10 @@ class Git:
         self.config("user.email", self._email)
         # As mentioned in configure_gpg, we can't fully configure automatic signing.
         sign = ["--sign"] if self._gpgsign else []
-        self.command("tag", *sign, "-m", message, version, sha)
+        _, message_file = mkstemp()
+        with open(message_file, "w") as f:
+            f.write(message + "\n")
+        self.command("tag", *sign, "-F", message_file, version, sha)
         self.command("push", "origin", version)
 
     def fetch_branch(self, branch: str) -> bool:
