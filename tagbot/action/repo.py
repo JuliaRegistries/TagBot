@@ -600,6 +600,10 @@ class Repo:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
                 allowed = True
+            if e.status == 403:
+                logger.warning("GitHub rate limited")
+                logger.info(trace)
+                allowed = True
         if not allowed:
             logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
