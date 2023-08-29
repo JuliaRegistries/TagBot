@@ -606,7 +606,8 @@ class Repo:
                     """GitHub returned a 403 permissions-related error.
                     Please check that your ssh key and TagBot permissions are up to date
                     https://github.com/JuliaRegistries/TagBot#setup
-                    """)
+                    """
+                )
                 internal = False
         if not allowed:
             if internal:
