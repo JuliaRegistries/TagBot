@@ -604,7 +604,7 @@ class Repo:
             elif e.status == 403:
                 logger.error(
                     """GitHub returned a 403 permissions-related error.
-                    Please check that your ssh key and permissions in the TagBot action are up to date
+                    Please check that your ssh key and TagBot permissions are up to date
                     https://github.com/JuliaRegistries/TagBot#setup
                     """)
                 internal = False
