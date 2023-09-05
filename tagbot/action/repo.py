@@ -55,6 +55,7 @@ class Repo:
         lookback: int,
         branch: Optional[str],
         subdir: Optional[str] = None,
+        tag_prefix: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -101,6 +102,7 @@ class Repo:
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
         self.__subdir = subdir
+        self.__tag_prefix = tag_prefix
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
         self.__registry_url: Optional[str] = None
@@ -193,10 +195,17 @@ class Repo:
 
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        return self._project("name") + "-v" if self.__subdir else "v"
+        if self.__tag_prefix == "NO_PREFIX":
+            return "v"
+        elif self.__tag_prefix:
+            return self.__tag_prefix + "-v"
+        elif self.__subdir:
+            return self._project("name") + "-v"
+        else:
+            return "v"
 
     def _get_version_tag(self, package_version: str) -> str:
-        """Return the package-prefixed version tag."""
+        """Return the prefixed version tag."""
         if package_version.startswith("v"):
             package_version = package_version[1:]
         return self._tag_prefix() + package_version

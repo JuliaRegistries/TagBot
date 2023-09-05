@@ -432,7 +432,26 @@ the action configuration should look something like
           subdir: path/to/SubpackageB.jl
 ```
 
-Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and `SubpackageB-v2.3.1`.
+Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and
+`SubpackageB-v2.3.1`. As an alternative to the automatic tag prefixing, you can manually
+specify a different tag prefix as an input:
+```yml
+    steps:
+      - name: Tag subpackage A
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          subdir: SubpackageA.jl
+          tag_prefix: MyOwnTagPrefix
+```
+In this case, the tag for SubpackageA.jl will be `MyOwnTagPrefix-v0.0.3`.
+
+If you want to disable tag prefixes for subdirectory packages altogether, you can set the
+`tag_prefix` to `NO_PREFIX`. Note that this is only recommended if you only have a single
+Julia package in the repository.
 
 **:information_source: Monorepo-specific changelog behavior**
   
@@ -457,6 +476,7 @@ Options:
   --changelog TEXT   Changelog template
   --registry TEXT    Registry to search
   --subdir TEXT      Subdirectory path in repo
+  --tag-prefix TEXT  Prefix for version tag
   --help             Show this message and exit.
 
 $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \
