@@ -590,7 +590,7 @@ class Repo:
     def handle_error(self, e: Exception) -> None:
         """Handle an unexpected error."""
         allowed = False
-        internal = False
+        internal = True
         trace = traceback.format_exc()
         if isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
