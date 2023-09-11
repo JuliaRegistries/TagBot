@@ -66,6 +66,9 @@ inputs:
   subdir:
     description: Subdirectory of package in repo, if not at top level
     required: false
+  tag_prefix:
+    description: Tag prefix (leave empty for automatic determination or set to `NO_PREFIX` to disable)
+    required: false
   changelog:
     description: Changelog template
     required: false
