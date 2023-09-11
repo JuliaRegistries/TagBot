@@ -80,18 +80,18 @@ inputs:
       {{ custom }}
       {% endif %}
 
+      {% if pulls %}
+      **Merged pull requests:**
+      {% for pull in pulls %}
+      - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
+      {% endfor %}
+
       {% if issues %}
       **Closed issues:**
       {% for issue in issues %}
       - {{ issue.title }} (#{{ issue.number }})
       {% endfor %}
       {% endif %}
-
-      {% if pulls %}
-      **Merged pull requests:**
-      {% for pull in pulls %}
-      - {{ pull.title }} (#{{ pull.number }}) (@{{ pull.author.username }})
-      {% endfor %}
       {% endif %}
   changelog_ignore:
     description: Labels for issues and pull requests to be ignored (comma-delimited)
