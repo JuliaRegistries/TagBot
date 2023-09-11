@@ -590,6 +590,7 @@ class Repo:
     def handle_error(self, e: Exception) -> None:
         """Handle an unexpected error."""
         allowed = False
+        internal = True
         trace = traceback.format_exc()
         if isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
@@ -600,8 +601,17 @@ class Repo:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
                 allowed = True
+            elif e.status == 403:
+                logger.error(
+                    """GitHub returned a 403 permissions-related error.
+                    Please check that your ssh key and TagBot permissions are up to date
+                    https://github.com/JuliaRegistries/TagBot#setup
+                    """
+                )
+                internal = False
         if not allowed:
-            logger.error("TagBot experienced an unexpected internal failure")
+            if internal:
+                logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
             try:
                 self._report_error(trace)
