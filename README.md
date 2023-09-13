@@ -387,6 +387,12 @@ with:
 
 Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.) 
 
+**Note**: Using TagBot with a non-empty `subdir` will only work for Julia package versions
+registered using the official
+[Registrator](https://github.com/JuliaRegistries/Registrator.jl) (see also
+[#281](https://github.com/JuliaRegistries/TagBot/issues/281) and
+[#282](https://github.com/JuliaRegistries/TagBot/pull/282)).
+
 To tag releases from a monorepo containing multiple subpackages and an optional top-level package, set up a separate step for each package you want to tag. For example, to tag all three packages in the following repository,
 
 ```
