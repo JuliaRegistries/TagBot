@@ -259,11 +259,13 @@ class Repo:
         # Handle special case of tagging packages in a repo subdirectory, in which
         # case the Julia package tree hash does not match the git commit tree hash
         if self.__subdir:
-            subdir_tree_hash = self._git.command("rev-parse", f"{commit.sha}:{self.__subdir}")
+            arg = f"{commit.sha}:{self.__subdir}"
+            subdir_tree_hash = self._git.command("rev-parse", arg)
             if subdir_tree_hash == tree:
                 return commit.sha
             else:
-                logger.warning("Subdir tree SHA of commit from registry PR does not match")
+                msg = "Subdir tree SHA of commit from registry PR does not match"
+                logger.warning(msg)
                 return None
         # Handle regular case (subdir is not set)
         if commit.commit.tree.sha == tree:
