@@ -496,3 +496,14 @@ $ cd TagBot
 $ poetry install
 $ poetry run python -m tagbot.local --help
 ```
+
+## Troubleshooting tips
+
+### I am seeing some kind of permissions error
+
+* Check that your configuration matches the one shown in [Setup](#Setup), especially the `permissions` block
+* Try using an [ssh deploy key](#SSH-Deploy-Keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
+
+### I am missing old tags
+
+If you have missed tags due to now-fixed errors, you can manually trigger TagBot with a longer "lookback" period in order to try to find them (assuming your workflow has been configured as shown in [Setup](#Setup) with a `workflow_dispatch` trigger). See the [Github docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow) for more on manually running workflows.
