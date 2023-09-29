@@ -35,6 +35,7 @@ def _repo(
     lookback=3,
     branch=None,
     subdir=None,
+    tag_prefix=None,
 ):
     return Repo(
         repo=repo,
@@ -53,6 +54,7 @@ def _repo(
         lookback=lookback,
         branch=branch,
         subdir=subdir,
+        tag_prefix=tag_prefix,
     )
 
 
@@ -720,3 +722,19 @@ def test_tag_prefix_and_get_version_tag():
     assert r_subdir._tag_prefix() == "FooBar-v"
     assert r_subdir._get_version_tag("v0.1.3") == "FooBar-v0.1.3"
     assert r_subdir._get_version_tag("0.1.3") == "FooBar-v0.1.3"
+
+    r_subdir = _repo(subdir="FooBar", tag_prefix="NO_PREFIX")
+    r_subdir._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r._tag_prefix() == "v"
+    assert r._get_version_tag("v0.1.3") == "v0.1.3"
+    assert r._get_version_tag("0.1.3") == "v0.1.3"
+
+    r_subdir = _repo(tag_prefix="MyFooBar")
+    r_subdir._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid="abc-def"\n""")
+    )
+    assert r_subdir._tag_prefix() == "MyFooBar-v"
+    assert r_subdir._get_version_tag("v0.1.3") == "MyFooBar-v0.1.3"
+    assert r_subdir._get_version_tag("0.1.3") == "MyFooBar-v0.1.3"

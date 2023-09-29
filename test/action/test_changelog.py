@@ -226,11 +226,11 @@ def test_render():
 
     Custom release notes
 
-    **Closed issues:**
-    - Issue title (#1)
-
     **Merged pull requests:**
     - Pull title (#3) (@author)
+
+    **Closed issues:**
+    - Issue title (#1)
     """
     data = {
         "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",

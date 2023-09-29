@@ -55,6 +55,7 @@ class Repo:
         lookback: int,
         branch: Optional[str],
         subdir: Optional[str] = None,
+        tag_prefix: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
@@ -101,6 +102,7 @@ class Repo:
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
         self.__subdir = subdir
+        self.__tag_prefix = tag_prefix
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
         self.__registry_url: Optional[str] = None
@@ -193,10 +195,17 @@ class Repo:
 
     def _tag_prefix(self) -> str:
         """Return the package's tag prefix."""
-        return self._project("name") + "-v" if self.__subdir else "v"
+        if self.__tag_prefix == "NO_PREFIX":
+            return "v"
+        elif self.__tag_prefix:
+            return self.__tag_prefix + "-v"
+        elif self.__subdir:
+            return self._project("name") + "-v"
+        else:
+            return "v"
 
     def _get_version_tag(self, package_version: str) -> str:
-        """Return the package-prefixed version tag."""
+        """Return the prefixed version tag."""
         if package_version.startswith("v"):
             package_version = package_version[1:]
         return self._tag_prefix() + package_version
@@ -247,6 +256,18 @@ class Repo:
             logger.info("Registry PR body did not match")
             return None
         commit = self._repo.get_commit(m[1])
+        # Handle special case of tagging packages in a repo subdirectory, in which
+        # case the Julia package tree hash does not match the git commit tree hash
+        if self.__subdir:
+            arg = f"{commit.sha}:{self.__subdir}"
+            subdir_tree_hash = self._git.command("rev-parse", arg)
+            if subdir_tree_hash == tree:
+                return commit.sha
+            else:
+                msg = "Subdir tree SHA of commit from registry PR does not match"
+                logger.warning(msg)
+                return None
+        # Handle regular case (subdir is not set)
         if commit.commit.tree.sha == tree:
             return commit.sha
         else:
@@ -590,6 +611,7 @@ class Repo:
     def handle_error(self, e: Exception) -> None:
         """Handle an unexpected error."""
         allowed = False
+        internal = True
         trace = traceback.format_exc()
         if isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
@@ -600,12 +622,18 @@ class Repo:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
                 allowed = True
-            if e.status == 403:
-                logger.warning("GitHub rate limited")
-                logger.info(trace)
-                allowed = True
+            elif e.status == 403:
+                logger.error(
+                    """GitHub returned a 403 permissions-related error.
+                    Please check that your ssh key and TagBot permissions are up to date
+                    https://github.com/JuliaRegistries/TagBot#setup
+                    """
+                )
+                internal = False
+                allowed = False
         if not allowed:
-            logger.error("TagBot experienced an unexpected internal failure")
+            if internal:
+                logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
             try:
                 self._report_error(trace)

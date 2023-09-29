@@ -26,6 +26,7 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--registry", default=REGISTRY, help="Registry to search")
 @click.option("--draft", default=DRAFT, help="Create a draft release", is_flag=True)
 @click.option("--subdir", default=None, help="Subdirectory path in repo")
+@click.option("--tag-prefix", default=None, help="Prefix for version tag")
 def main(
     repo: str,
     version: str,
@@ -36,6 +37,7 @@ def main(
     registry: str,
     draft: bool,
     subdir: str,
+    tag_prefix: str,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -54,6 +56,7 @@ def main(
         lookback=0,
         branch=None,
         subdir=subdir,
+        tag_prefix=tag_prefix,
     )
     version = version if version.startswith("v") else f"v{version}"
     sha = r.commit_sha_of_version(version)

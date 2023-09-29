@@ -63,6 +63,7 @@ try:
         lookback=int(get_input("lookback")),
         branch=get_input("branch"),
         subdir=get_input("subdir"),
+        tag_prefix=get_input("tag_prefix"),
     )
 
     if not repo.is_registered():

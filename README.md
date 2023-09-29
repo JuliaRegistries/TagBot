@@ -387,6 +387,12 @@ with:
 
 Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.) 
 
+**Note**: Using TagBot with a non-empty `subdir` will only work for Julia package versions
+registered using the official
+[Registrator](https://github.com/JuliaRegistries/Registrator.jl) (see also
+[#281](https://github.com/JuliaRegistries/TagBot/issues/281) and
+[#282](https://github.com/JuliaRegistries/TagBot/pull/282)).
+
 To tag releases from a monorepo containing multiple subpackages and an optional top-level package, set up a separate step for each package you want to tag. For example, to tag all three packages in the following repository,
 
 ```
@@ -432,7 +438,26 @@ the action configuration should look something like
           subdir: path/to/SubpackageB.jl
 ```
 
-Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and `SubpackageB-v2.3.1`.
+Generated tags will then be `v0.1.2` (top-level), `SubpackageA-v0.0.3`, and
+`SubpackageB-v2.3.1`. As an alternative to the automatic tag prefixing, you can manually
+specify a different tag prefix as an input:
+```yml
+    steps:
+      - name: Tag subpackage A
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
+          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          subdir: SubpackageA.jl
+          tag_prefix: MyOwnTagPrefix
+```
+In this case, the tag for SubpackageA.jl will be `MyOwnTagPrefix-v0.0.3`.
+
+If you want to disable tag prefixes for subdirectory packages altogether, you can set the
+`tag_prefix` to `NO_PREFIX`. Note that this is only recommended if you only have a single
+Julia package in the repository.
 
 **:information_source: Monorepo-specific changelog behavior**
   
@@ -457,6 +482,7 @@ Options:
   --changelog TEXT   Changelog template
   --registry TEXT    Registry to search
   --subdir TEXT      Subdirectory path in repo
+  --tag-prefix TEXT  Prefix for version tag
   --help             Show this message and exit.
 
 $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \
@@ -476,3 +502,20 @@ $ cd TagBot
 $ poetry install
 $ poetry run python -m tagbot.local --help
 ```
+
+## Troubleshooting tips
+
+### I am seeing some kind of permissions error
+
+* Check that your configuration matches the one shown in [Setup](#Setup), especially the `permissions` block
+* Try using an [ssh deploy key](#SSH-Deploy-Keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
+
+### I am missing old tags
+
+If you have missed tags due to now-fixed errors, you can manually trigger TagBot with a longer "lookback" period (days) in order to try to find them (assuming your workflow has been configured as shown in [Setup](#Setup) with a `workflow_dispatch` trigger). See the [Github docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow) for more on manually running workflows.
+
+### The workflow shows as "successful" even though errors have occurred
+
+This is by design, because in the past transient GitHub issues or even broken TagBot releases have caused widespread notifications and issues due to the workflow failing. Instead, TagBot is set up to re-run several times after a release until the tag is successfully created, and to comment in the TagBot trigger issue if it has not been created.
+
+Note that in the future this approach may change, e.g. specific errors may be made to fail the workflow while others may still not.
