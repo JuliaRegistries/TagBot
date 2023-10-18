@@ -513,9 +513,3 @@ $ poetry run python -m tagbot.local --help
 ### I am missing old tags
 
 If you have missed tags due to now-fixed errors, you can manually trigger TagBot with a longer "lookback" period (days) in order to try to find them (assuming your workflow has been configured as shown in [Setup](#Setup) with a `workflow_dispatch` trigger). See the [Github docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow) for more on manually running workflows.
-
-### The workflow shows as "successful" even though errors have occurred
-
-This is by design, because in the past transient GitHub issues or even broken TagBot releases have caused widespread notifications and issues due to the workflow failing. Instead, TagBot is set up to re-run several times after a release until the tag is successfully created, and to comment in the TagBot trigger issue if it has not been created.
-
-Note that in the future this approach may change, e.g. specific errors may be made to fail the workflow while others may still not.
