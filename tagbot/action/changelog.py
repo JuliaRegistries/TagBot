@@ -117,6 +117,14 @@ class Changelog:
             logger.warning("No registry pull request was found for this version")
             return None
         m = re.search(
+            "(?s)<!-- BEGIN RELEASE NOTES -->\n`````"
+            + "(.*)`````\n<!-- END RELEASE NOTES -->",
+            pr.body,
+        )
+        if m:
+            return m[1].strip()
+        # check for the old way, if it's an older PR
+        m = re.search(
             "(?s)<!-- BEGIN RELEASE NOTES -->(.*)<!-- END RELEASE NOTES -->", pr.body
         )
         if m:
