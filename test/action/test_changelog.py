@@ -125,6 +125,28 @@ def test_custom_release_notes():
     notes = """
     blah blah blah
     <!-- BEGIN RELEASE NOTES -->
+    `````
+    Foo
+    Bar
+    `````
+    <!-- END RELEASE NOTES -->
+    blah blah blah
+    """
+    notes = textwrap.dedent(notes)
+    c._repo._registry_pr = Mock(side_effect=[None, Mock(body="foo"), Mock(body=notes)])
+    assert c._custom_release_notes("v1.2.3") is None
+    c._repo._registry_pr.assert_called_with("v1.2.3")
+    assert c._custom_release_notes("v2.3.4") is None
+    c._repo._registry_pr.assert_called_with("v2.3.4")
+    assert c._custom_release_notes("v3.4.5") == "Foo\nBar"
+    c._repo._registry_pr.assert_called_with("v3.4.5")
+
+
+def test_old_format_custom_release_notes():
+    c = _changelog()
+    notes = """
+    blah blah blah
+    <!-- BEGIN RELEASE NOTES -->
     > Foo
     > Bar
     <!-- END RELEASE NOTES -->
