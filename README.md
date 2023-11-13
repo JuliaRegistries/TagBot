@@ -49,7 +49,14 @@ jobs:
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
 ```
 
-No further action is required on your part.
+Check that workflows have the correct permissions on your repo.
+
+![Workflow permissions](workflow_permissions.png)
+
+> [!NOTE]
+> No further action should be required on your part, but if TagBot fails and you see `403: Resource not accessible by integration`
+errors, try adding a SSH key with the correct permissions. See the [SSH Deploy Keys](#ssh-deploy-keys) section below.
+
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
 You may, however, want to customize the behaviour via the available configuration options.
@@ -377,7 +384,7 @@ with:
 
 ### Subpackage Configuration
 
-If your package is not at the top-level of your repository, you should set the  `subdir` input:  
+If your package is not at the top-level of your repository, you should set the  `subdir` input:
 
 ```yml
 with:
@@ -385,7 +392,7 @@ with:
   subdir: path/to/SubpackageName.jl
 ```
 
-Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.) 
+Version tags will then be prefixed with the subpackage's name: `{PACKAGE}-v{VERSION}`, e.g., `SubpackageName-v0.2.3`. (For top-level packages, the default tag is simply `v{VERSION}`.)
 
 **Note**: Using TagBot with a non-empty `subdir` will only work for Julia package versions
 registered using the official
@@ -460,8 +467,8 @@ If you want to disable tag prefixes for subdirectory packages altogether, you ca
 Julia package in the repository.
 
 **:information_source: Monorepo-specific changelog behavior**
-  
-  Each subpackage will include all issues and pull requests in its changelogs, such that a single issue will be duplicated up in all of the repository's subpackages' release notes. Careful [`changelog_ignore` and/or custom changelog settings](#changelogs) on a per-subpackage basis can mitigate this duplication.  
+
+  Each subpackage will include all issues and pull requests in its changelogs, such that a single issue will be duplicated up in all of the repository's subpackages' release notes. Careful [`changelog_ignore` and/or custom changelog settings](#changelogs) on a per-subpackage basis can mitigate this duplication.
 
 ## Local Usage
 
