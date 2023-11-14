@@ -55,7 +55,7 @@ Check that workflows have the correct permissions on your repo.
 
 > [!NOTE]
 > No further action should be required on your part, but if TagBot fails and you see `403: Resource not accessible by integration`
-errors, try adding (or refreshing) a SSH key with the correct permissions. See the [SSH Deploy Keys](#ssh-deploy-keys) section below.
+errors, try adding (or refreshing) an SSH key with the correct permissions. See the [SSH Deploy Keys](#ssh-deploy-keys) section below.
 
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
