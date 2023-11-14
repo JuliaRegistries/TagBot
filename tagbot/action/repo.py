@@ -618,7 +618,7 @@ class Repo:
             logger.info(trace)
             allowed = True
         elif isinstance(e, GithubException):
-            logger.info(headers(e))
+            logger.info(e.headers())
             if 500 <= e.status < 600:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
