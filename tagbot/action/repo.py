@@ -523,7 +523,7 @@ class Repo:
             proc = subprocess.run(
                 ["ssh-agent"], check=True, text=True, capture_output=True
             )
-            for (k, v) in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
+            for k, v in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
                 logger.debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
             child = pexpect.spawn(f"ssh-add {priv}")
