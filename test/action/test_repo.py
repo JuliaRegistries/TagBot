@@ -78,7 +78,7 @@ def test_project():
     assert r._project("uuid") == "abc-def"
     assert r._project("name") == "FooBar"
     r._repo.get_contents.assert_called_once_with("Project.toml")
-    r._repo.get_contents.side_effect = UnknownObjectException(404, "???")
+    r._repo.get_contents.side_effect = UnknownObjectException(404, "???", {})
     r._Repo__project = None
     with pytest.raises(InvalidProject):
         r._project("name")
@@ -92,7 +92,7 @@ def test_project_subdir():
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
     r._repo.get_contents.assert_called_once_with("path/to/FooBar.jl/Project.toml")
-    r._repo.get_contents.side_effect = UnknownObjectException(404, "???")
+    r._repo.get_contents.side_effect = UnknownObjectException(404, "???", {})
     r._Repo__project = None
     with pytest.raises(InvalidProject):
         r._project("name")
@@ -272,7 +272,7 @@ def test_commit_sha_of_tag():
     r._repo.get_git_tag.assert_called_with("c")
     r._repo.get_git_ref.return_value.object = None
     assert r._commit_sha_of_tag("v3.4.5") is None
-    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???")
+    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???", {})
     assert r._commit_sha_of_tag("v4.5.6") is None
 
 
@@ -336,7 +336,7 @@ def test_versions(logger):
     r._registry.get_commits.return_value = []
     assert r._versions(min_age=delta) == {}
     logger.debug.assert_called_with("No registry commits were found")
-    r._registry.get_contents.side_effect = UnknownObjectException(404, "???")
+    r._registry.get_contents.side_effect = UnknownObjectException(404, "???", {})
     assert r._versions() == {}
     logger.debug.assert_called_with("Versions.toml was not found ({})")
     r._Repo__registry_path = Mock(__bool__=lambda self: False)
@@ -662,10 +662,10 @@ def test_handle_error(logger, format_exc):
     r._report_error = Mock(side_effect=[None, RuntimeError("!")])
     r.handle_error(RequestException())
     r._report_error.assert_not_called()
-    r.handle_error(GithubException(502, "oops"))
+    r.handle_error(GithubException(502, "oops", {}))
     r._report_error.assert_not_called()
     try:
-        r.handle_error(GithubException(404, "???"))
+        r.handle_error(GithubException(404, "???", {}))
     except Abort:
         assert True
     else:

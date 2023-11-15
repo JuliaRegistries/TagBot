@@ -74,11 +74,15 @@ def index() -> HTML:
 
 @app.route("/report", methods=["POST"])
 def report() -> JSON:
-    payload = {
-        "image": request.json["image"],
-        "repo": request.json["repo"],
-        "run": request.json["run"],
-        "stacktrace": request.json["stacktrace"],
-    }
+    # json is optional so there needs to be a None path
+    if request.json is not None:
+        payload = {
+            "image": request.json["image"],
+            "repo": request.json["repo"],
+            "run": request.json["run"],
+            "stacktrace": request.json["stacktrace"],
+        }
+    else:
+        payload = {}
     LAMBDA.invoke(FunctionName=REPORTS_FUNCTION_NAME, Payload=json.dumps(payload))
     return {"status": "Submitted error report"}, 200
