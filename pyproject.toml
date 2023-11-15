@@ -19,6 +19,7 @@ pyyaml = "^6"
 semver = "^2.10.0"
 toml = "^0.10.0"
 MarkupSafe = "2.0.1"
+itsdangerous = "2.0.1"
 
 [tool.poetry.dev-dependencies]
 black = "^23.11"
