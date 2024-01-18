@@ -93,9 +93,9 @@ The most notable reason is that the default token does not have permission to tr
 
 To use an SSH deploy key:
 
-- Create an SSH key and add it to your repository by following the instructions [here](https://developer.github.com/v3/guides/managing-deploy-keys/#setup-2).
+- Create an SSH key and add it to your repository by following the instructions [here](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#set-up-deploy-keys).
   Make sure to give it write permissions.
-- Create a repository secret by following the instructions [here](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/creating-and-using-encrypted-secrets#creating-encrypted-secrets).
+- Create a repository secret by following the instructions [here](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions#creating-encrypted-secrets).
   Use whatever you like as the name, such as `SSH_KEY`.
   Use the private key contents as the value.
 - Add the `ssh` input:
