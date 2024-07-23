@@ -23,7 +23,7 @@ def _repo(
     registry="",
     github="",
     github_api="",
-    token="",
+    token="x",
     changelog="",
     ignore=[],
     ssh=False,

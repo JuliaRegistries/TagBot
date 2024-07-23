@@ -18,7 +18,7 @@ def _changelog(*, template="", ignore=set(), subdir=None):
         registry="",
         github="",
         github_api="",
-        token="",
+        token="x",
         changelog=template,
         changelog_ignore=ignore,
         ssh=False,
