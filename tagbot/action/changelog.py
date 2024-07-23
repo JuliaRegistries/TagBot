@@ -1,7 +1,7 @@
 import json
 import re
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from github.GitRelease import GitRelease
@@ -170,7 +170,7 @@ class Changelog:
     def _collect_data(self, version_tag: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
         previous = self._previous_release(version_tag)
-        start = datetime.fromtimestamp(0)
+        start = datetime.fromtimestamp(0, timezone.utc)
         prev_tag = None
         compare = None
         if previous:
@@ -179,7 +179,8 @@ class Changelog:
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
-        end = self._repo._git.time_of_commit(sha) + timedelta(minutes=1)
+        commit = self._repo._repo.get_commit(sha)
+        end = commit.commit.author.date + timedelta(minutes=1)
         logger.debug(f"Previous version: {prev_tag}")
         logger.debug(f"Start date: {start}")
         logger.debug(f"End date: {end}")

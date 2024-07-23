@@ -12,7 +12,7 @@ import requests
 import toml
 
 from base64 import b64decode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
@@ -231,7 +231,7 @@ class Repo:
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._registry
         owner = registry.owner.login
