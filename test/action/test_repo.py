@@ -602,7 +602,7 @@ def test_create_release_subdir():
     r._repo.create_git_tag.return_value.sha = "t"
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
-    r._git.create_tag.assert_called_with("v1", "a", "l")
+    r._git.create_tag.assert_called_with("Foo-v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
         "Foo-v1", "Foo-v1", "l", target_commitish="default", draft=False
     )
