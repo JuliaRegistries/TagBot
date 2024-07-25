@@ -19,7 +19,7 @@ from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
-from github import Github, GithubException, InputGitAuthor, UnknownObjectException
+from github import Github, GithubException, UnknownObjectException
 from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo

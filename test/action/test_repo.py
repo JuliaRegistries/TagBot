@@ -8,7 +8,7 @@ from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
-from github import GithubException, InputGitAuthor, UnknownObjectException
+from github import GithubException, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
