@@ -501,7 +501,7 @@ $ docker run --rm ghcr.io/juliaregistries/tagbot python -m tagbot.local \
 Only the `repo`, `version`, and `token` options are required, and you will be prompted if you don't provide them.
 For instructions on how to obtain a token, see [Personal Access Tokens (PATs)](#personal-access-tokens-pats).
 
-You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.8.
+You can also run the code outside of Docker, but you'll just need to install [Poetry](https://python-poetry.org) first, and ensure that you have Python 3.12.
 
 ```sh
 $ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C

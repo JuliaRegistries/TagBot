@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "tagbot"
-version = "1.18.1"
+version = "1.19.0"
 description = "Creates tags, releases, and changelogs for your Julia packages when they're registered"
 authors = ["Chris de Graaf <me@cdg.dev>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.12"
 Flask = "^2"
 Jinja2 = "^3"
 PyGithub = "1.58.2"
@@ -24,11 +24,13 @@ werkzeug = "2.0.3"
 types-requests = "^2.31.0"
 types-toml = "^0.10.8"
 types-PyYAML = "6.0.12"
+setuptools = "^73.0.1"
+wheel = "^0.44.0"
 
 [tool.poetry.dev-dependencies]
 black = "^24.3"
 boto3 = "^1.13.8"
-flake8 = "^3.8.1"
+flake8 = "^7"
 mypy = "^1.5"
 pytest-cov = "^2.8.1"
 
