@@ -8,7 +8,7 @@ from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
-from github import GithubException, InputGitAuthor, UnknownObjectException
+from github import GithubException, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
@@ -571,19 +571,7 @@ def test_create_release():
     r._repo.create_git_tag.return_value.sha = "t"
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
-    r._git.create_tag.assert_not_called()
-    # InputGitAuthor doesn't support equality so we can't use a normal
-    # assert_called_with here.
-    r._repo.create_git_tag.assert_called_once()
-    call = r._repo.create_git_tag.mock_calls[0]
-    assert call.args == ("v1", "l", "a", "commit")
-    assert len(call.kwargs) == 1 and "tagger" in call.kwargs
-    tagger = call.kwargs["tagger"]
-    assert isinstance(tagger, InputGitAuthor) and tagger._identity == {
-        "name": "user",
-        "email": "email",
-    }
-    r._repo.create_git_ref.assert_called_with("refs/tags/v1", "t")
+    r._git.create_tag.assert_called_with("v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
         "v1", "v1", "l", target_commitish="default", draft=False
     )
@@ -591,17 +579,12 @@ def test_create_release():
     r._repo.create_git_release.assert_called_with(
         "v1", "v1", "l", target_commitish="b", draft=False
     )
-    r._ssh = True
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("v1", "c", "l")
     r._draft = True
     r._git.create_tag.reset_mock()
-    r._repo.create_git_tag.reset_mock()
-    r._repo.create_git_ref.reset_mock()
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
-    r._repo.create_git_tag.assert_not_called()
-    r._repo.create_git_ref.assert_not_called()
     r._repo.create_git_release.assert_called_with(
         "v1", "v1", "l", target_commitish="d", draft=True
     )
@@ -619,19 +602,7 @@ def test_create_release_subdir():
     r._repo.create_git_tag.return_value.sha = "t"
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
-    r._git.create_tag.assert_not_called()
-    # InputGitAuthor doesn't support equality so we can't use a normal
-    # assert_called_with here.
-    r._repo.create_git_tag.assert_called_once()
-    call = r._repo.create_git_tag.mock_calls[0]
-    assert call.args == ("Foo-v1", "l", "a", "commit")
-    assert len(call.kwargs) == 1 and "tagger" in call.kwargs
-    tagger = call.kwargs["tagger"]
-    assert isinstance(tagger, InputGitAuthor) and tagger._identity == {
-        "name": "user",
-        "email": "email",
-    }
-    r._repo.create_git_ref.assert_called_with("refs/tags/Foo-v1", "t")
+    r._git.create_tag.assert_called_with("Foo-v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
         "Foo-v1", "Foo-v1", "l", target_commitish="default", draft=False
     )
@@ -639,17 +610,12 @@ def test_create_release_subdir():
     r._repo.create_git_release.assert_called_with(
         "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False
     )
-    r._ssh = True
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("Foo-v1", "c", "l")
     r._draft = True
     r._git.create_tag.reset_mock()
-    r._repo.create_git_tag.reset_mock()
-    r._repo.create_git_ref.reset_mock()
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
-    r._repo.create_git_tag.assert_not_called()
-    r._repo.create_git_ref.assert_not_called()
     r._repo.create_git_release.assert_called_with(
         "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True
     )

@@ -19,7 +19,7 @@ from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
-from github import Github, GithubException, InputGitAuthor, UnknownObjectException
+from github import Github, GithubException, UnknownObjectException
 from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
@@ -590,19 +590,11 @@ class Repo:
         logger.debug(f"Release {version_tag} target: {target}")
         log = self._changelog.get(version_tag, sha)
         if not self._draft:
-            if self._ssh or self._gpg:
-                logger.debug("Creating tag via Git CLI")
-                self._git.create_tag(version_tag, sha, log)
-            else:
-                logger.debug("Creating tag via GitHub API")
-                tag = self._repo.create_git_tag(
-                    version_tag,
-                    log,
-                    sha,
-                    "commit",
-                    tagger=InputGitAuthor(self._user, self._email),
-                )
-                self._repo.create_git_ref(f"refs/tags/{version_tag}", tag.sha)
+            # Always create tags via the CLI as the GitHub API has a bug which
+            # only allows tags to be created for SHAs which are the the HEAD
+            # commit on a branch.
+            # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
+            self._git.create_tag(version_tag, sha, log)
         logger.info(f"Creating release {version_tag} at {sha}")
         self._repo.create_git_release(
             version_tag, version_tag, log, target_commitish=target, draft=self._draft
