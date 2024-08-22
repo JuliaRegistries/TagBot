@@ -7,7 +7,7 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-Flask = "^2"
+Flask = "3.0.3"
 Jinja2 = "^3"
 PyGithub = "^2.3.0"
 click = "^8"
