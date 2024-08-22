@@ -1,7 +1,7 @@
 import os
 
 from base64 import b64encode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from unittest.mock import Mock, call, mock_open, patch
@@ -23,7 +23,7 @@ def _repo(
     registry="",
     github="",
     github_api="",
-    token="",
+    token="x",
     changelog="",
     ignore=[],
     ssh=False,
@@ -172,8 +172,8 @@ def test_registry_pr():
     r = _repo()
     r._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
     r._registry = Mock(owner=Mock(login="Owner"))
-    now = datetime.now()
-    owner_pr = Mock(merged=True, merged_at=now)
+    now = datetime.now(timezone.utc)
+    owner_pr = Mock(merged_at=now)
     r._registry.get_pulls.return_value = [owner_pr]
     r._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
     assert r._registry_pr("v1.2.3") is owner_pr
@@ -228,7 +228,7 @@ def test_commit_sha_from_registry_pr(logger):
 
 def test_commit_sha_of_tree_from_branch():
     r = _repo()
-    since = datetime.now()
+    since = datetime.now(timezone.utc)
     r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
     r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
     assert r._commit_sha_of_tree_from_branch("master", "tree", since) == "sha"
@@ -239,7 +239,7 @@ def test_commit_sha_of_tree_from_branch():
 
 def test_commit_sha_of_tree():
     r = _repo()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock(), Mock()]
     branches[0].name = "foo"

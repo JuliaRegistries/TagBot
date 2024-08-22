@@ -1,7 +1,7 @@
 import os.path
 import textwrap
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
 import yaml
@@ -18,7 +18,7 @@ def _changelog(*, template="", ignore=set(), subdir=None):
         registry="",
         github="",
         github_api="",
-        token="",
+        token="x",
         changelog=template,
         changelog_ignore=ignore,
         ssh=False,
@@ -80,7 +80,7 @@ def test_previous_release_subdir():
 
 def test_issues_and_pulls():
     c = _changelog()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     start = now - timedelta(days=10)
     end = now
     c._repo._repo.get_issues = Mock(return_value=[])
@@ -212,9 +212,13 @@ def test_collect_data():
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
     c._previous_release = Mock(
-        side_effect=[Mock(tag_name="v1.2.2", created_at=datetime.now()), None]
+        side_effect=[
+            Mock(tag_name="v1.2.2", created_at=datetime.now(timezone.utc)),
+            None,
+        ]
     )
-    c._repo._git.time_of_commit = Mock(return_value=datetime.now())
+    commit = Mock(author=Mock(date=datetime.now(timezone.utc)))
+    c._repo._repo.get_commit = Mock(return_value=Mock(commit=commit))
     # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
     c._pulls = Mock(return_value=[])

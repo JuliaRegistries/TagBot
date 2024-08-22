@@ -12,14 +12,14 @@ import requests
 import toml
 
 from base64 import b64decode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
-from github import Github, GithubException, UnknownObjectException
+from github import Github, Auth, GithubException, UnknownObjectException
 from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
@@ -66,8 +66,12 @@ class Repo:
             github_api = f"https://{github_api}"
         self._gh_url = github
         self._gh_api = github_api
+        auth = Auth.Token(token)
         self._gh = Github(
-            token, base_url=self._gh_api, per_page=100, **github_kwargs  # type: ignore
+            auth=auth,
+            base_url=self._gh_api,
+            per_page=100,
+            **github_kwargs,  # type: ignore
         )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry_name = registry
@@ -227,14 +231,14 @@ class Repo:
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._registry
         owner = registry.owner.login
         logger.debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
-            if pr.merged and now - pr.merged_at < self._lookback:
+            if pr.merged_at is not None and now - pr.merged_at < self._lookback:
                 return pr
         logger.debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
