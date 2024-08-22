@@ -3,6 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       bump:
+        type: choice
+        required: true
+        description: What kind of bump
+        options:
+        - major
+        - minor
+        - patch
   pull_request:
     types:
       - closed
