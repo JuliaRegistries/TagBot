@@ -89,7 +89,6 @@ inputs:
       Therefore, the list of issues and pull requests is hidden.
       <!--
       {% endif %}
-
       {% if pulls %}
       **Merged pull requests:**
       {% for pull in pulls %}
