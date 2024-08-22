@@ -263,7 +263,59 @@ def test_render():
     data = {
         "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
         "custom": "Custom release notes",
-        "is_backport": False,
+        "backport": False,
+        "issues": [{"number": 1, "title": "Issue title", "labels": []}],
+        "package": "PkgName",
+        "previous_release": "v1.2.2",
+        "pulls": [
+            {
+                "number": 3,
+                "title": "Pull title",
+                "labels": [],
+                "author": {"username": "author"},
+            },
+        ],
+        "version": "v1.2.3",
+        "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+    }
+    assert c._render(data) == textwrap.dedent(expected).strip()
+    del data["pulls"]
+    assert "**Merged pull requests:**" not in c._render(data)
+    del data["issues"]
+    assert "**Closed issues:**" not in c._render(data)
+    data["previous_release"] = None
+    assert "Diff since" not in c._render(data)
+
+
+def test_render_backport():
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "action.yml")
+    with open(path) as f:
+        action = yaml.safe_load(f)
+    default = action["inputs"]["changelog"]["default"]
+    c = _changelog(template=default)
+    expected = """
+    ## PkgName v1.2.3
+
+    [Diff since v1.2.2](https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3)
+
+    Custom release notes
+
+    This release has been identified as a backport.
+    Automated changelogs for backports tend to be wildly incorrect.
+    Therefore, the list of issues and pull requests is hidden.
+    <!--
+    **Merged pull requests:**
+    - Pull title (#3) (@author)
+
+    **Closed issues:**
+    - Issue title (#1)
+
+    -->
+    """
+    data = {
+        "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
+        "custom": "Custom release notes",
+        "backport": True,
         "issues": [{"number": 1, "title": "Issue title", "labels": []}],
         "package": "PkgName",
         "previous_release": "v1.2.2",
