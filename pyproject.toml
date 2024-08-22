@@ -28,7 +28,7 @@ types-PyYAML = "6.0.12"
 [tool.poetry.dev-dependencies]
 black = "^24.3"
 boto3 = "^1.13.8"
-flake8 = "^3.8.1"
+flake8 = "^7"
 mypy = "^1.5"
 pytest-cov = "^2.8.1"
 
