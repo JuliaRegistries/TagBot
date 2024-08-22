@@ -415,8 +415,8 @@ def test_is_registered():
 
 def test_new_versions():
     r = _repo()
-    r._versions = (
-        lambda min_age=None: {"1.2.3": "abc"}
+    r._versions = lambda min_age=None: (
+        {"1.2.3": "abc"}
         if min_age
         else {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
