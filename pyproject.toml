@@ -6,7 +6,7 @@ authors = ["Chris de Graaf <me@cdg.dev>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 Flask = "^2"
 Jinja2 = "^3"
 PyGithub = "1.58.2"
