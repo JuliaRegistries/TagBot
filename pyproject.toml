@@ -29,7 +29,7 @@ wheel = "^0.44.0"
 
 [tool.poetry.dev-dependencies]
 black = "^24.3"
-boto3 = "^1.13.8"
+boto3 = "^1.35.10"
 flake8 = "^7"
 mypy = "^1.5"
 pytest-cov = "^5.0.0"
