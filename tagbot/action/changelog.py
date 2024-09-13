@@ -88,18 +88,20 @@ class Changelog:
                     continue
 
                 tag_package_name = tag_match.group(1).strip("-v")
+                if tag_package_name != package_name:
+                    continue
+
                 try:
                     tag_ver = VersionInfo.parse(tag_match.group(2))
                 except ValueError:
                     continue
 
-                # Check if the package names match and if the version is a backport
-                if (
-                    tag_package_name == package_name
-                    and not tag_ver.prerelease
-                    and not tag_ver.build
-                    and tag_ver > cur_ver
-                ):
+                # Disregard prerelease and build versions
+                if tag_ver.prerelease or tag_ver.build:
+                    continue
+
+                # Check if the version is a backport
+                if tag_ver > cur_ver:
                     return True
 
             return False
