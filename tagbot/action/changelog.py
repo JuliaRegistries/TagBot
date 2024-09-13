@@ -69,39 +69,46 @@ class Changelog:
 
     def _is_backport(self, version: str) -> bool:
         """Determine whether or not the version is a backport."""
-        # Regular expression to match version tags with or without prefix
-        version_pattern = re.compile(r"^(.*[-v]?)(\d+\.\d+\.\d+)$")
+        try:
+            # Regular expression to match version tags with or without prefix
+            version_pattern = re.compile(r"^(.*[-v]?)(\d+\.\d+\.\d+)$")
 
-        # Extract the version number from the input
-        match = version_pattern.match(version)
-        if not match:
-            raise ValueError("Invalid version format: ${version}")
+            # Extract the version number from the input
+            match = version_pattern.match(version)
+            if not match:
+                raise ValueError("Invalid version format: ${version}")
 
-        # Extract the base version without the 'v' prefix
-        cur_ver = VersionInfo.parse(match.group(2))
-        package_name = match.group(1).strip("-v")
+            # Extract the base version without the 'v' prefix
+            cur_ver = VersionInfo.parse(match.group(2))
+            package_name = match.group(1).strip("-v")
 
-        for r in self._repo._repo.get_releases():
-            tag_match = version_pattern.match(r.tag_name)
-            if not tag_match:
-                continue
+            for r in self._repo._repo.get_releases():
+                tag_match = version_pattern.match(r.tag_name)
+                if not tag_match:
+                    continue
 
-            tag_package_name = tag_match.group(1).strip("-v")
-            try:
-                tag_ver = VersionInfo.parse(tag_match.group(2))
-            except ValueError:
-                continue
+                tag_package_name = tag_match.group(1).strip("-v")
+                try:
+                    tag_ver = VersionInfo.parse(tag_match.group(2))
+                except ValueError:
+                    continue
 
-            # Check if the package names match and if the version is a backport
-            if (
-                tag_package_name == package_name
-                and not tag_ver.prerelease
-                and not tag_ver.build
-                and tag_ver > cur_ver
-            ):
-                return True
+                # Check if the package names match and if the version is a backport
+                if (
+                    tag_package_name == package_name
+                    and not tag_ver.prerelease
+                    and not tag_ver.build
+                    and tag_ver > cur_ver
+                ):
+                    return True
 
-        return False
+            return False
+        except Exception as e:
+            # This is a best-effort function, so we don't want to fail the entire process
+            logger.error(
+                f"_is_backport: An unexpected error occurred while determining if this is a backport: {e}"
+            )
+            return False
 
     def _issues_and_pulls(
         self, start: datetime, end: datetime
