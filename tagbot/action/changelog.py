@@ -71,7 +71,7 @@ class Changelog:
         """Determine whether or not the version is a backport."""
         # Regular expression to match version tags with or without prefix such as in a
         # monorepo where the version tag may be 'SubPackage-v1.0.0' or 'v1.0.0', or '1.0.0' etc.
-        version_pattern = re.compile(r'.*[-v]?(\d+\.\d+\.\d+)$')
+        version_pattern = re.compile(r".*[-v]?(\d+\.\d+\.\d+)$")
 
         # Extract the version number from the tag without the 'v' prefix
         cur_ver = VersionInfo.parse(version_pattern.match(version).group(1))
