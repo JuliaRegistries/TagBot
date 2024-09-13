@@ -69,12 +69,12 @@ class Changelog:
 
     def _is_backport(self, version: str) -> bool:
         """Determine whether or not the version is a backport."""
-        # Strip the leading 'v' if present
-        cur_ver = VersionInfo.parse(version[1:] if version.startswith("v") else version)
-
         # Regular expression to match version tags with or without prefix such as in a
-        # monorepo where the version tag may be 'SubPackage-v1.0.0' or 'v1.0.0'.
-        version_pattern = re.compile(r"^.*-v?(\d+\.\d+\.\d+)$")
+        # monorepo where the version tag may be 'SubPackage-v1.0.0' or 'v1.0.0', or '1.0.0' etc.
+        version_pattern = re.compile(r'.*[-v]?(\d+\.\d+\.\d+)$')
+
+        # Extract the version number from the tag without the 'v' prefix
+        cur_ver = VersionInfo.parse(version_pattern.match(version).group(1))
 
         for r in self._repo._repo.get_releases():
             match = version_pattern.match(r.tag_name)
