@@ -69,25 +69,38 @@ class Changelog:
 
     def _is_backport(self, version: str) -> bool:
         """Determine whether or not the version is a backport."""
-        # Regular expression to match version tags with or without prefix such as in a
-        # monorepo where the version tag may be 'SubPackage-v1.0.0' or 'v1.0.0', or '1.0.0' etc.
-        version_pattern = re.compile(r".*[-v]?(\d+\.\d+\.\d+)$")
+        # Regular expression to match version tags with or without prefix
+        version_pattern = re.compile(r"^(.*[-v]?)(\d+\.\d+\.\d+)$")
 
-        # Extract the version number from the tag without the 'v' prefix
-        cur_ver = VersionInfo.parse(version_pattern.match(version).group(1))
+        # Extract the version number from the input
+        match = version_pattern.match(version)
+        if not match:
+            raise ValueError("Invalid version format: ${version}")
+
+        # Extract the base version without the 'v' prefix
+        cur_ver = VersionInfo.parse(match.group(2))
+        package_name = match.group(1).strip("-v")
 
         for r in self._repo._repo.get_releases():
-            match = version_pattern.match(r.tag_name)
-            if not match:
+            tag_match = version_pattern.match(r.tag_name)
+            if not tag_match:
                 continue
+
+            tag_package_name = tag_match.group(1).strip("-v")
             try:
-                ver = VersionInfo.parse(match.group(1))
+                tag_ver = VersionInfo.parse(tag_match.group(2))
             except ValueError:
                 continue
-            if ver.prerelease or ver.build:
-                continue
-            if ver > cur_ver:
+
+            # Check if the package names match and if the version is a backport
+            if (
+                tag_package_name == package_name
+                and not tag_ver.prerelease
+                and not tag_ver.build
+                and tag_ver > cur_ver
+            ):
                 return True
+
         return False
 
     def _issues_and_pulls(
