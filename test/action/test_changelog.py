@@ -241,6 +241,17 @@ def test_collect_data():
     assert data["previous_release"] is None
 
 
+def test_is_backport():
+    c = _changelog()
+    assert c._is_backport("v1.2.3", ["v1.2.1", "v1.2.2"]) is False
+    assert c._is_backport("v1.2.3", ["v1.2.1", "v1.2.2", "v2.0.0"]) is True
+    assert c._is_backport("Foo-v1.2.3", ["v1.2.1", "v1.2.2", "v2.0.0"]) is False
+    assert c._is_backport("Foo-v1.2.3", ["Foo-v1.2.2", "Foo-v2.0.0"]) is True
+    assert c._is_backport("Foo-v1.2.3", ["Foo-v1.2.2", "Bar-v2.0.0"]) is False
+    assert c._is_backport("v1.2.3", []) is False
+    assert c._is_backport("v1.2.3", ["v1.2.3"]) is False
+
+
 def test_render():
     path = os.path.join(os.path.dirname(__file__), "..", "..", "action.yml")
     with open(path) as f:

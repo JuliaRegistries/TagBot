@@ -67,12 +67,16 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
-    def _is_backport(self, version: str) -> bool:
+    def _is_backport(self, version: str, tags: Optional[List[str]] = None) -> bool:
         """Determine whether or not the version is a backport."""
         try:
             version_pattern = re.compile(
                 r"^(.*?)[-v]?(\d+\.\d+\.\d+(?:\.\d+)*)(?:[-+].+)?$"
             )
+
+            if tags is None:
+                # Populate the tags list with tag names from the releases
+                tags = [r.tag_name for r in self._repo._repo.get_releases()]
 
             # Extract any package name prefix and version number from the input
             match = version_pattern.match(version)
@@ -81,8 +85,8 @@ class Changelog:
             package_name = match.group(1)
             cur_ver = VersionInfo.parse(match.group(2))
 
-            for r in self._repo._repo.get_releases():
-                tag_match = version_pattern.match(r.tag_name)
+            for tag in tags:
+                tag_match = version_pattern.match(tag)
                 if not tag_match:
                     continue
 
