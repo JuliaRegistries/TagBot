@@ -107,7 +107,9 @@ class Changelog:
             return False
         except Exception as e:
             # This is a best-effort function so we don't fail the entire process
-            logger.error(f"_is_backport: An error occurred, assuming False: {e}")
+            logger.error(
+                f"An error occurred while check if the tag is a backport. Assuming False: {e}"
+            )
             return False
 
     def _issues_and_pulls(
