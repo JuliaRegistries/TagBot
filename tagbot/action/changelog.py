@@ -108,7 +108,7 @@ class Changelog:
         except Exception as e:
             # This is a best-effort function so we don't fail the entire process
             logger.error(
-                f"An error occurred while check if the tag is a backport. Assuming False: {e}"
+                f"Checking if this is a backport failed. Assuming False: {e}"
             )
             return False
 
