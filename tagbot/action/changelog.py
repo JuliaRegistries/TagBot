@@ -69,19 +69,46 @@ class Changelog:
 
     def _is_backport(self, version: str) -> bool:
         """Determine whether or not the version is a backport."""
-        cur_ver = VersionInfo.parse(version[1:])
-        for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith("v"):
-                continue
-            try:
-                ver = VersionInfo.parse(r.tag_name[1:])
-            except ValueError:
-                continue
-            if ver.prerelease or ver.build:
-                continue
-            if ver > cur_ver:
-                return True
-        return False
+        try:
+            # Regular expression to match version tags with or without prefix
+            version_pattern = re.compile(r"^(.*[-v]?)(\d+\.\d+\.\d+)$")
+
+            # Extract the version number from the input
+            match = version_pattern.match(version)
+            if not match:
+                raise ValueError("Invalid version format: ${version}")
+
+            # Extract the base version without the 'v' prefix
+            cur_ver = VersionInfo.parse(match.group(2))
+            package_name = match.group(1).strip("-v")
+
+            for r in self._repo._repo.get_releases():
+                tag_match = version_pattern.match(r.tag_name)
+                if not tag_match:
+                    continue
+
+                tag_package_name = tag_match.group(1).strip("-v")
+                if tag_package_name != package_name:
+                    continue
+
+                try:
+                    tag_ver = VersionInfo.parse(tag_match.group(2))
+                except ValueError:
+                    continue
+
+                # Disregard prerelease and build versions
+                if tag_ver.prerelease or tag_ver.build:
+                    continue
+
+                # Check if the version is a backport
+                if tag_ver > cur_ver:
+                    return True
+
+            return False
+        except Exception as e:
+            # This is a best-effort function so we don't fail the entire process
+            logger.error(f"Checking if backport failed. Assuming False: {e}")
+            return False
 
     def _issues_and_pulls(
         self, start: datetime, end: datetime
