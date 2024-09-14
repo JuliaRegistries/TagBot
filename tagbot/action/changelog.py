@@ -107,9 +107,7 @@ class Changelog:
             return False
         except Exception as e:
             # This is a best-effort function so we don't fail the entire process
-            logger.error(
-                f"Checking if this is a backport failed. Assuming False: {e}"
-            )
+            logger.error(f"Checking if backport failed. Assuming False: {e}")
             return False
 
     def _issues_and_pulls(
