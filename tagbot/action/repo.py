@@ -155,7 +155,13 @@ class Repo:
                 registry = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents("Registry.toml"))
-            registry = toml.loads(contents.decoded_content.decode())
+            # show file contents if cannot be decoded
+            try:
+                string_contents = contents.decoded_content.decode()
+            except:
+                raise Exception(f"Registry.toml could not be decoded: {contents}")
+            registry = toml.loads(string_contents)
+
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
