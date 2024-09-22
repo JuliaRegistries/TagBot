@@ -31,7 +31,7 @@ wheel = "^0.44.0"
 black = "^24.3"
 boto3 = "^1.13.8"
 flake8 = "^7"
-mypy = "^1.5"
+mypy = "^1.11"
 pytest-cov = "^5.0.0"
 
 [tool.black]
