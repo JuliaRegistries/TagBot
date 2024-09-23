@@ -156,16 +156,9 @@ class Repo:
                 registry = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents("Registry.toml"))
-            # show file contents if cannot be decoded
-            try:
-                string_contents = contents.decoded_content.decode()
-            except AssertionError:
-                logger.info(
-                    f"Registry.toml could not be decoded. Raw contents: {contents}"
-                )
-                # rethrow now we've logged info
-                raise
-
+            blob = self._registry.get_git_blob(contents.sha)
+            b64 = b64decode(blob.content)
+            string_contents = b64.decode("utf8")
             registry = toml.loads(string_contents)
 
         if uuid in registry["packages"]:
