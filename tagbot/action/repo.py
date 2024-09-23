@@ -158,8 +158,13 @@ class Repo:
             # show file contents if cannot be decoded
             try:
                 string_contents = contents.decoded_content.decode()
-            except:
-                raise Exception(f"Registry.toml could not be decoded: {contents}")
+            except AssertionError:
+                logger.info(
+                    f"Registry.toml could not be decoded. Raw contents: {contents}"
+                )
+                # rethrow now we've logged info
+                raise
+
             registry = toml.loads(string_contents)
 
         if uuid in registry["packages"]:
