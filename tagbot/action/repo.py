@@ -88,6 +88,7 @@ class Repo:
         except Exception:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
+                logger.warning("'awful hack' in use")
                 self._registry = self._gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
