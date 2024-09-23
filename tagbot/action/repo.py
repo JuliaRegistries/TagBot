@@ -88,6 +88,7 @@ class Repo:
         except Exception:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
+                logger.warning("'awful hack' in use")
                 self._registry = self._gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
@@ -155,7 +156,18 @@ class Repo:
                 registry = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents("Registry.toml"))
-            registry = toml.loads(contents.decoded_content.decode())
+            # show file contents if cannot be decoded
+            try:
+                string_contents = contents.decoded_content.decode()
+            except AssertionError:
+                logger.info(
+                    f"Registry.toml could not be decoded. Raw contents: {contents}"
+                )
+                # rethrow now we've logged info
+                raise
+
+            registry = toml.loads(string_contents)
+
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
