@@ -88,6 +88,7 @@ class Repo:
         except Exception:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
+                logger.warning("'awful hack' in use")
                 self._registry = self._gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
@@ -155,7 +156,11 @@ class Repo:
                 registry = toml.load(f)
         else:
             contents = self._only(self._registry.get_contents("Registry.toml"))
-            registry = toml.loads(contents.decoded_content.decode())
+            blob = self._registry.get_git_blob(contents.sha)
+            b64 = b64decode(blob.content)
+            string_contents = b64.decode("utf8")
+            registry = toml.loads(string_contents)
+
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path

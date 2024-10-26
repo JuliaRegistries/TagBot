@@ -67,21 +67,52 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
-    def _is_backport(self, version: str) -> bool:
+    def _is_backport(self, version: str, tags: Optional[List[str]] = None) -> bool:
         """Determine whether or not the version is a backport."""
-        cur_ver = VersionInfo.parse(version[1:])
-        for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith("v"):
-                continue
-            try:
-                ver = VersionInfo.parse(r.tag_name[1:])
-            except ValueError:
-                continue
-            if ver.prerelease or ver.build:
-                continue
-            if ver > cur_ver:
-                return True
-        return False
+        try:
+            version_pattern = re.compile(
+                r"^(.*?)[-v]?(\d+\.\d+\.\d+(?:\.\d+)*)(?:[-+].+)?$"
+            )
+
+            if tags is None:
+                # Populate the tags list with tag names from the releases
+                tags = [r.tag_name for r in self._repo._repo.get_releases()]
+
+            # Extract any package name prefix and version number from the input
+            match = version_pattern.match(version)
+            if not match:
+                raise ValueError(f"Invalid version format: {version}")
+            package_name = match.group(1)
+            cur_ver = VersionInfo.parse(match.group(2))
+
+            for tag in tags:
+                tag_match = version_pattern.match(tag)
+                if not tag_match:
+                    continue
+
+                tag_package_name = tag_match.group(1)
+
+                if tag_package_name != package_name:
+                    continue
+
+                try:
+                    tag_ver = VersionInfo.parse(tag_match.group(2))
+                except ValueError:
+                    continue
+
+                # Disregard prerelease and build versions
+                if tag_ver.prerelease or tag_ver.build:
+                    continue
+
+                # Check if the version is a backport
+                if tag_ver > cur_ver:
+                    return True
+
+            return False
+        except Exception as e:
+            # This is a best-effort function so we don't fail the entire process
+            logger.error(f"Checking if backport failed. Assuming False: {e}")
+            return False
 
     def _issues_and_pulls(
         self, start: datetime, end: datetime
