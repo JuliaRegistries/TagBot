@@ -963,13 +963,13 @@ six = ">=1.5"
 
 [[package]]
 name = "python-gnupg"
-version = "0.5.2"
+version = "0.5.3"
 description = "A wrapper for the Gnu Privacy Guard (GPG or GnuPG)"
 optional = false
 python-versions = "*"
 files = [
-    {file = "python-gnupg-0.5.2.tar.gz", hash = "sha256:01d8013931c9fa3f45824bbea7054c03d6e11f258a72e7e086e168dbcb91854c"},
-    {file = "python_gnupg-0.5.2-py2.py3-none-any.whl", hash = "sha256:72ce142af6da7f07e433fef148b445fb3e07854acd2f88739008838745c0e9f5"},
+    {file = "python-gnupg-0.5.3.tar.gz", hash = "sha256:290d8ddb9cd63df96cfe9284b9b265f19fd6e145e5582dc58fd7271f026d0a47"},
+    {file = "python_gnupg-0.5.3-py2.py3-none-any.whl", hash = "sha256:2f8a4c6f63766feca6cc1416408f8b84e1b914fe7b54514e570fc5cbe92e9248"},
 ]
 
 [[package]]
@@ -1325,4 +1325,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "839166610f197f1b21fb5178a649afa50fd108ac9bfe3baccb5572c759846f60"
+content-hash = "776af49a9aeccaf86e1003d3aa6549664a6f4cc37d5ed1cfad727cdc9b436307"
