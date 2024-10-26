@@ -28,7 +28,7 @@ setuptools = "^75.1.0"
 wheel = "^0.44.0"
 
 [tool.poetry.dev-dependencies]
-black = "^24.3"
+black = "^24.10"
 boto3 = "^1.35.49"
 flake8 = "^7"
 mypy = "^1.11"
