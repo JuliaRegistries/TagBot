@@ -19,3 +19,13 @@ updates:
     all-pip-packages:
       patterns:
         - "*"
+
+- package-ecosystem: "npm"
+  directory: '/'
+  schedule:
+    interval: 'monthly'
+  open-pull-requests-limit: 99
+  groups:
+    all-javascript-packages:
+      patterns:
+        - "*"
