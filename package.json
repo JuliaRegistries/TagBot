@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "dependencies": {},
   "devDependencies": {
-    "serverless-domain-manager": "^7.4.0",
+    "serverless-domain-manager": "^8.0.0",
     "serverless-pseudo-parameters": "^2.6.1",
     "serverless-python-requirements": "^6.1.1",
     "serverless-wsgi": "^3.0.5"
