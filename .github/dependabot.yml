@@ -1,31 +1,41 @@
 version: 2
 updates:
-- package-ecosystem: 'github-actions'
-  directory: '/'
-  schedule:
-    interval: 'monthly'
-  open-pull-requests-limit: 99
-  groups:
-    all-actions:
-      patterns:
-        - "*"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 99
+    groups:
+      all-actions:
+        patterns:
+          - "*"
 
-- package-ecosystem: 'pip'
-  directory: '/'
-  schedule:
-    interval: 'monthly'
-  open-pull-requests-limit: 99
-  groups:
-    all-pip-packages:
-      patterns:
-        - "*"
+  - package-ecosystem: 'pip'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 99
+    groups:
+      all-pip-packages:
+        patterns:
+          - "*"
 
-- package-ecosystem: "npm"
-  directory: '/'
-  schedule:
-    interval: 'monthly'
-  open-pull-requests-limit: 99
-  groups:
-    all-javascript-packages:
-      patterns:
-        - "*"
+  - package-ecosystem: "npm"
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 99
+    groups:
+      all-javascript-packages:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: '/'
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      docker-updates:
+        patterns:
+          - "*"
