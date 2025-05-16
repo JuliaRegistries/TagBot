@@ -1,5 +1,9 @@
 FROM python:3.12-slim as builder
-RUN pip install poetry
+
+# Install Poetry (latest) using the official install script
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="/root/.local/bin:$PATH"
+
 COPY pyproject.toml .
 COPY poetry.lock .
 RUN poetry export --format requirements.txt --output /root/requirements.txt
