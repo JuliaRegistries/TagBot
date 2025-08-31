@@ -183,8 +183,15 @@ class Changelog:
     def _format_user(self, user: Optional[NamedUser]) -> Dict[str, object]:
         """Format a user for the template."""
         if user:
+            # Fetching `user.name` for the Copilot bot fails, so it needs to be
+            # special-cased.
+            name = (
+                "Copilot"
+                if (user.login == "Copilot" and user.type == "Bot")
+                else (user.name or user.login)
+            )
             return {
-                "name": user.name or user.login,
+                "name": name,
                 "url": user.html_url,
                 "username": user.login,
             }
