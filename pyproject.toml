@@ -9,7 +9,7 @@ license = "MIT"
 python = "^3.12"
 Flask = "3.1.1"
 Jinja2 = "^3"
-PyGithub = "^2.6.1"
+PyGithub = "^2.7.0"
 click = "^8"
 docker = "^7.1.0"
 pexpect = "^4.8.0"
@@ -29,9 +29,9 @@ wheel = "^0.45.1"
 
 [tool.poetry.dev-dependencies]
 black = "^25.1"
-boto3 = "^1.39.0"
+boto3 = "^1.40.0"
 flake8 = "^7"
-mypy = "^1.16"
+mypy = "^1.17"
 pytest-cov = "^6.2.1"
 
 [tool.black]
