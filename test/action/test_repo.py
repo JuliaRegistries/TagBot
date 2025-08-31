@@ -58,12 +58,25 @@ def _repo(
     )
 
 
-def test_constuctor():
-    r = _repo(github="github.com", github_api="api.github.com")
+@patch("tagbot.action.repo.Github")
+def test_constructor(mock_github):
+    # Mock the Github instance and its get_repo method
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+    mock_gh_instance.get_repo.return_value = Mock()  # Mock registry repo
+
+    r = _repo(
+        github="github.com", github_api="api.github.com", registry="test/registry"
+    )
     assert r._gh_url == "https://github.com"
     assert r._gh_api == "https://api.github.com"
     assert r._git._github == "github.com"
-    r = _repo(github="https://github.com", github_api="https://api.github.com")
+
+    r = _repo(
+        github="https://github.com",
+        github_api="https://api.github.com",
+        registry="test/registry",
+    )
     assert r._gh_url == "https://github.com"
     assert r._gh_api == "https://api.github.com"
     assert r._git._github == "github.com"
