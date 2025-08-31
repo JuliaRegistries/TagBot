@@ -59,7 +59,7 @@ def _repo(
 
 
 @patch("tagbot.action.repo.Github")
-def test_constuctor(mock_github):
+def test_constructor(mock_github):
     # Mock the Github instance and its get_repo method
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
