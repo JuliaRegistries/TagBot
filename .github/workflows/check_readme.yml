@@ -8,7 +8,7 @@ jobs:
   readme:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: |
           readme="$(<README.md)"
           example="$(echo -e "\`\`\`yml\n$(<example.yml)\n\`\`\`")"
