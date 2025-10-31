@@ -4,7 +4,7 @@ from base64 import b64encode
 from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
-from unittest.mock import Mock, call, mock_open, patch
+from unittest.mock import Mock, call, mock_open, patch, PropertyMock
 
 import pytest
 
@@ -404,6 +404,17 @@ def test_report_error(post):
         json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
     )
 
+
+@patch("requests.post")
+def test_report_error_handles_bad_credentials(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar")
+    type(r._repo).private = PropertyMock(side_effect=GithubException(401, "Bad credentials", {}))
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
+    r._report_error("ahh")
+    post.assert_not_called()
 
 def test_is_registered():
     r = _repo(github="gh.com")

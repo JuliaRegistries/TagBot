@@ -443,7 +443,15 @@ class Repo:
 
     def _report_error(self, trace: str) -> None:
         """Report an error."""
-        if self._repo.private or os.getenv("GITHUB_ACTIONS") != "true":
+        try:
+            is_private = self._repo.private
+        except GithubException:
+            logger.debug(
+                "Could not determine repository privacy (likely bad credentials); skipping error reporting"
+            )
+            return
+
+        if is_private or os.getenv("GITHUB_ACTIONS") != "true":
             logger.debug("Not reporting")
             return
         logger.debug("Reporting error")
