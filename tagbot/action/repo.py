@@ -447,7 +447,8 @@ class Repo:
             is_private = self._repo.private
         except GithubException:
             logger.debug(
-                "Could not determine repository privacy (likely bad credentials); skipping error reporting"
+                "Could not determine repository privacy (likely bad credentials); "
+                "skipping error reporting"
             )
             return
 
