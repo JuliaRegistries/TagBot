@@ -410,11 +410,14 @@ def test_report_error_handles_bad_credentials(post):
     post.return_value.json.return_value = {"status": "ok"}
     r = _repo(token="x")
     r._repo = Mock(full_name="Foo/Bar")
-    type(r._repo).private = PropertyMock(side_effect=GithubException(401, "Bad credentials", {}))
+    type(r._repo).private = PropertyMock(
+        side_effect=GithubException(401, "Bad credentials", {})
+    )
     r._image_id = Mock(return_value="id")
     r._run_url = Mock(return_value="url")
     r._report_error("ahh")
     post.assert_not_called()
+
 
 def test_is_registered():
     r = _repo(github="gh.com")
