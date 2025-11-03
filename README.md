@@ -21,9 +21,7 @@ To embed the exact recommended workflow here, the README contains a
 generated copy of `example.yml` between the markers below. Run
 `make bake` to re-generate this section from `example.yml`.
 
-<!-- BEGIN EXAMPLE_WORKFLOW -->
-
-```yaml
+```yml
 name: TagBot
 on:
   issue_comment:
@@ -45,8 +43,6 @@ jobs:
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
 ```
-
-<!-- END EXAMPLE_WORKFLOW -->
 
 Check that workflows have the correct permissions on your repo.
 
