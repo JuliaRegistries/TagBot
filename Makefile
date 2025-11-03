@@ -8,3 +8,6 @@ test-docker:
 
 publish:
 	./bin/publish.py
+
+bake:
+	python3 bin/embed_example_into_readme.py
