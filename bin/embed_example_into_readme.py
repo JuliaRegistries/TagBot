@@ -6,6 +6,7 @@ This will replace the text between the markers
 <!-- BEGIN EXAMPLE_WORKFLOW --> and <!-- END EXAMPLE_WORKFLOW --> with
 the contents of example.yml formatted as a YAML fenced code block.
 """
+
 from pathlib import Path
 
 
