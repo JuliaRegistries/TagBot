@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Embed the contents of example.yml into README.md between markers.
+"""
+Embed the contents of example.yml into README.md between markers.
 
 Usage: bin/embed_example_into_readme.py
 This will replace the text between the markers
