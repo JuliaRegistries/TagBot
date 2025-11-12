@@ -11,9 +11,7 @@ Other benefits of using TagBot include the ability for you and your users to bro
 
 ## Setup
 
-The canonical example workflow is kept in this repository at `example.yml`; to use it, copy its contents into `.github/workflows/TagBot.yml` or use it as a template and edit the inputs you need. This keeps the recommended configuration in a single place and avoids duplication.
-
-For quick access, the canonical example is available here: [example.yml](example.yml)
+The canonical example workflow is kept in this repository at `example.yml`; to use it, copy its contents into `.github/workflows/TagBot.yml` or use it as a template and edit the inputs you need.
 
 Check that workflows have the correct permissions on your repo.
 
