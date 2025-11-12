@@ -11,5 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           readme="$(<README.md)"
-          example="$(echo -e "\`\`\`yml\n$(<example.yml)\n\`\`\`")"
-          [[ "$readme" == *"$example"* ]]
+          # Simple check: README should reference example.yml (we use a relative link now)
+          if echo "$readme" | grep -q "example.yml"; then
+            exit 0
+          else
+            echo "README does not reference example.yml"
+            exit 1
+          fi
