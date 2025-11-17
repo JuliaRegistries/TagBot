@@ -11,30 +11,7 @@ Other benefits of using TagBot include the ability for you and your users to bro
 
 ## Setup
 
-Create a file at `.github/workflows/TagBot.yml` with the following contents:
-
-```yml
-name: TagBot
-on:
-  issue_comment:
-    types:
-      - created
-  workflow_dispatch:
-    inputs:
-      lookback:
-        default: "3"
-jobs:
-  TagBot:
-    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: JuliaRegistries/TagBot@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
-          ssh: ${{ secrets.DOCUMENTER_KEY }}
-          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
-```
+The canonical example workflow is kept in this repository at [example.yml](example.yml); to use it, copy its contents into `.github/workflows/TagBot.yml` or use it as a template and edit the inputs you need.
 
 Check that workflows have the correct permissions on your repo.
 
