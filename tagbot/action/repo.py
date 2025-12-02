@@ -16,15 +16,21 @@ from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
+
+# Try to import the GitLab adapter; fall back to None if unavailable.
+GitlabClient: Any = None
+GitlabUnknown: Any = None
 try:
-    from .gitlab import GitlabClient, UnknownObjectException as GitlabUnknown
+    from .gitlab import GitlabClient as _GitlabClient, UnknownObjectException as _GitlabUnknown
+    GitlabClient = _GitlabClient
+    GitlabUnknown = _GitlabUnknown
 except Exception:
-    GitlabClient = None
-    GitlabUnknown = None
+    # Leave GitlabClient/GitlabUnknown as None
+    pass
 from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
@@ -255,14 +261,14 @@ class Repo:
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
             if pr.merged_at is not None and now - pr.merged_at < self._lookback:
-                return pr
+                return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
             if now - cast(datetime, pr.closed_at) > self._lookback:
                 break
             if pr.merged and pr.head.ref == head:
-                return pr
+                return cast(PullRequest, pr)
         return None
 
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
@@ -282,14 +288,14 @@ class Repo:
             arg = f"{commit.sha}:{self.__subdir}"
             subdir_tree_hash = self._git.command("rev-parse", arg)
             if subdir_tree_hash == tree:
-                return commit.sha
+                return cast(Optional[str], commit.sha)
             else:
                 msg = "Subdir tree SHA of commit from registry PR does not match"
                 logger.warning(msg)
                 return None
         # Handle regular case (subdir is not set)
         if commit.commit.tree.sha == tree:
-            return commit.sha
+            return cast(Optional[str], commit.sha)
         else:
             logger.warning("Tree SHA of commit from registry PR does not match")
             return None
@@ -300,7 +306,7 @@ class Repo:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
             if commit.commit.tree.sha == tree:
-                return commit.sha
+                return cast(Optional[str], commit.sha)
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -328,17 +334,17 @@ class Repo:
             return None
         ref_type = getattr(ref.object, "type", None)
         if ref_type == "commit":
-            return ref.object.sha
+            return cast(Optional[str], ref.object.sha)
         elif ref_type == "tag":
             tag = self._repo.get_git_tag(ref.object.sha)
-            return tag.object.sha
+            return cast(Optional[str], tag.object.sha)
         else:
             return None
 
     def _commit_sha_of_release_branch(self) -> str:
         """Get the latest commit SHA of the release branch."""
         branch = self._repo.get_branch(self._release_branch)
-        return branch.commit.sha
+        return cast(str, branch.commit.sha)
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -521,7 +527,7 @@ class Repo:
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
         # TODO: Remove the comment when PyGithub#1502 is published.
-        self._repo.create_repository_dispatch("TagBot", payload)  # type: ignore
+        self._repo.create_repository_dispatch("TagBot", payload)
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
         """Configure the repo to use an SSH key for authentication."""

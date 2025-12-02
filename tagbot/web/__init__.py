@@ -1,8 +1,9 @@
 import json
 import os
 
-from typing import Dict, Optional, Tuple, TypeVar, Union, cast
+from typing import Any, Dict, Optional, Tuple, TypeVar, Union, cast
 
+boto3: Any = None
 try:
     import boto3
 except Exception:  # pragma: no cover - optional dependency for tests/environments
@@ -21,8 +22,9 @@ JSON = StatusOptional[Dict[str, object]]
 if boto3 is not None:
     LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
 else:
+
     class _DummyLambda:
-        def invoke(self, *args, **kwargs):
+        def invoke(self, *args: Any, **kwargs: Any) -> Any:
             return None
 
     LAMBDA = _DummyLambda()
