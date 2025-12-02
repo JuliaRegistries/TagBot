@@ -27,6 +27,11 @@ from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
 
+from .. import logger
+from . import TAGBOT_WEB, Abort, InvalidProject
+from .changelog import Changelog
+from .git import Git
+
 # Try to import the GitLab adapter; fall back to None if unavailable.
 GitlabClient: Any = None
 GitlabUnknown: Any = None
@@ -41,11 +46,6 @@ try:
 except Exception:
     # Leave GitlabClient/GitlabUnknown as None
     pass
-
-from .. import logger
-from . import TAGBOT_WEB, Abort, InvalidProject
-from .changelog import Changelog
-from .git import Git
 
 RequestException = requests.RequestException
 T = TypeVar("T")
