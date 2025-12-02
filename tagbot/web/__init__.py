@@ -3,7 +3,10 @@ import os
 
 from typing import Dict, Optional, Tuple, TypeVar, Union, cast
 
-import boto3
+try:
+    import boto3
+except Exception:  # pragma: no cover - optional dependency for tests/environments
+    boto3 = None
 
 from flask import Flask, Response, render_template, request
 from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
@@ -15,7 +18,14 @@ StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
 
-LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+if boto3 is not None:
+    LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+else:
+    class _DummyLambda:
+        def invoke(self, *args, **kwargs):
+            return None
+
+    LAMBDA = _DummyLambda()
 REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")

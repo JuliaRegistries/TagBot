@@ -13,6 +13,7 @@ jobs:
         with:
           python-version: 3.12
       - run: pip install poetry
+      - run: pip install python-gitlab
       - run: poetry install
       - run: poetry run make test
   docker:

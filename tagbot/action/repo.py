@@ -20,6 +20,11 @@ from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union
 from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
+try:
+    from .gitlab import GitlabClient, UnknownObjectException as GitlabUnknown
+except Exception:
+    GitlabClient = None
+    GitlabUnknown = None
 from github.PullRequest import PullRequest
 from gnupg import GPG
 from semver import VersionInfo
@@ -67,12 +72,18 @@ class Repo:
         self._gh_url = github
         self._gh_api = github_api
         auth = Auth.Token(token)
-        self._gh = Github(
-            auth=auth,
-            base_url=self._gh_api,
-            per_page=100,
-            **github_kwargs,  # type: ignore
-        )
+        if ("gitlab" in self._gh_url) or ("gitlab" in self._gh_api):
+            if GitlabClient is None:
+                raise Abort("GitLab support requires python-gitlab to be installed")
+            # python-gitlab expects base URL (e.g. https://gitlab.com)
+            self._gh = GitlabClient(token, self._gh_api)
+        else:
+            self._gh = Github(
+                auth=auth,
+                base_url=self._gh_api,
+                per_page=100,
+                **github_kwargs,  # type: ignore
+            )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry_name = registry
         try:
