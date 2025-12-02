@@ -87,9 +87,8 @@ class Repo:
         auth = Auth.Token(token)
         gh_url_host = urlparse(self._gh_url).hostname
         gh_api_host = urlparse(self._gh_api).hostname
-        is_gitlab = (
-            (gh_url_host and "gitlab" in gh_url_host.split('.')) or
-            (gh_api_host and "gitlab" in gh_api_host.split('.'))
+        is_gitlab = (gh_url_host and "gitlab" in gh_url_host.split(".")) or (
+            gh_api_host and "gitlab" in gh_api_host.split(".")
         )
         if is_gitlab:
             if GitlabClient is None:
