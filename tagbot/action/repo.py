@@ -16,9 +16,7 @@ from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Any, Dict, List
-from typing import Mapping, MutableMapping, Optional
-from typing import TypeVar, Union, cast
+from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 
 from urllib.parse import urlparse
 
@@ -32,7 +30,6 @@ from . import TAGBOT_WEB, Abort, InvalidProject
 from .changelog import Changelog
 from .git import Git
 
-# Try to import the GitLab adapter; fall back to None if unavailable.
 GitlabClient: Any = None
 GitlabUnknown: Any = None
 try:
@@ -44,7 +41,6 @@ try:
     GitlabClient = _GitlabClient
     GitlabUnknown = _GitlabUnknown
 except Exception:
-    # Leave GitlabClient/GitlabUnknown as None
     pass
 
 RequestException = requests.RequestException

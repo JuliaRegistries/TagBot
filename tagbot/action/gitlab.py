@@ -7,10 +7,7 @@ get_git_blob, create_pull). The wrapper delegates to `python-gitlab` when
 available and raises informative errors otherwise.
 """
 
-from typing import Any, Dict, Iterable, List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:  # pragma: no cover - typing-only import
-    import gitlab as _gitlab
+from typing import Any, Dict, Iterable, List, Optional
 
 import importlib
 

@@ -1,34 +1,21 @@
 import json
 import os
 
-from typing import Any, Dict, Optional, Tuple, TypeVar, Union, cast
+from typing import Dict, Optional, Tuple, TypeVar, Union, cast
+
+import boto3
 
 from flask import Flask, Response, render_template, request
 from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
 
 from .. import log_handler
 
-# Optional runtime dependency used to invoke AWS Lambda for reports.
-boto3: Any = None
-try:
-    import boto3
-except Exception:  # pragma: no cover - optional dependency for tests/environments
-    boto3 = None
-
 T = TypeVar("T")
 StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
 
-if boto3 is not None:
-    LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
-else:
-
-    class _DummyLambda:
-        def invoke(self, *args: Any, **kwargs: Any) -> Any:
-            return None
-
-    LAMBDA = _DummyLambda()
+LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
 REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
 TAGBOT_REPO_NAME = os.getenv("TAGBOT_REPO", "")
 TAGBOT_ISSUES_REPO_NAME = os.getenv("TAGBOT_ISSUES_REPO", "")
