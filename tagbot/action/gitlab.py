@@ -125,17 +125,21 @@ class ProjectWrapper:
             rels = self._project.releases.list(all=True)
         except Exception:
             return []
+
         class R:
             def __init__(self, r: Any) -> None:
                 self.tag_name = getattr(r, "tag_name", getattr(r, "name", ""))
                 self.created_at = getattr(r, "created_at", None)
-                self.html_url = (
-                    getattr(r, "url", None) or getattr(r, "assets_url", None)
+                # prefer explicit url, fall back to assets_url
+                self.html_url = getattr(r, "url", None) or getattr(
+                    r, "assets_url", None
                 )
 
         return [R(r) for r in rels]
 
-    def get_issues(self, state: Optional[str] = None, since: Optional[Any] = None) -> List[Any]:
+    def get_issues(
+        self, state: Optional[str] = None, since: Optional[Any] = None
+    ) -> List[Any]:
         # Return issues and merged merge-requests as issue-like objects so
         # the rest of the code (which expects GitHub's issue/PR mixing)
         # can operate on them.
@@ -266,7 +270,12 @@ class ProjectWrapper:
         # Helper not used but present for compatibility
         return [self.get_contents(path)]
 
-    def get_commits(self, sha: Optional[str] = None, since: Optional[Any] = None, until: Optional[Any] = None) -> Iterable[Any]:
+    def get_commits(
+        self,
+        sha: Optional[str] = None,
+        since: Optional[Any] = None,
+        until: Optional[Any] = None,
+    ) -> Iterable[Any]:
         # Return iterable of commit-like objects with .commit.tree.sha and .sha
         try:
             params: Dict[str, Any] = {}
@@ -281,11 +290,13 @@ class ProjectWrapper:
             commits = []
 
         for c in commits:
+
             class C:
                 def __init__(self, c: Any) -> None:
                     self.sha = getattr(c, "id", getattr(c, "sha", None))
                     tree_sha = getattr(c, "tree_id", None)
-                    self.commit = type("Z", (), {"tree": type("T", (), {"sha": tree_sha})})
+                    tree_obj = type("T", (), {"sha": tree_sha})
+                    self.commit = type("Z", (), {"tree": tree_obj})
 
             yield C(c)
 
@@ -297,10 +308,12 @@ class ProjectWrapper:
 
         out: List[Any] = []
         for b in brs:
+
             class BObj:
                 def __init__(self, b: Any) -> None:
                     self.name = getattr(b, "name", "")
-                    self.commit = type("C", (), {"sha": getattr(b, "commit", {}).get("id", None)})
+                    commit_sha = getattr(b, "commit", {}).get("id", None)
+                    self.commit = type("C", (), {"sha": commit_sha})
 
             out.append(BObj(b))
         return out
@@ -311,28 +324,33 @@ class ProjectWrapper:
             tag = ref.split("/", 1)[1]
             try:
                 t = self._project.tags.get(tag)
-                sha = getattr(t, "commit", {}).get("id", None) or getattr(t, "commit", {}).get("sha", None)
+                commit_info = getattr(t, "commit", {})
+                sha = commit_info.get("id", None) or commit_info.get("sha", None)
             except Exception:
                 raise UnknownObjectException("Ref not found")
-            return type("R", (), {"object": type("O", (), {"type": "tag", "sha": sha})})
+            obj = type("O", (), {"type": "tag", "sha": sha})
+            return type("R", (), {"object": obj})
         # fallback: branch
         try:
             b = self._project.branches.get(ref)
             sha = getattr(b, "commit", {}).get("id", None)
         except Exception:
             raise UnknownObjectException("Ref not found")
-        return type("R", (), {"object": type("O", (), {"type": "commit", "sha": sha})})
+        obj = type("O", (), {"type": "commit", "sha": sha})
+        return type("R", (), {"object": obj})
 
     def get_git_tag(self, sha: str) -> Any:
         # Best-effort: return an object with .object.sha -> provided sha
-        return type("T", (), {"object": type("O", (), {"sha": sha})})
+        obj = type("O", (), {"sha": sha})
+        return type("T", (), {"object": obj})
 
     def get_branch(self, name: str) -> Any:
         try:
             b = self._project.branches.get(name)
         except Exception:
             raise UnknownObjectException("Branch not found")
-        return type("B", (), {"commit": type("C", (), {"sha": getattr(b, "commit", {}).get("id", None)})})
+        commit_obj = type("C", (), {"sha": getattr(b, "commit", {}).get("id", None)})
+        return type("B", (), {"commit": commit_obj})
 
     def create_pull(self, title: str, body: str, head: str, base: str) -> Any:
         # Create a merge request
@@ -349,7 +367,14 @@ class ProjectWrapper:
         except Exception as e:
             raise GitlabException(str(e))
 
-    def create_git_release(self, tag: str, name: str, body: str, target_commitish: Optional[str] = None, draft: bool = False) -> Any:
+    def create_git_release(
+        self,
+        tag: str,
+        name: str,
+        body: str,
+        target_commitish: Optional[str] = None,
+        draft: bool = False,
+    ) -> Any:
         # Map GitHub create_git_release to GitLab release creation
         try:
             data = {"name": name, "tag_name": tag, "description": body}

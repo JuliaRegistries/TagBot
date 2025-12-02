@@ -16,24 +16,31 @@ from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import Any, Dict, List
+from typing import Mapping, MutableMapping, Optional
+from typing import TypeVar, Union, cast
+
 from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
+from github.PullRequest import PullRequest
+from gnupg import GPG
+from semver import VersionInfo
 
 # Try to import the GitLab adapter; fall back to None if unavailable.
 GitlabClient: Any = None
 GitlabUnknown: Any = None
 try:
-    from .gitlab import GitlabClient as _GitlabClient, UnknownObjectException as _GitlabUnknown
+    from .gitlab import (
+        GitlabClient as _GitlabClient,
+        UnknownObjectException as _GitlabUnknown,
+    )
+
     GitlabClient = _GitlabClient
     GitlabUnknown = _GitlabUnknown
 except Exception:
     # Leave GitlabClient/GitlabUnknown as None
     pass
-from github.PullRequest import PullRequest
-from gnupg import GPG
-from semver import VersionInfo
 
 from .. import logger
 from . import TAGBOT_WEB, Abort, InvalidProject

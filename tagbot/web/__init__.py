@@ -3,16 +3,17 @@ import os
 
 from typing import Any, Dict, Optional, Tuple, TypeVar, Union, cast
 
+from flask import Flask, Response, render_template, request
+from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
+
+from .. import log_handler
+
+# Optional runtime dependency used to invoke AWS Lambda for reports.
 boto3: Any = None
 try:
     import boto3
 except Exception:  # pragma: no cover - optional dependency for tests/environments
     boto3 = None
-
-from flask import Flask, Response, render_template, request
-from werkzeug.exceptions import InternalServerError, MethodNotAllowed, NotFound
-
-from .. import log_handler
 
 T = TypeVar("T")
 StatusOptional = Union[T, Tuple[T, int]]
