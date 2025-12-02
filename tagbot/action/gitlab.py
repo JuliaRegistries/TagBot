@@ -88,9 +88,8 @@ class ProjectWrapper:
 
     @property
     def private(self) -> bool:
-        return bool(getattr(self._project, "visibility", "")) and (
-            getattr(self._project, "visibility", "") != "public"
-        )
+        visibility = getattr(self._project, "visibility", "")
+        return visibility != "public"
 
     @property
     def ssh_url(self) -> str:

@@ -26,8 +26,9 @@ types-toml = "^0.10.8"
 types-PyYAML = "6.0.12.20250822"
 setuptools = "^80.9.0"
 wheel = "^0.45.1"
-python-gitlab = "^3.6.0"
 
+[tool.poetry.extras]
+gitlab = ["python-gitlab"]
 [tool.poetry.dev-dependencies]
 black = "^25.1"
 boto3 = "^1.40.21"

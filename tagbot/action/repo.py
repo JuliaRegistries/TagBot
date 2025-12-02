@@ -85,7 +85,13 @@ class Repo:
         self._gh_url = github
         self._gh_api = github_api
         auth = Auth.Token(token)
-        if ("gitlab" in self._gh_url) or ("gitlab" in self._gh_api):
+        gh_url_host = urlparse(self._gh_url).hostname
+        gh_api_host = urlparse(self._gh_api).hostname
+        is_gitlab = (
+            (gh_url_host and "gitlab" in gh_url_host.split('.')) or
+            (gh_api_host and "gitlab" in gh_api_host.split('.'))
+        )
+        if is_gitlab:
             if GitlabClient is None:
                 raise Abort("GitLab support requires python-gitlab to be installed")
             # python-gitlab expects base URL (e.g. https://gitlab.com)
