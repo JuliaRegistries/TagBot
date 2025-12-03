@@ -314,8 +314,14 @@ class ProjectWrapper:
         try:
             params: Dict[str, Any] = {}
             if state:
-                # GitLab states: opened, closed; map GitHub "open" to "opened"
-                params["state"] = "opened" if state == "open" else state
+                # Map GitHub states to GitLab states:
+                # GitHub: "open", "closed", "all"
+                # GitLab: "opened", "closed" (omit for all)
+                if state == "open":
+                    params["state"] = "opened"
+                elif state == "closed":
+                    params["state"] = "closed"
+                # For "all" or other values, don't set state param
             if since:
                 params["updated_after"] = since
             its = self._project.issues.list(all=True, **params)
