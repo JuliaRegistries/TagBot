@@ -102,11 +102,12 @@ class ProjectWrapper:
         # Map PyGithub-style get_pulls to GitLab merge requests
         params: Dict[str, Any] = {}
         if state is not None:
-            # GitLab accepts 'opened', 'closed', 'merged', 'locked'
+            # Map PyGithub states to GitLab states
             if state == "closed":
                 params["state"] = "closed"
-            else:
-                params["state"] = state
+            elif state == "open":
+                params["state"] = "opened"
+            # For "all" or None, do not set state param
         if head:
             # head in PyGithub sometimes is "owner:branch".
             branch = head.split(":", 1)[-1]
@@ -147,8 +148,8 @@ class ProjectWrapper:
         try:
             params: Dict[str, Any] = {}
             if state:
-                # GitLab states: opened, closed
-                params["state"] = state
+                # GitLab states: opened, closed; map GitHub "open" to "opened"
+                params["state"] = "opened" if state == "open" else state
             if since:
                 params["updated_after"] = since
             its = self._project.issues.list(all=True, **params)
@@ -244,7 +245,10 @@ class ProjectWrapper:
             # Try to fetch raw content
             try:
                 raw = self._project.files.raw(file_path=path, ref=self.default_branch)
-                content_b64 = b64encode(raw.encode("utf8")).decode("ascii")
+                if isinstance(raw, bytes):
+                    content_b64 = b64encode(raw).decode("ascii")
+                else:
+                    content_b64 = b64encode(raw.encode("utf8")).decode("ascii")
             except Exception:
                 raise UnknownObjectException("Could not fetch file contents")
         fake_sha = f"gl-{path}-{self.default_branch}"

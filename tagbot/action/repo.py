@@ -16,8 +16,7 @@ from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Any
-from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
 
 from urllib.parse import urlparse
 
@@ -85,8 +84,8 @@ class Repo:
         auth = Auth.Token(token)
         gh_url_host = urlparse(self._gh_url).hostname
         gh_api_host = urlparse(self._gh_api).hostname
-        is_gitlab = (gh_url_host and "gitlab" in gh_url_host.split(".")) or (
-            gh_api_host and "gitlab" in gh_api_host.split(".")
+        is_gitlab = (gh_url_host and "gitlab" in gh_url_host) or (
+            gh_api_host and "gitlab" in gh_api_host
         )
         if is_gitlab:
             if GitlabClient is None:
