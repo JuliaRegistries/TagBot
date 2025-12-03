@@ -10,6 +10,7 @@ available and raises informative errors otherwise.
 from typing import Any, Dict, Iterable, List, Optional
 
 import importlib
+import logging
 import os
 from base64 import b64decode, b64encode
 
@@ -123,7 +124,7 @@ class _GitTag:
 class _Branch:
     """Wrapper for branch."""
 
-    def __init__(self, commit: "_BranchCommit") -> None:
+    def __init__(self, commit: _BranchCommit) -> None:
         self.commit = commit
 
 
@@ -168,6 +169,7 @@ class _PRFromMR:
         self.number = getattr(mr, "iid", None)
         self.title = getattr(mr, "title", "")
         self.html_url = getattr(mr, "web_url", "")
+        self.labels = [_Label(label) for label in getattr(mr, "labels", [])]
 
 
 class _IssueAsPR:
@@ -176,6 +178,7 @@ class _IssueAsPR:
     def __init__(self, m: Any) -> None:
         self.pull_request = True
         self._mr = m
+        self.labels = [_Label(label) for label in getattr(m, "labels", [])]
 
     def as_pull_request(self) -> _PRFromMR:
         return _PRFromMR(self._mr)
@@ -333,7 +336,10 @@ class ProjectWrapper:
 
         # Also include merged merge requests as pull_request-like items
         try:
-            mrs = self._project.mergerequests.list(state="merged", all=True)
+            mr_params: Dict[str, Any] = {"state": "merged"}
+            if since:
+                mr_params["updated_after"] = since
+            mrs = self._project.mergerequests.list(all=True, **mr_params)
         except Exception:
             mrs = []
 
@@ -477,8 +483,6 @@ class ProjectWrapper:
     ) -> None:
         # GitLab does not have an equivalent to GitHub's repository_dispatch.
         # Log a warning and no-op to avoid breaking the caller.
-        import logging
-
         logging.getLogger(__name__).warning(
             "create_repository_dispatch is not supported on GitLab; skipping"
         )
