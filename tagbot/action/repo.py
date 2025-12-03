@@ -57,7 +57,7 @@ except Exception:
 # Build a tuple of UnknownObjectException classes for both GitHub and GitLab
 # so exception handlers can catch the appropriate type depending on what's
 # available at runtime.
-UnknownObjectExceptions = (UnknownObjectException,)
+UnknownObjectExceptions: tuple[type[Exception], ...] = (UnknownObjectException,)
 if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
