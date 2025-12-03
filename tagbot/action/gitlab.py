@@ -28,6 +28,190 @@ class GitlabException(Exception):
     pass
 
 
+class _HeadRef:
+    """Wrapper for PR head reference."""
+
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+
+
+class _Owner:
+    """Wrapper for repository owner."""
+
+    def __init__(self, login: str) -> None:
+        self.login = login
+
+
+class _Label:
+    """Wrapper for issue/PR label."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class _User:
+    """Wrapper for user."""
+
+    def __init__(self, login: str) -> None:
+        self.login = login
+
+
+class _AuthorDate:
+    """Wrapper for commit author with date."""
+
+    def __init__(self, date: Any) -> None:
+        self.date = date
+
+
+class _CommitTree:
+    """Wrapper for commit tree."""
+
+    def __init__(self, sha: Optional[str]) -> None:
+        self.sha = sha
+
+
+class _CommitInner:
+    """Wrapper for inner commit object with tree."""
+
+    def __init__(self, tree: _CommitTree) -> None:
+        self.tree = tree
+
+
+class _CommitAuthorWrapper:
+    """Wrapper for commit with author."""
+
+    def __init__(self, author: _AuthorDate) -> None:
+        self.author = author
+
+
+class _BranchCommit:
+    """Wrapper for branch commit."""
+
+    def __init__(self, sha: Optional[str]) -> None:
+        self.sha = sha
+
+
+class _RefObject:
+    """Wrapper for git ref object."""
+
+    def __init__(self, type_: str, sha: Optional[str]) -> None:
+        self.type = type_
+        self.sha = sha
+
+
+class _GitRef:
+    """Wrapper for git reference."""
+
+    def __init__(self, obj: _RefObject) -> None:
+        self.object = obj
+
+
+class _TagObject:
+    """Wrapper for tag object."""
+
+    def __init__(self, sha: Optional[str]) -> None:
+        self.sha = sha
+
+
+class _GitTag:
+    """Wrapper for git tag."""
+
+    def __init__(self, obj: _TagObject) -> None:
+        self.object = obj
+
+
+class _Branch:
+    """Wrapper for branch."""
+
+    def __init__(self, commit: "_BranchCommit") -> None:
+        self.commit = commit
+
+
+class _Blob:
+    """Wrapper for git blob."""
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class _ReleaseWrapper:
+    """Wrapper for GitLab release."""
+
+    def __init__(self, r: Any) -> None:
+        self.tag_name = getattr(r, "tag_name", getattr(r, "name", ""))
+        self.created_at = getattr(r, "created_at", None)
+        self.html_url = getattr(r, "url", None) or getattr(r, "assets_url", None)
+
+
+class _IssueLike:
+    """Wrapper to make GitLab issue look like GitHub issue."""
+
+    def __init__(self, i: Any) -> None:
+        self.closed_at = getattr(i, "closed_at", None)
+        self.labels = [_Label(label) for label in getattr(i, "labels", [])]
+        self.pull_request = False
+        self.user = _User(getattr(i, "author", {}).get("username", ""))
+        self.body = getattr(i, "description", "")
+        self.number = getattr(i, "iid", None)
+        self.title = getattr(i, "title", "")
+        self.html_url = getattr(i, "web_url", "")
+
+
+class _PRFromMR:
+    """Wrapper for merge request as pull request."""
+
+    def __init__(self, mr: Any) -> None:
+        self.merged = True
+        self.merged_at = getattr(mr, "merged_at", None)
+        self.user = _User(getattr(mr, "author", {}).get("username", ""))
+        self.body = getattr(mr, "description", "")
+        self.number = getattr(mr, "iid", None)
+        self.title = getattr(mr, "title", "")
+        self.html_url = getattr(mr, "web_url", "")
+
+
+class _IssueAsPR:
+    """Wrapper to make GitLab MR look like GitHub issue with PR."""
+
+    def __init__(self, m: Any) -> None:
+        self.pull_request = True
+        self._mr = m
+
+    def as_pull_request(self) -> _PRFromMR:
+        return _PRFromMR(self._mr)
+
+
+class _CommitWrapper:
+    """Wrapper for GitLab commit."""
+
+    def __init__(self, c: Any) -> None:
+        d = (
+            getattr(c, "committed_date", None)
+            or getattr(c, "created_at", None)
+            or getattr(c, "committer_date", None)
+        )
+        self.commit = _CommitAuthorWrapper(_AuthorDate(d))
+        self.sha = getattr(c, "id", getattr(c, "sha", None))
+
+
+class _CommitWithTree:
+    """Wrapper for commit with tree SHA."""
+
+    def __init__(self, c: Any) -> None:
+        self.sha = getattr(c, "id", getattr(c, "sha", None))
+        tree_sha = getattr(c, "tree_id", None)
+        self.commit = _CommitInner(_CommitTree(tree_sha))
+
+
+class _BranchWrapper:
+    """Wrapper for GitLab branch."""
+
+    def __init__(self, b: Any) -> None:
+        self.name = getattr(b, "name", "")
+        commit_sha = getattr(b, "commit", {}).get("id", None)
+        self.commit = _BranchCommit(commit_sha)
+
+
 class _PR:
     def __init__(self, mr: Any):
         # mr is a python-gitlab MergeRequest object
@@ -46,12 +230,8 @@ class _PR:
         return getattr(self._mr, "merged_at", None) is not None
 
     @property
-    def head(self) -> Any:
-        class H:
-            def __init__(self, ref: str) -> None:
-                self.ref = ref
-
-        return H(getattr(self._mr, "source_branch", ""))
+    def head(self) -> _HeadRef:
+        return _HeadRef(getattr(self._mr, "source_branch", ""))
 
 
 class _Contents:
@@ -74,14 +254,10 @@ class ProjectWrapper:
         return str(self._project.attributes.get("default_branch") or "")
 
     @property
-    def owner(self) -> Any:
-        class Owner:
-            def __init__(self, login: str) -> None:
-                self.login = login
-
+    def owner(self) -> _Owner:
         ns = self._project.attributes.get("namespace") or {}
         name = ns.get("path") or ns.get("name") or ""
-        return Owner(name)
+        return _Owner(name)
 
     @property
     def full_name(self) -> str:
@@ -121,23 +297,12 @@ class ProjectWrapper:
         # Map to GitLab's web URL
         return getattr(self._project, "web_url", "")
 
-    def get_releases(self) -> List[Any]:
-        # Return a list of release-like objects with tag_name and created_at
+    def get_releases(self) -> List[_ReleaseWrapper]:
         try:
             rels = self._project.releases.list(all=True)
         except Exception:
             return []
-
-        class ReleaseWrapper:
-            def __init__(self, r: Any) -> None:
-                self.tag_name = getattr(r, "tag_name", getattr(r, "name", ""))
-                self.created_at = getattr(r, "created_at", None)
-                # prefer explicit url, fall back to assets_url
-                self.html_url = (
-                    getattr(r, "url", None) or getattr(r, "assets_url", None)
-                )
-
-        return [ReleaseWrapper(r) for r in rels]
+        return [_ReleaseWrapper(r) for r in rels]
 
     def get_issues(
         self, state: Optional[str] = None, since: Optional[Any] = None
@@ -156,84 +321,26 @@ class ProjectWrapper:
             its = self._project.issues.list(all=True, **params)
         except Exception:
             its = []
-        class IssueLike:
-            def __init__(self, i: Any) -> None:
-                self.closed_at = getattr(i, "closed_at", None)
-                self.labels = [
-                    type("L", (), {"name": label})
-                    for label in getattr(i, "labels", [])
-                ]
-                self.pull_request = False
-                self.user = type(
-                    "U", (), {"login": getattr(i, "author", {}).get("username", "")}
-                )
-                self.body = getattr(i, "description", "")
-                self.number = getattr(i, "iid", None)
-                self.title = getattr(i, "title", "")
-                self.html_url = getattr(i, "web_url", "")
 
         for i in its:
-            issues.append(IssueLike(i))
+            issues.append(_IssueLike(i))
 
         # Also include merged merge requests as pull_request-like items
         try:
             mrs = self._project.mergerequests.list(state="merged", all=True)
         except Exception:
             mrs = []
-        class IssueAsPR:
-            def __init__(self, m: Any) -> None:
-                self.pull_request = True
-                self._mr = m
-
-            def as_pull_request(self) -> Any:
-                class PRObj:
-                    def __init__(self, mr: Any) -> None:
-                        self.merged = True
-                        self.merged_at = getattr(mr, "merged_at", None)
-                        self.user = type(
-                            "U",
-                            (),
-                            {
-                                "login": getattr(mr, "author", {}).get(
-                                    "username", ""
-                                )
-                            },
-                        )
-                        self.body = getattr(mr, "description", "")
-                        self.number = getattr(mr, "iid", None)
-                        self.title = getattr(mr, "title", "")
-                        self.html_url = getattr(mr, "web_url", "")
-
-                return PRObj(self._mr)
 
         for m in mrs:
-            issues.append(IssueAsPR(m))
+            issues.append(_IssueAsPR(m))
         return issues
 
-    def get_commit(self, sha: str) -> Any:
-        # Wrap gitlab commit to provide .commit.author.date
+    def get_commit(self, sha: str) -> _CommitWrapper:
         try:
             c = self._project.commits.get(sha)
         except Exception as e:
             raise UnknownObjectException(str(e))
-
-        class AuthorObj:
-            def __init__(self, date: Any) -> None:
-                self.date = date
-
-        class CommitObj:
-            def __init__(self, c: Any) -> None:
-                # python-gitlab commit object may have committed_date or created_at
-                d = (
-                    getattr(c, "committed_date", None)
-                    or getattr(c, "created_at", None)
-                    or getattr(c, "committer_date", None)
-                )
-                # leave as string or datetime depending on gitlab library
-                self.commit = type("CommitWrapper", (), {"author": AuthorObj(d)})
-                self.sha = getattr(c, "id", getattr(c, "sha", None))
-
-        return CommitObj(c)
+        return _CommitWrapper(c)
 
     def get_contents(self, path: str) -> _Contents:
         try:
@@ -256,16 +363,10 @@ class ProjectWrapper:
         self._file_cache[fake_sha] = content_b64
         return _Contents(fake_sha, content_b64)
 
-    def get_git_blob(self, sha: str) -> Any:
-        # Return an object with .content that is base64-encoded
+    def get_git_blob(self, sha: str) -> _Blob:
         if sha not in self._file_cache:
             raise UnknownObjectException("Blob not found")
-
-        class B:
-            def __init__(self, content: str) -> None:
-                self.content = content
-
-        return B(self._file_cache[sha])
+        return _Blob(self._file_cache[sha])
 
     def get_contents_list(self, path: str) -> List[_Contents]:
         # Helper not used but present for compatibility
@@ -276,8 +377,7 @@ class ProjectWrapper:
         sha: Optional[str] = None,
         since: Optional[Any] = None,
         until: Optional[Any] = None,
-    ) -> Iterable[Any]:
-        # Return iterable of commit-like objects with .commit.tree.sha and .sha
+    ) -> Iterable[_CommitWithTree]:
         try:
             params: Dict[str, Any] = {}
             if sha:
@@ -290,35 +390,17 @@ class ProjectWrapper:
         except Exception:
             commits = []
 
-        class C:
-            def __init__(self, c: Any) -> None:
-                self.sha = getattr(c, "id", getattr(c, "sha", None))
-                tree_sha = getattr(c, "tree_id", None)
-                tree_obj = type("T", (), {"sha": tree_sha})
-                self.commit = type("Z", (), {"tree": tree_obj})
-
         for c in commits:
-            yield C(c)
+            yield _CommitWithTree(c)
 
-    def get_branches(self) -> List[Any]:
+    def get_branches(self) -> List[_BranchWrapper]:
         try:
             brs = self._project.branches.list(all=True)
         except Exception:
             brs = []
+        return [_BranchWrapper(b) for b in brs]
 
-        out: List[Any] = []
-        class BObj:
-            def __init__(self, b: Any) -> None:
-                self.name = getattr(b, "name", "")
-                commit_sha = getattr(b, "commit", {}).get("id", None)
-                self.commit = type("C", (), {"sha": commit_sha})
-
-        for b in brs:
-            out.append(BObj(b))
-        return out
-
-    def get_git_ref(self, ref: str) -> Any:
-        # support tags/<tag> and branches
+    def get_git_ref(self, ref: str) -> _GitRef:
         if ref.startswith("tags/"):
             tag = ref.split("/", 1)[1]
             try:
@@ -327,29 +409,24 @@ class ProjectWrapper:
                 sha = commit_info.get("id", None) or commit_info.get("sha", None)
             except Exception:
                 raise UnknownObjectException("Ref not found")
-            obj = type("O", (), {"type": "tag", "sha": sha})
-            return type("R", (), {"object": obj})
+            return _GitRef(_RefObject("tag", sha))
         # fallback: branch
         try:
             b = self._project.branches.get(ref)
             sha = getattr(b, "commit", {}).get("id", None)
         except Exception:
             raise UnknownObjectException("Ref not found")
-        obj = type("O", (), {"type": "commit", "sha": sha})
-        return type("R", (), {"object": obj})
+        return _GitRef(_RefObject("commit", sha))
 
-    def get_git_tag(self, sha: str) -> Any:
-        # Best-effort: return an object with .object.sha -> provided sha
-        obj = type("O", (), {"sha": sha})
-        return type("T", (), {"object": obj})
+    def get_git_tag(self, sha: str) -> _GitTag:
+        return _GitTag(_TagObject(sha))
 
-    def get_branch(self, name: str) -> Any:
+    def get_branch(self, name: str) -> _Branch:
         try:
             b = self._project.branches.get(name)
         except Exception:
             raise UnknownObjectException("Branch not found")
-        commit_obj = type("C", (), {"sha": getattr(b, "commit", {}).get("id", None)})
-        return type("B", (), {"commit": commit_obj})
+        return _Branch(_BranchCommit(getattr(b, "commit", {}).get("id", None)))
 
     def create_pull(self, title: str, body: str, head: str, base: str) -> Any:
         # Create a merge request
