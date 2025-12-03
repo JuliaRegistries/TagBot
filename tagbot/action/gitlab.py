@@ -187,6 +187,8 @@ class _IssueAsPR:
 class _CommitWrapper:
     """Wrapper for GitLab commit."""
 
+    sha: Optional[str]
+
     def __init__(self, c: Any) -> None:
         d = (
             getattr(c, "committed_date", None)
@@ -199,6 +201,8 @@ class _CommitWrapper:
 
 class _CommitWithTree:
     """Wrapper for commit with tree SHA."""
+
+    sha: Optional[str]
 
     def __init__(self, c: Any) -> None:
         self.sha = getattr(c, "id", getattr(c, "sha", None))
