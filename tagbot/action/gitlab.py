@@ -10,6 +10,7 @@ available and raises informative errors otherwise.
 from typing import Any, Dict, Iterable, List, Optional
 
 import importlib
+import os
 from base64 import b64decode, b64encode
 
 gitlab: Any = None
@@ -229,7 +230,7 @@ class ProjectWrapper:
                     or getattr(c, "committer_date", None)
                 )
                 # leave as string or datetime depending on gitlab library
-                self.commit = type("X", (), {"author": AuthorObj(d)})
+                self.commit = type("CommitWrapper", (), {"author": AuthorObj(d)})
                 self.sha = getattr(c, "id", getattr(c, "sha", None))
 
         return CommitObj(c)
@@ -374,6 +375,11 @@ class ProjectWrapper:
         draft: bool = False,
     ) -> Any:
         # Map GitHub create_git_release to GitLab release creation
+        # Note: GitLab does not support "draft" releases the same way
+        # GitHub does. To avoid silently publishing a release when the
+        # caller expects a draft, explicitly error out if `draft=True`.
+        if draft:
+            raise GitlabException("Draft releases are not supported in GitLab")
         try:
             data = {"name": name, "tag_name": tag, "description": body}
             if target_commitish:
@@ -390,7 +396,27 @@ class GitlabClient:
             raise RuntimeError("python-gitlab is required for GitLab support")
         # python-gitlab expects the url without trailing '/api/v4'
         url = base_url.rstrip("/")
-        self._gl = gitlab.Gitlab(url, private_token=token)
+
+        ca_file = os.getenv("GITLAB_CA_BUNDLE") or os.getenv("GITLAB_CA_FILE")
+        ssl_verify_env = os.getenv("GITLAB_SSL_VERIFY")
+        ssl_verify: Any = None
+        if ssl_verify_env is not None:
+            v = ssl_verify_env.strip().lower()
+            if v in ("0", "false", "no", "n"):
+                ssl_verify = False
+            elif v in ("1", "true", "yes", "y"):
+                ssl_verify = True
+            else:
+                # Allow a path string to be passed through to the library.
+                ssl_verify = ssl_verify_env
+
+        kwargs: Dict[str, Any] = {}
+        if ssl_verify is not None:
+            kwargs["ssl_verify"] = ssl_verify
+        if ca_file:
+            kwargs["ca_file"] = ca_file
+
+        self._gl = gitlab.Gitlab(url, private_token=token, **kwargs)
 
     def get_repo(self, name: str, lazy: bool = True) -> ProjectWrapper:
         try:

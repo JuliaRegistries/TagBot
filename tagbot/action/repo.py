@@ -44,6 +44,13 @@ except Exception:
     # Optional import: ignore errors if .gitlab is not available or fails to import.
     pass
 
+# Build a tuple of UnknownObjectException classes for both GitHub and GitLab
+# so exception handlers can catch the appropriate type depending on what's
+# available at runtime.
+UnknownObjectExceptions = (UnknownObjectException,)
+if GitlabUnknown is not None:
+    UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
+
 RequestException = requests.RequestException
 T = TypeVar("T")
 
@@ -103,7 +110,7 @@ class Repo:
         self._registry_name = registry
         try:
             self._registry = self._gh.get_repo(registry)
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
             if not registry_ssh:
@@ -147,7 +154,7 @@ class Repo:
                 filepath = os.path.join(self.__subdir, name) if self.__subdir else name
                 contents = self._only(self._repo.get_contents(filepath))
                 break
-            except UnknownObjectException:
+            except UnknownObjectExceptions:
                 pass
         else:
             raise InvalidProject("Project file was not found")
@@ -200,7 +207,7 @@ class Repo:
         root = self._registry_path
         try:
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             raise InvalidProject("Package.toml was not found")
         package = toml.loads(contents.decoded_content.decode())
         self.__registry_url = package["repo"]
@@ -339,7 +346,7 @@ class Repo:
         """Look up the commit SHA of a given tag."""
         try:
             ref = self._repo.get_git_ref(f"tags/{version_tag}")
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             return None
         ref_type = getattr(ref.object, "type", None)
         if ref_type == "commit":
@@ -404,7 +411,7 @@ class Repo:
             contents = self._only(
                 self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
             )
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             logger.debug(f"Versions.toml was not found ({kwargs})")
             return {}
         versions = toml.loads(contents.decoded_content.decode())
