@@ -155,24 +155,23 @@ class ProjectWrapper:
             its = self._project.issues.list(all=True, **params)
         except Exception:
             its = []
+        class IssueLike:
+            def __init__(self, i: Any) -> None:
+                self.closed_at = getattr(i, "closed_at", None)
+                self.labels = [
+                    type("L", (), {"name": label})
+                    for label in getattr(i, "labels", [])
+                ]
+                self.pull_request = False
+                self.user = type(
+                    "U", (), {"login": getattr(i, "author", {}).get("username", "")}
+                )
+                self.body = getattr(i, "description", "")
+                self.number = getattr(i, "iid", None)
+                self.title = getattr(i, "title", "")
+                self.html_url = getattr(i, "web_url", "")
+
         for i in its:
-
-            class IssueLike:
-                def __init__(self, i: Any) -> None:
-                    self.closed_at = getattr(i, "closed_at", None)
-                    self.labels = [
-                        type("L", (), {"name": label})
-                        for label in getattr(i, "labels", [])
-                    ]
-                    self.pull_request = False
-                    self.user = type(
-                        "U", (), {"login": getattr(i, "author", {}).get("username", "")}
-                    )
-                    self.body = getattr(i, "description", "")
-                    self.number = getattr(i, "iid", None)
-                    self.title = getattr(i, "title", "")
-                    self.html_url = getattr(i, "web_url", "")
-
             issues.append(IssueLike(i))
 
         # Also include merged merge requests as pull_request-like items
@@ -180,34 +179,33 @@ class ProjectWrapper:
             mrs = self._project.mergerequests.list(state="merged", all=True)
         except Exception:
             mrs = []
+        class IssueAsPR:
+            def __init__(self, m: Any) -> None:
+                self.pull_request = True
+                self._mr = m
+
+            def as_pull_request(self) -> Any:
+                class PRObj:
+                    def __init__(self, mr: Any) -> None:
+                        self.merged = True
+                        self.merged_at = getattr(mr, "merged_at", None)
+                        self.user = type(
+                            "U",
+                            (),
+                            {
+                                "login": getattr(mr, "author", {}).get(
+                                    "username", ""
+                                )
+                            },
+                        )
+                        self.body = getattr(mr, "description", "")
+                        self.number = getattr(mr, "iid", None)
+                        self.title = getattr(mr, "title", "")
+                        self.html_url = getattr(mr, "web_url", "")
+
+                return PRObj(self._mr)
+
         for m in mrs:
-
-            class IssueAsPR:
-                def __init__(self, m: Any) -> None:
-                    self.pull_request = True
-                    self._mr = m
-
-                def as_pull_request(self) -> Any:
-                    class PRObj:
-                        def __init__(self, mr: Any) -> None:
-                            self.merged = True
-                            self.merged_at = getattr(mr, "merged_at", None)
-                            self.user = type(
-                                "U",
-                                (),
-                                {
-                                    "login": getattr(mr, "author", {}).get(
-                                        "username", ""
-                                    )
-                                },
-                            )
-                            self.body = getattr(mr, "description", "")
-                            self.number = getattr(mr, "iid", None)
-                            self.title = getattr(mr, "title", "")
-                            self.html_url = getattr(mr, "web_url", "")
-
-                    return PRObj(self._mr)
-
             issues.append(IssueAsPR(m))
         return issues
 
@@ -290,15 +288,14 @@ class ProjectWrapper:
         except Exception:
             commits = []
 
+        class C:
+            def __init__(self, c: Any) -> None:
+                self.sha = getattr(c, "id", getattr(c, "sha", None))
+                tree_sha = getattr(c, "tree_id", None)
+                tree_obj = type("T", (), {"sha": tree_sha})
+                self.commit = type("Z", (), {"tree": tree_obj})
+
         for c in commits:
-
-            class C:
-                def __init__(self, c: Any) -> None:
-                    self.sha = getattr(c, "id", getattr(c, "sha", None))
-                    tree_sha = getattr(c, "tree_id", None)
-                    tree_obj = type("T", (), {"sha": tree_sha})
-                    self.commit = type("Z", (), {"tree": tree_obj})
-
             yield C(c)
 
     def get_branches(self) -> List[Any]:
@@ -308,14 +305,13 @@ class ProjectWrapper:
             brs = []
 
         out: List[Any] = []
+        class BObj:
+            def __init__(self, b: Any) -> None:
+                self.name = getattr(b, "name", "")
+                commit_sha = getattr(b, "commit", {}).get("id", None)
+                self.commit = type("C", (), {"sha": commit_sha})
+
         for b in brs:
-
-            class BObj:
-                def __init__(self, b: Any) -> None:
-                    self.name = getattr(b, "name", "")
-                    commit_sha = getattr(b, "commit", {}).get("id", None)
-                    self.commit = type("C", (), {"sha": commit_sha})
-
             out.append(BObj(b))
         return out
 

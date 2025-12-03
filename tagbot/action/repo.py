@@ -42,6 +42,7 @@ try:
     GitlabClient = _GitlabClient
     GitlabUnknown = _GitlabUnknown
 except Exception:
+    # Optional import: ignore errors if .gitlab is not available or fails to import.
     pass
 
 RequestException = requests.RequestException
