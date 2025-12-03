@@ -10,6 +10,7 @@ available and raises informative errors otherwise.
 from typing import Any, Dict, Iterable, List, Optional
 
 import importlib
+from base64 import b64decode, b64encode
 
 gitlab: Any = None
 try:
@@ -59,8 +60,6 @@ class _Contents:
 
     @property
     def decoded_content(self) -> bytes:
-        from base64 import b64decode
-
         return b64decode(self._b64)
 
 
@@ -127,16 +126,16 @@ class ProjectWrapper:
         except Exception:
             return []
 
-        class R:
+        class ReleaseWrapper:
             def __init__(self, r: Any) -> None:
                 self.tag_name = getattr(r, "tag_name", getattr(r, "name", ""))
                 self.created_at = getattr(r, "created_at", None)
                 # prefer explicit url, fall back to assets_url
-                self.html_url = getattr(r, "url", None) or getattr(
-                    r, "assets_url", None
+                self.html_url = (
+                    getattr(r, "url", None) or getattr(r, "assets_url", None)
                 )
 
-        return [R(r) for r in rels]
+        return [ReleaseWrapper(r) for r in rels]
 
     def get_issues(
         self, state: Optional[str] = None, since: Optional[Any] = None
@@ -245,8 +244,6 @@ class ProjectWrapper:
             # Try to fetch raw content
             try:
                 raw = self._project.files.raw(file_path=path, ref=self.default_branch)
-                from base64 import b64encode
-
                 content_b64 = b64encode(raw.encode("utf8")).decode("ascii")
             except Exception:
                 raise UnknownObjectException("Could not fetch file contents")
