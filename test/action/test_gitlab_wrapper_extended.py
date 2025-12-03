@@ -202,11 +202,13 @@ def test_create_git_release():
     pw = ProjectWrapper(proj)
     result = pw.create_git_release("v1.0.0", "Version 1.0.0", "Release notes")
     assert result is rel
-    proj.releases.create.assert_called_once_with({
-        "name": "Version 1.0.0",
-        "tag_name": "v1.0.0",
-        "description": "Release notes",
-    })
+    proj.releases.create.assert_called_once_with(
+        {
+            "name": "Version 1.0.0",
+            "tag_name": "v1.0.0",
+            "description": "Release notes",
+        }
+    )
 
 
 def test_create_git_release_with_target():
@@ -216,12 +218,14 @@ def test_create_git_release_with_target():
     proj.releases.create.return_value = rel
     pw = ProjectWrapper(proj)
     pw.create_git_release("v1.0.0", "Version 1.0.0", "Notes", target_commitish="abc123")
-    proj.releases.create.assert_called_once_with({
-        "name": "Version 1.0.0",
-        "tag_name": "v1.0.0",
-        "description": "Notes",
-        "ref": "abc123",
-    })
+    proj.releases.create.assert_called_once_with(
+        {
+            "name": "Version 1.0.0",
+            "tag_name": "v1.0.0",
+            "description": "Notes",
+            "ref": "abc123",
+        }
+    )
 
 
 def test_create_git_release_draft_raises():
