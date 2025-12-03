@@ -16,7 +16,18 @@ from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
-from typing import Dict, List, Mapping, MutableMapping, Optional, TypeVar, Union, cast
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+)
+
 from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
@@ -28,6 +39,27 @@ from .. import logger
 from . import TAGBOT_WEB, Abort, InvalidProject
 from .changelog import Changelog
 from .git import Git
+
+GitlabClient: Any = None
+GitlabUnknown: Any = None
+try:
+    from .gitlab import (
+        GitlabClient as _GitlabClient,
+        UnknownObjectException as _GitlabUnknown,
+    )
+
+    GitlabClient = _GitlabClient
+    GitlabUnknown = _GitlabUnknown
+except Exception:
+    # Optional import: ignore errors if .gitlab is not available or fails to import.
+    pass
+
+# Build a tuple of UnknownObjectException classes for both GitHub and GitLab
+# so exception handlers can catch the appropriate type depending on what's
+# available at runtime.
+UnknownObjectExceptions: tuple[type[Exception], ...] = (UnknownObjectException,)
+if GitlabUnknown is not None:
+    UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
 RequestException = requests.RequestException
 T = TypeVar("T")
@@ -67,17 +99,28 @@ class Repo:
         self._gh_url = github
         self._gh_api = github_api
         auth = Auth.Token(token)
-        self._gh = Github(
-            auth=auth,
-            base_url=self._gh_api,
-            per_page=100,
-            **github_kwargs,  # type: ignore
+        gh_url_host = urlparse(self._gh_url).hostname
+        gh_api_host = urlparse(self._gh_api).hostname
+        is_gitlab = (gh_url_host and "gitlab" in gh_url_host) or (
+            gh_api_host and "gitlab" in gh_api_host
         )
+        if is_gitlab:
+            if GitlabClient is None:
+                raise Abort("GitLab support requires python-gitlab to be installed")
+            # python-gitlab expects base URL (e.g. https://gitlab.com)
+            self._gh = GitlabClient(token, self._gh_api)
+        else:
+            self._gh = Github(
+                auth=auth,
+                base_url=self._gh_api,
+                per_page=100,
+                **github_kwargs,  # type: ignore
+            )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry_name = registry
         try:
             self._registry = self._gh.get_repo(registry)
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
             if not registry_ssh:
@@ -121,8 +164,8 @@ class Repo:
                 filepath = os.path.join(self.__subdir, name) if self.__subdir else name
                 contents = self._only(self._repo.get_contents(filepath))
                 break
-            except UnknownObjectException:
-                pass
+            except UnknownObjectExceptions:
+                pass  # Try the next filename
         else:
             raise InvalidProject("Project file was not found")
         self.__project = toml.loads(contents.decoded_content.decode())
@@ -174,7 +217,7 @@ class Repo:
         root = self._registry_path
         try:
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             raise InvalidProject("Package.toml was not found")
         package = toml.loads(contents.decoded_content.decode())
         self.__registry_url = package["repo"]
@@ -244,14 +287,14 @@ class Repo:
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
             if pr.merged_at is not None and now - pr.merged_at < self._lookback:
-                return pr
+                return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
             if now - cast(datetime, pr.closed_at) > self._lookback:
                 break
             if pr.merged and pr.head.ref == head:
-                return pr
+                return cast(PullRequest, pr)
         return None
 
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
@@ -271,14 +314,14 @@ class Repo:
             arg = f"{commit.sha}:{self.__subdir}"
             subdir_tree_hash = self._git.command("rev-parse", arg)
             if subdir_tree_hash == tree:
-                return commit.sha
+                return cast(str, commit.sha)
             else:
                 msg = "Subdir tree SHA of commit from registry PR does not match"
                 logger.warning(msg)
                 return None
         # Handle regular case (subdir is not set)
         if commit.commit.tree.sha == tree:
-            return commit.sha
+            return cast(str, commit.sha)
         else:
             logger.warning("Tree SHA of commit from registry PR does not match")
             return None
@@ -289,7 +332,7 @@ class Repo:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
             if commit.commit.tree.sha == tree:
-                return commit.sha
+                return cast(str, commit.sha)
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -313,21 +356,21 @@ class Repo:
         """Look up the commit SHA of a given tag."""
         try:
             ref = self._repo.get_git_ref(f"tags/{version_tag}")
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             return None
         ref_type = getattr(ref.object, "type", None)
         if ref_type == "commit":
-            return ref.object.sha
+            return cast(str, ref.object.sha)
         elif ref_type == "tag":
             tag = self._repo.get_git_tag(ref.object.sha)
-            return tag.object.sha
+            return cast(str, tag.object.sha)
         else:
             return None
 
     def _commit_sha_of_release_branch(self) -> str:
         """Get the latest commit SHA of the release branch."""
         branch = self._repo.get_branch(self._release_branch)
-        return branch.commit.sha
+        return cast(str, branch.commit.sha)
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -378,7 +421,7 @@ class Repo:
             contents = self._only(
                 self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
             )
-        except UnknownObjectException:
+        except UnknownObjectExceptions:
             logger.debug(f"Versions.toml was not found ({kwargs})")
             return {}
         versions = toml.loads(contents.decoded_content.decode())
@@ -510,7 +553,7 @@ class Repo:
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
         # TODO: Remove the comment when PyGithub#1502 is published.
-        self._repo.create_repository_dispatch("TagBot", payload)  # type: ignore
+        self._repo.create_repository_dispatch("TagBot", payload)
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
         """Configure the repo to use an SSH key for authentication."""

@@ -50,6 +50,30 @@ Read on for a full description of all of the available configuration options.
 
 ## Basic Configuration Options
 
+### GitLab Support
+
+TagBot also supports repositories hosted on GitLab. To enable GitLab integration,
+set the `github`/`github_api` input values to your GitLab instance (for
+GitLab.com use `https://gitlab.com`), and provide a personal access token with
+the appropriate scopes (API access to read projects and create merge requests).
+
+Example `workflow_dispatch` inputs for GitLab:
+
+```yml
+with:
+  token: ${{ secrets.GITLAB_TOKEN }}
+  github: https://gitlab.com
+  github_api: https://gitlab.com
+```
+
+Notes:
+- `python-gitlab` is required for runtime GitLab support (installed as a
+  dependency in development or CI). If it is missing and a GitLab URL is
+  provided, TagBot will raise an informative error.
+- The current GitLab integration implements a pragmatic subset of features
+  needed by TagBot, mapping to the PyGithub usage in this project.
+
+
 ### SSH Deploy Keys
 
 Sometimes, instead of using the default `secrets.GITHUB_TOKEN`, it is better to use an SSH deploy key.
