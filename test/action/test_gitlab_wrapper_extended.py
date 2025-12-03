@@ -4,7 +4,6 @@ from unittest.mock import Mock
 import pytest
 
 from tagbot.action.gitlab import (
-    GitlabClient,
     GitlabException,
     ProjectWrapper,
     UnknownObjectException,
