@@ -466,6 +466,17 @@ class ProjectWrapper:
         except Exception as e:
             raise GitlabException(str(e))
 
+    def create_repository_dispatch(
+        self, event_type: str, payload: Any = None
+    ) -> None:
+        # GitLab does not have an equivalent to GitHub's repository_dispatch.
+        # Log a warning and no-op to avoid breaking the caller.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "create_repository_dispatch is not supported on GitLab; skipping"
+        )
+
 
 class GitlabClient:
     def __init__(self, token: str, base_url: str):
