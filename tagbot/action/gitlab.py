@@ -179,6 +179,7 @@ class _IssueAsPR:
         self.pull_request = True
         self._mr = m
         self.labels = [_Label(label) for label in getattr(m, "labels", [])]
+        self.closed_at = getattr(m, "merged_at", None)
 
     def as_pull_request(self) -> _PRFromMR:
         return _PRFromMR(self._mr)
@@ -223,6 +224,10 @@ class _PR:
     def __init__(self, mr: Any):
         # mr is a python-gitlab MergeRequest object
         self._mr = mr
+
+    @property
+    def body(self) -> str:
+        return getattr(self._mr, "description", "") or ""
 
     @property
     def merged_at(self) -> Any:
@@ -519,6 +524,7 @@ class GitlabClient:
         self._gl = gitlab.Gitlab(url, private_token=token, **kwargs)
 
     def get_repo(self, name: str, lazy: bool = True) -> ProjectWrapper:
+        # Note: lazy parameter is accepted for PyGithub API compatibility but ignored
         try:
             project = self._gl.projects.get(name)
         except Exception as e:

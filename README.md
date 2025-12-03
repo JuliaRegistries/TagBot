@@ -71,8 +71,7 @@ Notes:
   dependency in development or CI). If it is missing and a GitLab URL is
   provided, TagBot will raise an informative error.
 - The current GitLab integration implements a pragmatic subset of features
-  (creating merge requests, reading file contents, and listing merge requests)
-  that map to the PyGithub usage in this project.
+  needed by TagBot, mapping to the PyGithub usage in this project.
 
 
 ### SSH Deploy Keys
