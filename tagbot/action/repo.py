@@ -661,6 +661,20 @@ class Repo:
             version_tag, version_tag, log, target_commitish=target, draft=self._draft
         )
 
+    def _check_rate_limit(self) -> None:
+        """Check and log GitHub API rate limit status."""
+        try:
+            rate_limit = self._gh.get_rate_limit()
+            remaining = rate_limit.core[0]
+            limit = rate_limit.core[1]
+            reset_time = rate_limit.core[2]
+            logger.info(
+                f"GitHub API rate limit: {remaining}/{limit} remaining "
+                f"(reset at {reset_time})"
+            )
+        except Exception as e:
+            logger.debug(f"Could not check rate limit: {e}")
+
     def handle_error(self, e: Exception) -> None:
         """Handle an unexpected error."""
         allowed = False
@@ -677,10 +691,12 @@ class Repo:
                 logger.info(trace)
                 allowed = True
             elif e.status == 403:
+                self._check_rate_limit()
                 logger.error(
-                    """GitHub returned a 403 permissions-related error.
-                    Please check that your ssh key and TagBot permissions are up to date
-                    https://github.com/JuliaRegistries/TagBot#setup
+                    """GitHub returned a 403 error. This may indicate:
+                    1. Rate limiting - check the rate limit status above
+                    2. Insufficient permissions - verify your token & repo access
+                    3. Resource not accessible - see setup documentation
                     """
                 )
                 internal = False
