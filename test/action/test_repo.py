@@ -129,6 +129,22 @@ def test_registry_path():
     assert r._registry.get_contents.call_count == 2
 
 
+def test_registry_path_with_uppercase_uuid():
+    """Test that uppercase UUIDs are normalized to lowercase for registry lookup."""
+    r = _repo()
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    r._registry.get_git_blob.return_value.content = b64encode(
+        b"""
+        [packages]
+        abc-def = { path = "B/Bar" }
+        """
+    )
+    # Test with uppercase UUID
+    r._project = lambda _k: "ABC-DEF"
+    assert r._registry_path == "B/Bar"
+
+
 def test_registry_url():
     r = _repo()
     r._Repo__registry_path = "E/Example"
@@ -651,11 +667,41 @@ def test_create_release_subdir():
     )
 
 
+@patch("tagbot.action.repo.logger")
+def test_check_rate_limit(logger):
+    r = _repo()
+    mock_core = Mock()
+    mock_core.remaining = 4500
+    mock_core.limit = 5000
+    mock_core.reset = "2024-01-01T00:00:00Z"
+    mock_rate_limit = Mock()
+    mock_rate_limit.resources.core = mock_core
+    r._gh.get_rate_limit = Mock(return_value=mock_rate_limit)
+
+    r._check_rate_limit()
+
+    r._gh.get_rate_limit.assert_called_once()
+    logger.info.assert_called_once()
+    assert "4500/5000" in logger.info.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_check_rate_limit_error(logger):
+    r = _repo()
+    r._gh.get_rate_limit = Mock(side_effect=Exception("API error"))
+
+    r._check_rate_limit()
+
+    logger.debug.assert_called_once()
+    assert "Could not check rate limit" in logger.debug.call_args[0][0]
+
+
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
 def test_handle_error(logger, format_exc):
     r = _repo()
     r._report_error = Mock(side_effect=[None, RuntimeError("!")])
+    r._check_rate_limit = Mock()
     r.handle_error(RequestException())
     r._report_error.assert_not_called()
     r.handle_error(GithubException(502, "oops", {}))
@@ -675,6 +721,20 @@ def test_handle_error(logger, format_exc):
         assert False
     r._report_error.assert_called_with("ahh")
     logger.error.assert_called_with("Issue reporting failed")
+
+
+@patch("traceback.format_exc", return_value="ahh")
+@patch("tagbot.action.repo.logger")
+def test_handle_error_403_checks_rate_limit(logger, format_exc):
+    r = _repo()
+    r._report_error = Mock()
+    r._check_rate_limit = Mock()
+    try:
+        r.handle_error(GithubException(403, "forbidden", {}))
+    except Abort:
+        pass
+    r._check_rate_limit.assert_called_once()
+    assert any("403" in str(call) for call in logger.error.call_args_list)
 
 
 def test_commit_sha_of_version():
