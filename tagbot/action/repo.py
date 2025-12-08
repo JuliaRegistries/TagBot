@@ -191,7 +191,7 @@ class Repo:
         if self.__registry_path is not None:
             return self.__registry_path
         try:
-            uuid = self._project("uuid")
+            uuid = self._project("uuid").lower()
         except KeyError:
             raise InvalidProject("Project file has no UUID")
         if self._clone_registry:
@@ -268,7 +268,7 @@ class Repo:
             # I think this is actually possible, but it looks pretty complicated.
             return None
         name = self._project("name")
-        uuid = self._project("uuid")
+        uuid = self._project("uuid").lower()
         url = self._registry_url
         if not url:
             logger.info("Could not find url of package in registry")
