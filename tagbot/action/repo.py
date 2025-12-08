@@ -234,6 +234,7 @@ class Repo:
 
     def _maybe_decode_private_key(self, key: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
+        key = key.strip()
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
     def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
