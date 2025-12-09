@@ -234,6 +234,7 @@ class Repo:
 
     def _maybe_decode_private_key(self, key: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
+        key = key.strip()
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
     def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
@@ -687,12 +688,10 @@ class Repo:
         """Check and log GitHub API rate limit status."""
         try:
             rate_limit = self._gh.get_rate_limit()
-            remaining = rate_limit.core[0]
-            limit = rate_limit.core[1]
-            reset_time = rate_limit.core[2]
+            core = rate_limit.resources.core
             logger.info(
-                f"GitHub API rate limit: {remaining}/{limit} remaining "
-                f"(reset at {reset_time})"
+                f"GitHub API rate limit: {core.remaining}/{core.limit} remaining "
+                f"(reset at {core.reset})"
             )
         except Exception as e:
             logger.debug(f"Could not check rate limit: {e}")
@@ -715,11 +714,10 @@ class Repo:
             elif e.status == 403:
                 self._check_rate_limit()
                 logger.error(
-                    """GitHub returned a 403 error. This may indicate:
-                    1. Rate limiting - check the rate limit status above
-                    2. Insufficient permissions - verify your token & repo access
-                    3. Resource not accessible - see setup documentation
-                    """
+                    "GitHub returned a 403 error. This may indicate: "
+                    "1. Rate limiting - check the rate limit status above, "
+                    "2. Insufficient permissions - verify your token & repo access, "
+                    "3. Resource not accessible - see setup documentation"
                 )
                 internal = False
                 allowed = False
