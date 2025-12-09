@@ -269,6 +269,42 @@ def test_commit_sha_of_tree_from_branch():
     assert r._commit_sha_of_tree_from_branch("master", "tree", since) is None
 
 
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_from_branch_subdir(logger):
+    r = _repo(subdir="path/to/package")
+    since = datetime.now(timezone.utc)
+    commits = [Mock(sha="abc"), Mock(sha="sha")]
+    r._repo.get_commits = Mock(return_value=commits)
+    r._git.command = Mock(side_effect=["other", "tree_hash"])
+
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+
+    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    r._git.command.assert_has_calls(
+        [call("rev-parse", "abc:path/to/package"), call("rev-parse", "sha:path/to/package")]
+    )
+    logger.debug.assert_not_called()
+
+
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
+    r = _repo(subdir="path/to/package")
+    since = datetime.now(timezone.utc)
+    commits = [Mock(sha="abc"), Mock(sha="sha")]
+    r._repo.get_commits = Mock(return_value=commits)
+    r._git.command = Mock(side_effect=[Abort("missing"), "tree_hash"])
+
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+
+    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    logger.debug.assert_called_with(
+        "rev-parse failed while inspecting %s", "abc:path/to/package"
+    )
+    r._git.command.assert_has_calls(
+        [call("rev-parse", "abc:path/to/package"), call("rev-parse", "sha:path/to/package")]
+    )
+
+
 def test_commit_sha_of_tree():
     r = _repo()
     now = datetime.now(timezone.utc)
@@ -720,7 +756,7 @@ def test_handle_error(logger, format_exc):
     else:
         assert False
     r._report_error.assert_called_with("ahh")
-    logger.error.assert_called_with("Issue reporting failed")
+    logger.error.assert_called_with("Issue reporting failed", exc_info=True)
 
 
 @patch("traceback.format_exc", return_value="ahh")
