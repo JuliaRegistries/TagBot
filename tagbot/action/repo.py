@@ -51,7 +51,7 @@ try:
     GitlabClient = _GitlabClient
     GitlabUnknown = _GitlabUnknown
 except ImportError:
-    # Optional import: ignore errors if .gitlab is not available.
+    # Optional import: ignore import errors if .gitlab is not available.
     pass
 
 # Build a tuple of UnknownObjectException classes for both GitHub and GitLab
