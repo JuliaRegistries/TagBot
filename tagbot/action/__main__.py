@@ -89,11 +89,22 @@ try:
     if gpg:
         repo.configure_gpg(gpg, get_input("gpg_password"))
 
+    errors = []
     for version, sha in versions.items():
-        logger.info(f"Processing version {version} ({sha})")
-        if get_input("branches", "false") == "true":
-            repo.handle_release_branch(version)
-        repo.create_release(version, sha)
+        try:
+            logger.info(f"Processing version {version} ({sha})")
+            if get_input("branches", "false") == "true":
+                repo.handle_release_branch(version)
+            repo.create_release(version, sha)
+        except Exception as e:
+            logger.error(f"Failed to process version {version}: {e}")
+            errors.append((version, e))
+            repo.handle_error(e, raise_abort=False)
+
+    if errors:
+        failed = ", ".join(v for v, _ in errors)
+        logger.error(f"Failed to release versions: {failed}")
+        sys.exit(1)
 except Exception as e:
     try:
         repo.handle_error(e)
