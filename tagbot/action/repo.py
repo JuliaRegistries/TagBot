@@ -360,17 +360,17 @@ class Repo:
         if self.__subdir:
             # For subdirectories, we need to check the subdirectory tree hash
             for line in self._git.command("log", "--all", "--format=%H").splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(
-                    line, suppress_abort=True
-                )
+                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
                 if subdir_tree_hash == tree:
                     return line
             return None
         else:
             return self._git.commit_sha_of_tree(tree)
 
-    def _subdir_tree_hash(self, commit_sha: str, *, suppress_abort: bool) -> Optional[str]:
-        """Return the tree hash for a subdirectory of a commit, optionally suppressing Abort."""
+    def _subdir_tree_hash(
+        self, commit_sha: str, *, suppress_abort: bool
+    ) -> Optional[str]:
+        """Return subdir tree hash for a commit; optionally suppress Abort."""
         if not self.__subdir:
             return None
         arg = f"{commit_sha}:{self.__subdir}"

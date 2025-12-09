@@ -281,7 +281,10 @@ def test_commit_sha_of_tree_from_branch_subdir(logger):
 
     r._repo.get_commits.assert_called_with(sha="master", since=since)
     r._git.command.assert_has_calls(
-        [call("rev-parse", "abc:path/to/package"), call("rev-parse", "sha:path/to/package")]
+        [
+            call("rev-parse", "abc:path/to/package"),
+            call("rev-parse", "sha:path/to/package"),
+        ]
     )
     logger.debug.assert_not_called()
 
@@ -301,7 +304,10 @@ def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
         "rev-parse failed while inspecting %s", "abc:path/to/package"
     )
     r._git.command.assert_has_calls(
-        [call("rev-parse", "abc:path/to/package"), call("rev-parse", "sha:path/to/package")]
+        [
+            call("rev-parse", "abc:path/to/package"),
+            call("rev-parse", "sha:path/to/package"),
+        ]
     )
 
 
