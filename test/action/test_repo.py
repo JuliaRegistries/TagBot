@@ -332,8 +332,7 @@ def test_commit_sha_of_tree():
     assert r._commit_sha_of_tree("tree") is None
 
 
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_subdir_fallback(logger):
+def test_commit_sha_of_tree_subdir_fallback():
     """Test subdirectory fallback when branch lookups fail."""
     r = _repo(subdir="path/to/package")
     now = datetime.now(timezone.utc)
@@ -352,8 +351,7 @@ def test_commit_sha_of_tree_subdir_fallback(logger):
         assert r._subdir_tree_hash.call_count == 2
 
 
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_subdir_fallback_no_match(logger):
+def test_commit_sha_of_tree_subdir_fallback_no_match():
     """Test subdirectory fallback returns None when no match found."""
     r = _repo(subdir="path/to/package")
     now = datetime.now(timezone.utc)

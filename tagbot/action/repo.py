@@ -358,8 +358,11 @@ class Repo:
         # has been made long after the commit was made, which is reasonably rare.
         # Fall back to cloning the repo in that case.
         if self.__subdir:
-            # For subdirectories, we need to check the subdirectory tree hash
-            for line in self._git.command("log", "--all", "--format=%H").splitlines():
+            # For subdirectories, we need to check the subdirectory tree hash.
+            # Limit to 10000 commits to avoid performance issues on large repos.
+            for line in self._git.command(
+                "log", "--all", "--format=%H", "-n", "10000"
+            ).splitlines():
                 subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
                 if subdir_tree_hash == tree:
                     return line
