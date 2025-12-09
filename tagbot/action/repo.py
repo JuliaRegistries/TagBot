@@ -331,8 +331,17 @@ class Repo:
     ) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
-            if commit.commit.tree.sha == tree:
-                return cast(str, commit.sha)
+            if self.__subdir:
+                arg = f"{commit.sha}:{self.__subdir}"
+                try:
+                    subdir_tree_hash = self._git.command("rev-parse", arg)
+                    if subdir_tree_hash == tree:
+                        return cast(str, commit.sha)
+                except Exception:
+                    continue
+            else:
+                if commit.commit.tree.sha == tree:
+                    return cast(str, commit.sha)
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -350,7 +359,20 @@ class Repo:
         # For a valid tree SHA, the only time that we reach here is when a release
         # has been made long after the commit was made, which is reasonably rare.
         # Fall back to cloning the repo in that case.
-        return self._git.commit_sha_of_tree(tree)
+        if self.__subdir:
+            # For subdirectories, we need to check the subdirectory tree hash
+            for line in self._git.command("log", "--all", "--format=%H").splitlines():
+                arg = f"{line}:{self.__subdir}"
+                try:
+                    subdir_tree_hash = self._git.command("rev-parse", arg)
+                    if subdir_tree_hash == tree:
+                        return line
+                except Exception:
+                    # If rev-parse fails, skip this commit
+                    continue
+            return None
+        else:
+            return self._git.commit_sha_of_tree(tree)
 
     def _commit_sha_of_tag(self, version_tag: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
