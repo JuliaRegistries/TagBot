@@ -762,7 +762,7 @@ def test_handle_error(logger, format_exc):
     else:
         assert False
     r._report_error.assert_called_with("ahh")
-    logger.error.assert_called_with("Issue reporting failed", exc_info=True)
+    logger.error.assert_called_with("Issue reporting failed")
 
 
 @patch("traceback.format_exc", return_value="ahh")
