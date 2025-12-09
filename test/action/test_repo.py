@@ -332,6 +332,43 @@ def test_commit_sha_of_tree():
     assert r._commit_sha_of_tree("tree") is None
 
 
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_subdir_fallback(logger):
+    """Test subdirectory fallback when branch lookups fail."""
+    r = _repo(subdir="path/to/package")
+    now = datetime.now(timezone.utc)
+    r._repo = Mock(default_branch="master")
+    branches = r._repo.get_branches.return_value = [Mock()]
+    branches[0].name = "master"
+    r._lookback = Mock(__rsub__=lambda x, y: now)
+    # Branch lookups return None (fail)
+    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
+    # git log returns commit SHAs
+    r._git.command = Mock(return_value="abc123\ndef456\nghi789")
+    # _subdir_tree_hash called via helper, simulate finding match on second commit
+    with patch.object(r, "_subdir_tree_hash", side_effect=[None, "tree_hash", "other"]):
+        assert r._commit_sha_of_tree("tree_hash") == "def456"
+        # Verify it iterated through commits
+        assert r._subdir_tree_hash.call_count == 2
+
+
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_subdir_fallback_no_match(logger):
+    """Test subdirectory fallback returns None when no match found."""
+    r = _repo(subdir="path/to/package")
+    now = datetime.now(timezone.utc)
+    r._repo = Mock(default_branch="master")
+    branches = r._repo.get_branches.return_value = [Mock()]
+    branches[0].name = "master"
+    r._lookback = Mock(__rsub__=lambda x, y: now)
+    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
+    r._git.command = Mock(return_value="abc123\ndef456")
+    # No matches found
+    with patch.object(r, "_subdir_tree_hash", return_value=None):
+        assert r._commit_sha_of_tree("tree_hash") is None
+        assert r._subdir_tree_hash.call_count == 2
+
+
 def test_commit_sha_of_tag():
     r = _repo()
     r._repo.get_git_ref = Mock()
