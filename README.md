@@ -509,7 +509,7 @@ $ poetry run python -m tagbot.local --help
 
 * **First, check if you have a `permissions:` block in your TagBot workflow file.** If you do, **remove it entirely**. Explicit permissions (even with `contents: write`) prevent TagBot from creating releases due to GitHub's permission model. The default GitHub Actions token permissions are what TagBot needs.
 * Check that your repository settings allow GitHub Actions to create releases (see [Setup](#Setup))
-* Try using an [ssh deploy key](#SSH-Deploy-Keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
+* Try using an [ssh deploy key](#ssh-deploy-keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
 
 ### I am missing old tags
 
