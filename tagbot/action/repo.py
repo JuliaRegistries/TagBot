@@ -703,7 +703,7 @@ class Repo:
         except Exception as e:
             logger.debug(f"Could not check rate limit: {e}")
 
-    def handle_error(self, e: Exception) -> None:
+    def handle_error(self, e: Exception, *, raise_abort: bool = True) -> None:
         """Handle an unexpected error."""
         allowed = False
         internal = True
@@ -735,8 +735,9 @@ class Repo:
             try:
                 self._report_error(trace)
             except Exception:
-                logger.error("Issue reporting failed", exc_info=True)
-            finally:
+                logger.error("Issue reporting failed")
+                logger.info(traceback.format_exc())
+            if raise_abort:
                 raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
