@@ -17,6 +17,11 @@ Check that workflows have the correct permissions on your repo.
 
 ![Workflow permissions](workflow_permissions.png)
 
+> [!IMPORTANT]
+> **Do not add explicit `permissions:` to your TagBot workflow!**
+> Adding explicit permissions (even with `contents: write`) will prevent TagBot from creating releases.
+> The default GitHub Actions token permissions are sufficient and necessary for TagBot to work correctly.
+
 > [!NOTE]
 > No further action should be required on your part, but if TagBot fails and you see `403: Resource not accessible by integration`
 errors, try adding (or refreshing) an SSH key with the correct permissions. See the [SSH Deploy Keys](#ssh-deploy-keys) section below.
@@ -502,8 +507,9 @@ $ poetry run python -m tagbot.local --help
 
 ### I am seeing some kind of permissions error
 
-* Check that your configuration matches the one shown in [Setup](#Setup), especially the `permissions` block
-* Try using an [ssh deploy key](#SSH-Deploy-Keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
+* **First, check if you have a `permissions:` block in your TagBot workflow file.** If you do, **remove it entirely**. Explicit permissions (even with `contents: write`) prevent TagBot from creating releases due to GitHub's permission model. The default GitHub Actions token permissions are what TagBot needs.
+* Check that your repository settings allow GitHub Actions to create releases (see [Setup](#setup))
+* Try using an [ssh deploy key](#ssh-deploy-keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
 
 ### I am missing old tags
 
