@@ -50,8 +50,8 @@ try:
 
     GitlabClient = _GitlabClient
     GitlabUnknown = _GitlabUnknown
-except Exception:
-    # Optional import: ignore errors if .gitlab is not available or fails to import.
+except ImportError:
+    # Optional import: ignore import errors if .gitlab is not available.
     pass
 
 # Build a tuple of UnknownObjectException classes for both GitHub and GitLab
@@ -128,10 +128,10 @@ class Repo:
             self._registry_ssh_key = registry_ssh
             logger.debug("Will access registry via Git clone")
             self._clone_registry = True
-        except Exception:
+        except (GithubException, RequestException) as exc:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
-                logger.warning("'awful hack' in use")
+                logger.warning("'awful hack' in use", exc_info=exc)
                 self._registry = self._gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
@@ -312,8 +312,7 @@ class Repo:
         # Handle special case of tagging packages in a repo subdirectory, in which
         # case the Julia package tree hash does not match the git commit tree hash
         if self.__subdir:
-            arg = f"{commit.sha}:{self.__subdir}"
-            subdir_tree_hash = self._git.command("rev-parse", arg)
+            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=False)
             if subdir_tree_hash == tree:
                 return cast(str, commit.sha)
             else:
@@ -332,8 +331,15 @@ class Repo:
     ) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
         for commit in self._repo.get_commits(sha=branch, since=since):
-            if commit.commit.tree.sha == tree:
-                return cast(str, commit.sha)
+            if self.__subdir:
+                subdir_tree_hash = self._subdir_tree_hash(
+                    commit.sha, suppress_abort=True
+                )
+                if subdir_tree_hash == tree:
+                    return cast(str, commit.sha)
+            else:
+                if commit.commit.tree.sha == tree:
+                    return cast(str, commit.sha)
         return None
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
@@ -351,7 +357,33 @@ class Repo:
         # For a valid tree SHA, the only time that we reach here is when a release
         # has been made long after the commit was made, which is reasonably rare.
         # Fall back to cloning the repo in that case.
-        return self._git.commit_sha_of_tree(tree)
+        if self.__subdir:
+            # For subdirectories, we need to check the subdirectory tree hash.
+            # Limit to 10000 commits to avoid performance issues on large repos.
+            for line in self._git.command(
+                "log", "--all", "--format=%H", "-n", "10000"
+            ).splitlines():
+                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
+                if subdir_tree_hash == tree:
+                    return line
+            return None
+        else:
+            return self._git.commit_sha_of_tree(tree)
+
+    def _subdir_tree_hash(
+        self, commit_sha: str, *, suppress_abort: bool
+    ) -> Optional[str]:
+        """Return subdir tree hash for a commit; optionally suppress Abort."""
+        if not self.__subdir:
+            return None
+        arg = f"{commit_sha}:{self.__subdir}"
+        try:
+            return self._git.command("rev-parse", arg)
+        except Abort:
+            if suppress_abort:
+                logger.debug("rev-parse failed while inspecting %s", arg)
+                return None
+            raise
 
     def _commit_sha_of_tag(self, version_tag: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""

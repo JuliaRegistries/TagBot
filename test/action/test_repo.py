@@ -269,6 +269,48 @@ def test_commit_sha_of_tree_from_branch():
     assert r._commit_sha_of_tree_from_branch("master", "tree", since) is None
 
 
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_from_branch_subdir(logger):
+    r = _repo(subdir="path/to/package")
+    since = datetime.now(timezone.utc)
+    commits = [Mock(sha="abc"), Mock(sha="sha")]
+    r._repo.get_commits = Mock(return_value=commits)
+    r._git.command = Mock(side_effect=["other", "tree_hash"])
+
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+
+    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    r._git.command.assert_has_calls(
+        [
+            call("rev-parse", "abc:path/to/package"),
+            call("rev-parse", "sha:path/to/package"),
+        ]
+    )
+    logger.debug.assert_not_called()
+
+
+@patch("tagbot.action.repo.logger")
+def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
+    r = _repo(subdir="path/to/package")
+    since = datetime.now(timezone.utc)
+    commits = [Mock(sha="abc"), Mock(sha="sha")]
+    r._repo.get_commits = Mock(return_value=commits)
+    r._git.command = Mock(side_effect=[Abort("missing"), "tree_hash"])
+
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+
+    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    logger.debug.assert_called_with(
+        "rev-parse failed while inspecting %s", "abc:path/to/package"
+    )
+    r._git.command.assert_has_calls(
+        [
+            call("rev-parse", "abc:path/to/package"),
+            call("rev-parse", "sha:path/to/package"),
+        ]
+    )
+
+
 def test_commit_sha_of_tree():
     r = _repo()
     now = datetime.now(timezone.utc)
@@ -288,6 +330,41 @@ def test_commit_sha_of_tree():
     r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
     assert r._commit_sha_of_tree("tree") == "sha"
     assert r._commit_sha_of_tree("tree") is None
+
+
+def test_commit_sha_of_tree_subdir_fallback():
+    """Test subdirectory fallback when branch lookups fail."""
+    r = _repo(subdir="path/to/package")
+    now = datetime.now(timezone.utc)
+    r._repo = Mock(default_branch="master")
+    branches = r._repo.get_branches.return_value = [Mock()]
+    branches[0].name = "master"
+    r._lookback = Mock(__rsub__=lambda x, y: now)
+    # Branch lookups return None (fail)
+    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
+    # git log returns commit SHAs
+    r._git.command = Mock(return_value="abc123\ndef456\nghi789")
+    # _subdir_tree_hash called via helper, simulate finding match on second commit
+    with patch.object(r, "_subdir_tree_hash", side_effect=[None, "tree_hash", "other"]):
+        assert r._commit_sha_of_tree("tree_hash") == "def456"
+        # Verify it iterated through commits
+        assert r._subdir_tree_hash.call_count == 2
+
+
+def test_commit_sha_of_tree_subdir_fallback_no_match():
+    """Test subdirectory fallback returns None when no match found."""
+    r = _repo(subdir="path/to/package")
+    now = datetime.now(timezone.utc)
+    r._repo = Mock(default_branch="master")
+    branches = r._repo.get_branches.return_value = [Mock()]
+    branches[0].name = "master"
+    r._lookback = Mock(__rsub__=lambda x, y: now)
+    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
+    r._git.command = Mock(return_value="abc123\ndef456")
+    # No matches found
+    with patch.object(r, "_subdir_tree_hash", return_value=None):
+        assert r._commit_sha_of_tree("tree_hash") is None
+        assert r._subdir_tree_hash.call_count == 2
 
 
 def test_commit_sha_of_tag():
