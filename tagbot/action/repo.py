@@ -234,6 +234,7 @@ class Repo:
 
     def _maybe_decode_private_key(self, key: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
+        key = key.strip()
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
     def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
@@ -673,7 +674,7 @@ class Repo:
         except Exception as e:
             logger.debug(f"Could not check rate limit: {e}")
 
-    def handle_error(self, e: Exception) -> None:
+    def handle_error(self, e: Exception, *, raise_abort: bool = True) -> None:
         """Handle an unexpected error."""
         allowed = False
         internal = True
@@ -707,7 +708,7 @@ class Repo:
             except Exception:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
-            finally:
+            if raise_abort:
                 raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
