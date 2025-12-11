@@ -156,6 +156,23 @@ def test_registry_path_with_uppercase_uuid():
     assert r._registry_path == "B/Bar"
 
 
+@patch("tagbot.action.repo.logger")
+def test_registry_path_malformed_toml(logger):
+    """Test that malformed Registry.toml returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Malformed TOML content (missing closing bracket)
+    r._registry.get_git_blob.return_value.content = b64encode(b"[packages\nkey")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
+    assert "malformed TOML" in logger.warning.call_args[0][0]
+
+
 def test_registry_url():
     r = _repo()
     r._Repo__registry_path = "E/Example"
