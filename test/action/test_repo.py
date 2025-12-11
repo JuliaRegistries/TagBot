@@ -195,7 +195,7 @@ def test_registry_path_invalid_encoding(logger):
     result = r._registry_path
     assert result is None
     logger.warning.assert_called_once()
-    assert "Failed to load Registry.toml" in logger.warning.call_args[0][0]
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
     assert "UnicodeDecodeError" in logger.warning.call_args[0][0]
 
 
@@ -210,7 +210,7 @@ def test_registry_path_file_not_found(logger):
     result = r._registry_path
     assert result is None
     logger.warning.assert_called_once()
-    assert "Failed to load Registry.toml" in logger.warning.call_args[0][0]
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
     assert "FileNotFoundError" in logger.warning.call_args[0][0]
 
 
