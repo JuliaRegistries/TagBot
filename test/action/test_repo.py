@@ -173,6 +173,38 @@ def test_registry_path_malformed_toml(logger):
     assert "malformed TOML" in logger.warning.call_args[0][0]
 
 
+@patch("tagbot.action.repo.logger")
+def test_registry_path_invalid_encoding(logger):
+    """Test that invalid UTF-8 encoding in Registry.toml returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Mock get_git_blob to return content with invalid UTF-8 bytes
+    r._registry.get_git_blob.return_value.content = b64encode(b"\xff\xfe[packages]")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to load Registry.toml" in logger.warning.call_args[0][0]
+    assert "UnicodeDecodeError" in logger.warning.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_registry_path_file_not_found(logger):
+    """Test that missing Registry.toml file returns None and logs warning."""
+    r = _repo(registry_ssh="key")  # Use SSH to trigger clone path
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._clone_registry = True
+    r._Repo__registry_clone_dir = "/nonexistent/path"
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to load Registry.toml" in logger.warning.call_args[0][0]
+    assert "FileNotFoundError" in logger.warning.call_args[0][0]
+
+
 def test_registry_url():
     r = _repo()
     r._Repo__registry_path = "E/Example"
