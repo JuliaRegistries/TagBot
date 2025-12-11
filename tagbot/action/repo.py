@@ -209,9 +209,15 @@ class Repo:
                 b64 = b64decode(blob.content)
                 string_contents = b64.decode("utf8")
                 registry = toml.loads(string_contents)
-        except Exception as e:
+        except toml.TomlDecodeError as e:
             logger.warning(
-                f"Failed to load Registry.toml: {type(e).__name__}: {e}. "
+                f"Failed to parse Registry.toml (malformed TOML): {e}. "
+                "This may indicate a structural issue with the registry file."
+            )
+            return None
+        except (UnicodeDecodeError, OSError) as e:
+            logger.warning(
+                f"Failed to load Registry.toml ({type(e).__name__}): {e}. "
                 "This may indicate a temporary issue with the registry file."
             )
             return None
@@ -238,9 +244,13 @@ class Repo:
             raise InvalidProject("Package.toml was not found")
         try:
             package = toml.loads(contents.decoded_content.decode())
-        except Exception as e:
+        except toml.TomlDecodeError as e:
             raise InvalidProject(
-                f"Failed to parse Package.toml: {type(e).__name__}: {e}"
+                f"Failed to parse Package.toml (malformed TOML): {e}"
+            )
+        except UnicodeDecodeError as e:
+            raise InvalidProject(
+                f"Failed to parse Package.toml (encoding error): {e}"
             )
         self.__registry_url = package["repo"]
         return self.__registry_url
