@@ -113,7 +113,7 @@ def test_project_invalid_encoding():
     r = _repo()
     r._repo.get_contents = Mock(return_value=Mock(decoded_content=b"name = \xff\xfe"))
     r._Repo__project = None
-    with pytest.raises(InvalidProject, match="encoding error"):
+    with pytest.raises(InvalidProject, match="Failed to parse Project.toml"):
         r._project("name")
 
 
