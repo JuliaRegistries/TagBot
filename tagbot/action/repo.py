@@ -172,7 +172,7 @@ class Repo:
             self.__project = toml.loads(contents.decoded_content.decode())
         except toml.TomlDecodeError as e:
             raise InvalidProject(
-                f"Failed to parse Project.toml: {type(e).__name__}: {e}"
+                f"Failed to parse Project.toml: {e}"
             )
         return str(self.__project[k])
 
@@ -249,7 +249,10 @@ class Repo:
             raise InvalidProject(f"Failed to parse Package.toml (malformed TOML): {e}")
         except UnicodeDecodeError as e:
             raise InvalidProject(f"Failed to parse Package.toml (encoding error): {e}")
-        self.__registry_url = package["repo"]
+        try:
+            self.__registry_url = package["repo"]
+        except KeyError:
+            raise InvalidProject("Package.toml is missing the 'repo' key")
         return self.__registry_url
 
     @property
