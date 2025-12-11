@@ -205,6 +205,22 @@ def test_registry_path_file_not_found(logger):
     assert "FileNotFoundError" in logger.warning.call_args[0][0]
 
 
+@patch("tagbot.action.repo.logger")
+def test_registry_path_missing_packages_key(logger):
+    """Missing 'packages' key returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Valid TOML but missing required 'packages' section
+    r._registry.get_git_blob.return_value.content = b64encode(b"[foo]\nbar=1")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "missing the 'packages' key" in logger.warning.call_args[0][0]
+
+
 def test_registry_url():
     r = _repo()
     r._Repo__registry_path = "E/Example"
