@@ -108,6 +108,17 @@ def test_project_malformed_toml():
         r._project("name")
 
 
+def test_project_invalid_encoding():
+    """Invalid UTF-8 in Project.toml raises InvalidProject."""
+    r = _repo()
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"name = \xff\xfe")
+    )
+    r._Repo__project = None
+    with pytest.raises(InvalidProject, match="encoding error"):
+        r._project("name")
+
+
 def test_project_subdir():
     r = _repo(subdir="path/to/FooBar.jl")
     r._repo.get_contents = Mock(
