@@ -170,7 +170,7 @@ class Repo:
             raise InvalidProject("Project file was not found")
         try:
             self.__project = toml.loads(contents.decoded_content.decode())
-        except Exception as e:
+        except toml.TomlDecodeError as e:
             raise InvalidProject(
                 f"Failed to parse Project.toml: {type(e).__name__}: {e}"
             )
@@ -216,7 +216,12 @@ class Repo:
             )
             return None
 
-        if uuid in registry.get("packages", {}):
+        if "packages" not in registry:
+            logger.warning(
+                "Registry.toml is missing the 'packages' key. This may indicate a structural issue with the registry file."
+            )
+            return None
+        if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
         return None
