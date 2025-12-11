@@ -217,7 +217,7 @@ class Repo:
             return None
         except (UnicodeDecodeError, OSError) as e:
             logger.warning(
-                f"Failed to load Registry.toml ({type(e).__name__}): {e}. "
+                f"Failed to parse Registry.toml ({type(e).__name__}): {e}. "
                 "This may indicate a temporary issue with the registry file."
             )
             return None
