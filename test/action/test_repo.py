@@ -175,7 +175,7 @@ def test_registry_path_malformed_toml(logger):
 
 @patch("tagbot.action.repo.logger")
 def test_registry_path_invalid_encoding(logger):
-    """Test that invalid UTF-8 encoding in Registry.toml returns None and logs warning."""
+    """Invalid UTF-8 in Registry.toml returns None and logs warning."""
     r = _repo()
     logger.reset_mock()  # Clear any warnings from _repo() initialization
     r._registry = Mock()
