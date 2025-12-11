@@ -198,6 +198,17 @@ def test_registry_url_malformed_toml():
         _ = r._registry_url
 
 
+def test_registry_url_invalid_encoding():
+    """Test that invalid UTF-8 encoding in Package.toml raises InvalidProject."""
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    # Invalid UTF-8 bytes (0xFF is not valid UTF-8)
+    r._registry.get_contents.return_value.decoded_content = b"name = \xff\xfe"
+    with pytest.raises(InvalidProject, match="encoding error"):
+        _ = r._registry_url
+
+
 def test_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
