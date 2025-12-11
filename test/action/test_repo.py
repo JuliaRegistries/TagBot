@@ -257,6 +257,17 @@ def test_registry_url_invalid_encoding():
         _ = r._registry_url
 
 
+def test_registry_url_missing_repo_key():
+    """Missing 'repo' key in Package.toml raises InvalidProject."""
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    # Valid TOML but missing required 'repo' field
+    r._registry.get_contents.return_value.decoded_content = b"name = 'Example'\n"
+    with pytest.raises(InvalidProject, match="missing the 'repo' key"):
+        _ = r._registry_url
+
+
 def test_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
