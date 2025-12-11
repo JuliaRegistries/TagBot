@@ -190,7 +190,7 @@ def test_registry_path_invalid_encoding(logger):
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
     # Mock get_git_blob to return content with invalid UTF-8 bytes
-    r._registry.get_git_blob.return_value.content = b64encode(b"\xff\xfe[packages]")
+    r._registry.get_git_blob.return_value.content = b64encode(b"\x80\x81[packages]")
     r._project = lambda _k: "abc-def"
     result = r._registry_path
     assert result is None
@@ -250,7 +250,7 @@ def test_registry_url_malformed_toml():
     r._Repo__registry_path = "E/Example"
     r._registry = Mock()
     # Malformed TOML content
-    r._registry.get_contents.return_value.decoded_content = b"name = "
+    r._registry.get_contents.return_value.decoded_content = b"name = \n[incomplete"
     with pytest.raises(InvalidProject, match="Failed to parse Package.toml"):
         _ = r._registry_url
 
@@ -260,8 +260,8 @@ def test_registry_url_invalid_encoding():
     r = _repo()
     r._Repo__registry_path = "E/Example"
     r._registry = Mock()
-    # Invalid UTF-8 bytes (0xFF is not valid UTF-8)
-    r._registry.get_contents.return_value.decoded_content = b"name = \xff\xfe"
+    # Invalid UTF-8 bytes (0x80 and 0x81 are not valid UTF-8 start bytes)
+    r._registry.get_contents.return_value.decoded_content = b"\x80\x81"
     with pytest.raises(InvalidProject, match="encoding error"):
         _ = r._registry_url
 
