@@ -173,9 +173,7 @@ class Repo:
         except toml.TomlDecodeError as e:
             raise InvalidProject(f"Failed to parse Project.toml: {e}")
         except UnicodeDecodeError as e:
-            raise InvalidProject(
-                f"Failed to parse Project.toml (encoding error): {e}"
-            )
+            raise InvalidProject(f"Failed to parse Project.toml (encoding error): {e}")
         return str(self.__project[k])
 
     @property
