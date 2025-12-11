@@ -224,7 +224,8 @@ class Repo:
 
         if "packages" not in registry:
             logger.warning(
-                "Registry.toml is missing the 'packages' key. This may indicate a structural issue with the registry file."
+                "Registry.toml is missing the 'packages' key. "
+                "This may indicate a structural issue with the registry file."
             )
             return None
         if uuid in registry["packages"]:
@@ -245,13 +246,9 @@ class Repo:
         try:
             package = toml.loads(contents.decoded_content.decode())
         except toml.TomlDecodeError as e:
-            raise InvalidProject(
-                f"Failed to parse Package.toml (malformed TOML): {e}"
-            )
+            raise InvalidProject(f"Failed to parse Package.toml (malformed TOML): {e}")
         except UnicodeDecodeError as e:
-            raise InvalidProject(
-                f"Failed to parse Package.toml (encoding error): {e}"
-            )
+            raise InvalidProject(f"Failed to parse Package.toml (encoding error): {e}")
         self.__registry_url = package["repo"]
         return self.__registry_url
 
