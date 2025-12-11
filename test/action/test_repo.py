@@ -262,7 +262,7 @@ def test_registry_url_invalid_encoding():
     r._registry = Mock()
     # Invalid UTF-8 bytes (0x80 and 0x81 are not valid UTF-8 start bytes)
     r._registry.get_contents.return_value.decoded_content = b"\x80\x81"
-    with pytest.raises(InvalidProject, match="encoding error"):
+    with pytest.raises(InvalidProject, match="Failed to parse Package.toml"):
         _ = r._registry_url
 
 
