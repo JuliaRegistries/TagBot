@@ -244,7 +244,7 @@ class Repo:
         try:
             package = toml.loads(contents.decoded_content.decode())
         except toml.TomlDecodeError as e:
-            raise InvalidProject(f"Failed to parse Package.toml (malformed TOML): {e}")
+            raise InvalidProject(f"Failed to parse Package.toml: {e}")
         except UnicodeDecodeError as e:
             raise InvalidProject(f"Failed to parse Package.toml (encoding error): {e}")
         try:
