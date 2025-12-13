@@ -764,7 +764,12 @@ class Repo:
         allowed = False
         internal = True
         trace = traceback.format_exc()
-        if isinstance(e, RequestException):
+        if isinstance(e, Abort):
+            # Abort is raised for characterized failures (e.g., git command failures)
+            # Don't report as "unexpected internal failure"
+            internal = False
+            allowed = False
+        elif isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
             logger.info(trace)
             allowed = True
