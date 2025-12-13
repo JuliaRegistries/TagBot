@@ -18,7 +18,7 @@ Check that workflows have the correct permissions on your repo.
 ![Workflow permissions](workflow_permissions.png)
 
 > [!TIP]
-> Don't add explicit `permissions:` to your TagBot workflow—use defaults. If you see permission errors, see [Troubleshooting](#troubleshooting).
+> Don't add explicit `permissions:` to your TagBot workflow, use defaults. If you see permission errors, see [Troubleshooting](#troubleshooting).
 
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
@@ -492,7 +492,7 @@ $ poetry run python -m tagbot.local --help
 
 ### Permission errors
 
-1. Remove any `permissions:` block from your TagBot workflow—use defaults
+1. Remove any `permissions:` block from your TagBot workflow, use defaults
 2. Check repo settings allow Actions to create releases (see [Setup](#setup))
 3. If still failing, try an [SSH deploy key](#ssh-deploy-keys) (which you may need anyway to trigger other workflows such as Documenter builds)
 
