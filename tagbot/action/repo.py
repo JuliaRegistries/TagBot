@@ -237,6 +237,53 @@ class Repo:
         key = key.strip()
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
+    def _validate_ssh_key(self, key: str) -> None:
+        """Warn if the SSH key appears to be invalid."""
+        key = key.strip()
+        if not key:
+            logger.warning("SSH key is empty")
+            return
+        # Check for common SSH private key markers
+        valid_markers = [
+            "-----BEGIN OPENSSH PRIVATE KEY-----",
+            "-----BEGIN RSA PRIVATE KEY-----",
+            "-----BEGIN DSA PRIVATE KEY-----",
+            "-----BEGIN EC PRIVATE KEY-----",
+            "-----BEGIN PRIVATE KEY-----",
+        ]
+        if not any(marker in key for marker in valid_markers):
+            logger.warning(
+                "SSH key does not appear to be a valid private key. "
+                "Expected a key starting with '-----BEGIN ... PRIVATE KEY-----'. "
+                "Make sure you're using the private key, not the public key."
+            )
+
+    def _test_ssh_connection(self, ssh_cmd: str, host: str) -> None:
+        """Test SSH authentication and warn if it fails."""
+        try:
+            # ssh -T returns exit code 1 even on success (no shell access),
+            # but outputs "successfully authenticated" on success
+            proc = subprocess.run(
+                ssh_cmd.split() + ["-T", f"git@{host}"],
+                text=True,
+                capture_output=True,
+                timeout=30,
+            )
+            output = proc.stdout + proc.stderr
+            if "successfully authenticated" in output.lower():
+                logger.info("SSH key authentication successful")
+            elif "permission denied" in output.lower():
+                logger.warning(
+                    "SSH key authentication failed: Permission denied. "
+                    "Verify the deploy key is added to the repository and has write access."
+                )
+            else:
+                logger.debug(f"SSH test output: {output}")
+        except subprocess.TimeoutExpired:
+            logger.warning("SSH connection test timed out")
+        except Exception as e:
+            logger.debug(f"SSH connection test failed: {e}")
+
     def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
@@ -590,12 +637,14 @@ class Repo:
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
         """Configure the repo to use an SSH key for authentication."""
+        decoded_key = self._maybe_decode_private_key(key)
+        self._validate_ssh_key(decoded_key)
         if not repo:
             self._git.set_remote_url(self._repo.ssh_url)
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
             # SSH keys must end with a single newline.
-            f.write(self._maybe_decode_private_key(key).strip() + "\n")
+            f.write(decoded_key.strip() + "\n")
         os.chmod(priv, S_IREAD)
         # Add the host key to a known hosts file
         # so that we don't have to confirm anything when we try to push.
@@ -624,6 +673,8 @@ class Repo:
             child.expect("Enter passphrase")
             child.sendline(password)
             child.expect("Identity added")
+        # Test SSH authentication
+        self._test_ssh_connection(cmd, host)
 
     def configure_gpg(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to sign tags with GPG."""
