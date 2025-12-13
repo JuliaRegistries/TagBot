@@ -226,6 +226,7 @@ def test_validate_ssh_key(caplog):
 @patch("subprocess.run")
 def test_test_ssh_connection_success(run, caplog):
     r = _repo()
+    caplog.clear()
     run.return_value = Mock(
         stdout="", stderr="Hi there! You've successfully authenticated"
     )
@@ -242,6 +243,7 @@ def test_test_ssh_connection_success(run, caplog):
 @patch("subprocess.run")
 def test_test_ssh_connection_permission_denied(run, caplog):
     r = _repo()
+    caplog.clear()
     run.return_value = Mock(
         stdout="", stderr="git@github.com: Permission denied (publickey)."
     )
@@ -253,6 +255,7 @@ def test_test_ssh_connection_permission_denied(run, caplog):
 @patch("subprocess.run")
 def test_test_ssh_connection_timeout(run, caplog):
     r = _repo()
+    caplog.clear()
     run.side_effect = subprocess.TimeoutExpired(cmd="ssh", timeout=30)
     r._test_ssh_connection("ssh -i key", "github.com")
     assert "SSH connection test timed out" in caplog.text
@@ -261,6 +264,7 @@ def test_test_ssh_connection_timeout(run, caplog):
 @patch("subprocess.run")
 def test_test_ssh_connection_other_error(run, caplog):
     r = _repo()
+    caplog.clear()
     run.side_effect = OSError("Network error")
     r._test_ssh_connection("ssh -i key", "github.com")
     assert "SSH connection test failed" in caplog.text
@@ -269,6 +273,7 @@ def test_test_ssh_connection_other_error(run, caplog):
 @patch("subprocess.run")
 def test_test_ssh_connection_unknown_output(run, caplog):
     r = _repo()
+    caplog.clear()
     run.return_value = Mock(stdout="some other output", stderr="")
     r._test_ssh_connection("ssh -i key", "github.com")
     # Should just debug log, no warning or info
