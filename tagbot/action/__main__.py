@@ -90,17 +90,22 @@ try:
         repo.configure_gpg(gpg, get_input("gpg_password"))
 
     errors = []
+    successes = []
     for version, sha in versions.items():
         try:
             logger.info(f"Processing version {version} ({sha})")
             if get_input("branches", "false") == "true":
                 repo.handle_release_branch(version)
             repo.create_release(version, sha)
+            successes.append(version)
+            logger.info(f"Successfully released {version}")
         except Exception as e:
             logger.error(f"Failed to process version {version}: {e}")
             errors.append((version, e))
             repo.handle_error(e, raise_abort=False)
 
+    if successes:
+        logger.info(f"Successfully released versions: {', '.join(successes)}")
     if errors:
         failed = ", ".join(v for v, _ in errors)
         logger.error(f"Failed to release versions: {failed}")

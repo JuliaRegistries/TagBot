@@ -689,10 +689,11 @@ class Repo:
             # commit on a branch.
             # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
-        logger.info(f"Creating release {version_tag} at {sha}")
+        logger.info(f"Creating GitHub release {version_tag} at {sha}")
         self._repo.create_git_release(
             version_tag, version_tag, log, target_commitish=target, draft=self._draft
         )
+        logger.info(f"GitHub release {version_tag} created successfully")
 
     def _check_rate_limit(self) -> None:
         """Check and log GitHub API rate limit status."""
