@@ -565,6 +565,14 @@ class Repo:
         container = client.containers.get(host)
         return container.image.id
 
+    def _tag_exists(self, version: str) -> bool:
+        """Check if a tag already exists."""
+        try:
+            self._repo.get_git_ref(f"tags/{version}")
+            return True
+        except UnknownObjectException:
+            return False
+
     def create_issue_for_manual_tag(
         self, failures: list[tuple[str, str, str]]
     ) -> None:
@@ -594,6 +602,19 @@ class Repo:
                 "tagbot-manual", "d73a4a", "TagBot needs manual intervention"
             )
 
+        # Build command list, checking which tags already exist
+        commands = []
+        for v, sha, _ in failures:
+            if self._tag_exists(v):
+                # Tag exists, just need to create release
+                commands.append(f"gh release create {v} --generate-notes")
+            else:
+                # Need to create tag and release
+                commands.append(
+                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
+                    f"gh release create {v} --generate-notes"
+                )
+
         versions_list = "\n".join(
             f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {err}"
             for v, sha, err in failures
@@ -607,10 +628,10 @@ TagBot could not automatically create releases for the following versions becaus
 
 ## How to fix
 
-Run these commands locally for each version:
+Run these commands locally:
 
 ```bash
-{chr(10).join(f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && gh release create {v} --generate-notes" for v, sha, _ in failures)}
+{chr(10).join(commands)}
 ```
 
 Or create releases manually via the GitHub UI.
