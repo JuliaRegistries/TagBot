@@ -82,7 +82,9 @@ Notes:
 ### SSH Deploy Keys
 
 Sometimes, instead of using the default `secrets.GITHUB_TOKEN`, it is better to use an SSH deploy key.
-The most notable reason is that the default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
+The most notable reasons are:
+- The default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
+- The default token cannot push tags for commits that contain workflow file changes (`.github/workflows/*.yml`). See [Troubleshooting](#tag-push-fails-with-refusing-to-allow-a-github-app-to-create-or-update-workflow) for details.
 
 To use an SSH deploy key:
 
