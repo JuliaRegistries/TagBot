@@ -17,14 +17,8 @@ Check that workflows have the correct permissions on your repo.
 
 ![Workflow permissions](workflow_permissions.png)
 
-> [!IMPORTANT]
-> **Do not add explicit `permissions:` to your TagBot workflow!**
-> Adding explicit permissions (even with `contents: write`) will prevent TagBot from creating releases.
-> The default GitHub Actions token permissions are sufficient and necessary for TagBot to work correctly.
-
-> [!NOTE]
-> No further action should be required on your part, but if TagBot fails and you see `403: Resource not accessible by integration`
-errors, try adding (or refreshing) an SSH key with the correct permissions. See the [SSH Deploy Keys](#ssh-deploy-keys) section below.
+> [!TIP]
+> Don't add explicit `permissions:` to your TagBot workflow—use defaults. If you see permission errors, see [Troubleshooting](#troubleshooting).
 
 When you add a new release to a registry with Registrator, TagBot will create a GitHub release on your package's repository.
 
@@ -81,17 +75,15 @@ Notes:
 
 ### SSH Deploy Keys
 
-Sometimes, instead of using the default `secrets.GITHUB_TOKEN`, it is better to use an SSH deploy key.
-The most notable reason is that the default token does not have permission to trigger events for other GitHub Actions, such as documentation builds for new tags.
+Use an SSH deploy key instead of the default `secrets.GITHUB_TOKEN` when:
+- You need TagBot to trigger other workflows (e.g., Documenter builds)
+- You're tagging commits that modify workflow files (see [Troubleshooting](#commits-that-modify-workflow-files))
 
-To use an SSH deploy key:
+To set up:
 
-- Create an SSH key and add it to your repository by following the instructions [here](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#set-up-deploy-keys).
-  Make sure to give it write permissions.
-- Create a repository secret by following the instructions [here](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions#creating-encrypted-secrets).
-  Use whatever you like as the name, such as `SSH_KEY`.
-  Use the private key contents as the value.
-- Add the `ssh` input:
+1. [Create an SSH key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#set-up-deploy-keys) and add it as a deploy key with write permissions
+2. [Create a repository secret](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions#creating-encrypted-secrets) with the private key
+3. Add the `ssh` input:
 
 ```yml
 with:
@@ -99,16 +91,9 @@ with:
   ssh: ${{ secrets.SSH_KEY }}
 ```
 
-If you already have a Base64-encoded deploy key and matching repository secret for Documenter, you can reuse it instead of creating a new one.
+You can reuse an existing Base64-encoded Documenter deploy key if you have one.
 
-If your key is password-protected, you'll also need to include the password in another repository secret (not Base64-encoded):
-
-```yml
-with:
-  token: ${{ secrets.GITHUB_TOKEN }}
-  ssh: ${{ secrets.SSH_KEY }}
-  ssh_password: ${{ secrets.SSH_PASSWORD }}
-```
+For password-protected keys, add `ssh_password: ${{ secrets.SSH_PASSWORD }}`.
 
 ### Changelogs
 
@@ -503,14 +488,25 @@ $ poetry install
 $ poetry run python -m tagbot.local --help
 ```
 
-## Troubleshooting tips
+## Troubleshooting
 
-### I am seeing some kind of permissions error
+### Permission errors
 
-* **First, check if you have a `permissions:` block in your TagBot workflow file.** If you do, **remove it entirely**. Explicit permissions (even with `contents: write`) prevent TagBot from creating releases due to GitHub's permission model. The default GitHub Actions token permissions are what TagBot needs.
-* Check that your repository settings allow GitHub Actions to create releases (see [Setup](#setup))
-* Try using an [ssh deploy key](#ssh-deploy-keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
+1. Remove any `permissions:` block from your TagBot workflow—use defaults
+2. Check repo settings allow Actions to create releases (see [Setup](#setup))
+3. If still failing, try an [SSH deploy key](#ssh-deploy-keys) (which you may need anyway to trigger other workflows such as Documenter builds)
 
-### I am missing old tags
+### Commits that modify workflow files
 
-If you have missed tags due to now-fixed errors, you can manually trigger TagBot with a longer "lookback" period (days) in order to try to find them (assuming your workflow has been configured as shown in [Setup](#Setup) with a `workflow_dispatch` trigger). See the [Github docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow) for more on manually running workflows.
+If the tagged commit changes `.github/workflows/*.yml`, GitHub blocks both tag pushes and releases from `GITHUB_TOKEN`. You'll see errors like `refusing to allow a GitHub App to create or update workflow` or `403: Resource not accessible by integration`.
+
+When this happens, TagBot will automatically open an issue on your repository with instructions for manual release creation.
+
+**Workarounds:**
+- **Best**: Avoid workflow changes in version-bump commits
+- **Manual**: `git tag -a v1.2.3 <sha> -m v1.2.3 && git push origin v1.2.3 && gh release create v1.2.3`
+- **PAT**: Use a [fine-grained PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) with `contents: write` + `workflows: write` as the `token`
+
+### Missing old tags
+
+Manually trigger TagBot with a longer `lookback` period. See [GitHub docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow).

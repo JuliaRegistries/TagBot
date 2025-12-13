@@ -104,7 +104,17 @@ class Git:
         # As mentioned in configure_gpg, we can't fully configure automatic signing.
         sign = ["--sign"] if self._gpgsign else []
         self.command("tag", *sign, "-m", message, version, sha)
-        self.command("push", "origin", version)
+        try:
+            self.command("push", "origin", version)
+        except Abort:
+            logger.error(
+                f"Failed to push tag {version}. If this is due to workflow "
+                f"file changes in the tagged commit, use an SSH deploy key "
+                f"(see README) or manually run: "
+                f"git tag -a {version} {sha} -m '{version}' && "
+                f"git push origin {version}"
+            )
+            raise
 
     def fetch_branch(self, branch: str) -> bool:
         """Try to checkout a remote branch, and return whether or not it succeeded."""

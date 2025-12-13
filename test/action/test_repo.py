@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from base64 import b64encode
 from datetime import datetime, timedelta, timezone
@@ -180,6 +181,107 @@ def test_maybe_decode_private_key():
     b64 = b64encode(plain.encode()).decode()
     assert r._maybe_decode_private_key(plain) == plain
     assert r._maybe_decode_private_key(b64) == plain
+
+
+def test_validate_ssh_key(caplog):
+    r = _repo()
+    # Valid keys should not produce warnings
+    caplog.clear()
+    r._validate_ssh_key("-----BEGIN OPENSSH PRIVATE KEY-----\ndata\n-----END")
+    assert "does not appear to be a valid private key" not in caplog.text
+    assert "SSH key is empty" not in caplog.text
+
+    caplog.clear()
+    r._validate_ssh_key("-----BEGIN RSA PRIVATE KEY-----\ndata")
+    assert "does not appear to be a valid private key" not in caplog.text
+
+    caplog.clear()
+    r._validate_ssh_key("-----BEGIN EC PRIVATE KEY-----\ndata")
+    assert "does not appear to be a valid private key" not in caplog.text
+
+    caplog.clear()
+    r._validate_ssh_key("-----BEGIN PRIVATE KEY-----\ndata")
+    assert "does not appear to be a valid private key" not in caplog.text
+
+    # Empty key should warn
+    caplog.clear()
+    r._validate_ssh_key("")
+    assert "SSH key is empty" in caplog.text
+
+    caplog.clear()
+    r._validate_ssh_key("   ")
+    assert "SSH key is empty" in caplog.text
+
+    # Invalid keys should warn
+    caplog.clear()
+    r._validate_ssh_key("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB")
+    assert "does not appear to be a valid private key" in caplog.text
+    assert "private key, not the public key" in caplog.text
+
+    caplog.clear()
+    r._validate_ssh_key("just some random text")
+    assert "does not appear to be a valid private key" in caplog.text
+
+
+@patch("subprocess.run")
+def test_test_ssh_connection_success(run, caplog):
+    r = _repo()
+    caplog.clear()
+    caplog.set_level("INFO")
+    run.return_value = Mock(
+        stdout="", stderr="Hi there! You've successfully authenticated"
+    )
+    r._test_ssh_connection("ssh -i key -o UserKnownHostsFile=hosts", "github.com")
+    run.assert_called_once_with(
+        ["ssh", "-i", "key", "-o", "UserKnownHostsFile=hosts", "-T", "git@github.com"],
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    assert "SSH key authentication successful" in caplog.text
+
+
+@patch("subprocess.run")
+def test_test_ssh_connection_permission_denied(run, caplog):
+    r = _repo()
+    caplog.clear()
+    run.return_value = Mock(
+        stdout="", stderr="git@github.com: Permission denied (publickey)."
+    )
+    r._test_ssh_connection("ssh -i key", "github.com")
+    assert "Permission denied" in caplog.text
+    assert "deploy key is added to the repository" in caplog.text
+
+
+@patch("subprocess.run")
+def test_test_ssh_connection_timeout(run, caplog):
+    r = _repo()
+    caplog.clear()
+    run.side_effect = subprocess.TimeoutExpired(cmd="ssh", timeout=30)
+    r._test_ssh_connection("ssh -i key", "github.com")
+    assert "SSH connection test timed out" in caplog.text
+
+
+@patch("subprocess.run")
+def test_test_ssh_connection_other_error(run, caplog):
+    r = _repo()
+    caplog.clear()
+    caplog.set_level("DEBUG")
+    run.side_effect = OSError("Network error")
+    r._test_ssh_connection("ssh -i key", "github.com")
+    assert "SSH connection test failed" in caplog.text
+
+
+@patch("subprocess.run")
+def test_test_ssh_connection_unknown_output(run, caplog):
+    r = _repo()
+    caplog.clear()
+    caplog.set_level("INFO")
+    run.return_value = Mock(stdout="some other output", stderr="")
+    r._test_ssh_connection("ssh -i key", "github.com")
+    # Should just debug log, no warning or info
+    assert "SSH key authentication successful" not in caplog.text
+    assert "Permission denied" not in caplog.text
 
 
 def test_create_release_branch_pr():
@@ -571,11 +673,18 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_has_calls([call("abc", "w"), call("xyz", "w")], any_order=True)
     open.return_value.write.assert_called_with("BEGIN OPENSSH PRIVATE KEY\n")
-    run.assert_called_with(
+    run.assert_any_call(
         ["ssh-keyscan", "-t", "rsa", "gh.com"],
         check=True,
         stdout=open.return_value,
         stderr=DEVNULL,
+    )
+    # Also verify SSH connection test was called
+    run.assert_any_call(
+        ["ssh", "-i", "abc", "-o", "UserKnownHostsFile=xyz", "-T", "git@gh.com"],
+        text=True,
+        capture_output=True,
+        timeout=30,
     )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
@@ -593,7 +702,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     with patch("builtins.open", open):
         r.configure_ssh("Zm9v", "mypassword")
     open.return_value.write.assert_called_with("foo\n")
-    run.assert_called_with(["ssh-agent"], check=True, text=True, capture_output=True)
+    run.assert_any_call(["ssh-agent"], check=True, text=True, capture_output=True)
     assert os.getenv("VAR1") == "value"
     assert os.getenv("VAR2") == "123"
     spawn.assert_called_with("ssh-add abc")
