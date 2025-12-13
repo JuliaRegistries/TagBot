@@ -573,9 +573,7 @@ class Repo:
         except UnknownObjectException:
             return False
 
-    def create_issue_for_manual_tag(
-        self, failures: list[tuple[str, str, str]]
-    ) -> None:
+    def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
         """Create an issue requesting manual intervention for failed releases.
 
         Args:
@@ -585,9 +583,7 @@ class Repo:
             return
 
         # Check for existing open issue to avoid duplicates
-        existing = list(
-            self._repo.get_issues(state="open", labels=["tagbot-manual"])
-        )
+        existing = list(self._repo.get_issues(state="open", labels=["tagbot-manual"]))
         if existing:
             logger.info(
                 "Issue already exists for manual tag intervention: "
