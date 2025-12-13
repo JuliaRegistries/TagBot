@@ -101,14 +101,22 @@ try:
             logger.info(f"Successfully released {version}")
         except Exception as e:
             logger.error(f"Failed to process version {version}: {e}")
-            errors.append((version, e))
+            errors.append((version, sha, str(e)))
             repo.handle_error(e, raise_abort=False)
 
     if successes:
         logger.info(f"Successfully released versions: {', '.join(successes)}")
     if errors:
-        failed = ", ".join(v for v, _ in errors)
+        failed = ", ".join(v for v, _, _ in errors)
         logger.error(f"Failed to release versions: {failed}")
+        # Create an issue if any failures look like workflow permission issues
+        workflow_errors = [
+            (v, sha, err)
+            for v, sha, err in errors
+            if "workflow" in err.lower() or "Resource not accessible" in err
+        ]
+        if workflow_errors:
+            repo.create_issue_for_manual_tag(workflow_errors)
         sys.exit(1)
 except Exception as e:
     try:

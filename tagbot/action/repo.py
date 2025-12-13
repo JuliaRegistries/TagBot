@@ -565,6 +565,75 @@ class Repo:
         container = client.containers.get(host)
         return container.image.id
 
+    def create_issue_for_manual_tag(
+        self, failures: list[tuple[str, str, str]]
+    ) -> None:
+        """Create an issue requesting manual intervention for failed releases.
+
+        Args:
+            failures: List of (version, sha, error_message) tuples
+        """
+        if not failures:
+            return
+
+        # Check for existing open issue to avoid duplicates
+        existing = list(
+            self._repo.get_issues(state="open", labels=["tagbot-manual"])
+        )
+        if existing:
+            logger.info(
+                f"Issue already exists for manual tag intervention: {existing[0].html_url}"
+            )
+            return
+
+        # Create label if it doesn't exist
+        try:
+            self._repo.get_label("tagbot-manual")
+        except UnknownObjectException:
+            self._repo.create_label(
+                "tagbot-manual", "d73a4a", "TagBot needs manual intervention"
+            )
+
+        versions_list = "\n".join(
+            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {err}"
+            for v, sha, err in failures
+        )
+        body = f"""\
+TagBot could not automatically create releases for the following versions because the commits modify workflow files (`.github/workflows/`). GitHub restricts `GITHUB_TOKEN` from operating on such commits.
+
+## Versions needing manual release
+
+{versions_list}
+
+## How to fix
+
+Run these commands locally for each version:
+
+```bash
+{chr(10).join(f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && gh release create {v} --generate-notes" for v, sha, _ in failures)}
+```
+
+Or create releases manually via the GitHub UI.
+
+## Prevent this in the future
+
+Avoid modifying workflow files in the same commit as version bumps, or use a [Personal Access Token with `workflow` scope](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+See [TagBot troubleshooting](https://github.com/JuliaRegistries/TagBot#commits-that-modify-workflow-files) for details.
+
+---
+*This issue was automatically created by TagBot. ([Run logs]({self._run_url()}))*
+"""
+        try:
+            issue = self._repo.create_issue(
+                title="TagBot: Manual intervention needed for releases",
+                body=body,
+                labels=["tagbot-manual"],
+            )
+            logger.info(f"Created issue for manual intervention: {issue.html_url}")
+        except GithubException as e:
+            logger.warning(f"Could not create issue for manual intervention: {e}")
+
     def _report_error(self, trace: str) -> None:
         """Report an error."""
         try:
