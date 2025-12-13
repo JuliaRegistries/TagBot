@@ -590,7 +590,8 @@ class Repo:
         )
         if existing:
             logger.info(
-                f"Issue already exists for manual tag intervention: {existing[0].html_url}"
+                "Issue already exists for manual tag intervention: "
+                f"{existing[0].html_url}"
             )
             return
 
@@ -619,8 +620,18 @@ class Repo:
             f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {err}"
             for v, sha, err in failures
         )
+        pat_url = (
+            "https://docs.github.com/en/authentication/"
+            "keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
+        )
+        troubleshoot_url = (
+            "https://github.com/JuliaRegistries/TagBot"
+            "#commits-that-modify-workflow-files"
+        )
         body = f"""\
-TagBot could not automatically create releases for the following versions because the commits modify workflow files (`.github/workflows/`). GitHub restricts `GITHUB_TOKEN` from operating on such commits.
+TagBot could not automatically create releases for the following versions \
+because the commits modify workflow files (`.github/workflows/`). \
+GitHub restricts `GITHUB_TOKEN` from operating on such commits.
 
 ## Versions needing manual release
 
@@ -638,9 +649,10 @@ Or create releases manually via the GitHub UI.
 
 ## Prevent this in the future
 
-Avoid modifying workflow files in the same commit as version bumps, or use a [Personal Access Token with `workflow` scope](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+Avoid modifying workflow files in the same commit as version bumps, \
+or use a [Personal Access Token with `workflow` scope]({pat_url}).
 
-See [TagBot troubleshooting](https://github.com/JuliaRegistries/TagBot#commits-that-modify-workflow-files) for details.
+See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
 ---
 *This issue was automatically created by TagBot. ([Run logs]({self._run_url()}))*
