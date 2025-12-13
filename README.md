@@ -511,6 +511,28 @@ $ poetry run python -m tagbot.local --help
 * Check that your repository settings allow GitHub Actions to create releases (see [Setup](#setup))
 * Try using an [ssh deploy key](#ssh-deploy-keys) even if you aren't using Documenter or otherwise need to trigger workflows from TagBot-generated tags
 
+### Tag push fails with "refusing to allow a GitHub App to create or update workflow"
+
+If you see an error like:
+```
+! [remote rejected] v1.2.3 -> v1.2.3 (refusing to allow a GitHub App to create or update workflow `.github/workflows/CI.yml` without `workflows` permission)
+```
+
+This happens when the commit being tagged contains changes to workflow files (`.github/workflows/*.yml`). GitHub requires the `workflows` permission to push tags that reference commits modifying workflow files, even though the tag itself doesn't change any files.
+
+> [!NOTE]
+> **Adding `workflows: write` to your TagBot workflow will NOT fix this.** The `GITHUB_TOKEN` is intentionally restricted by GitHub from pushing tags that reference commits containing workflow changes—this is a security feature to prevent workflows from modifying other workflows, even indirectly. Only SSH deploy keys or Personal Access Tokens (PATs) with the `workflow` scope can bypass this restriction.
+
+**Solutions:**
+1. **Use an SSH deploy key** (recommended): SSH keys bypass this restriction entirely. See [SSH Deploy Keys](#ssh-deploy-keys).
+2. **Manually create the tag/release**: For one-off cases, create the tag locally and push it:
+   ```bash
+   git tag -a v1.2.3 <commit-sha> -m "v1.2.3"
+   git push origin v1.2.3
+   ```
+   Then create the release on GitHub via the web UI or CLI (`gh release create v1.2.3`).
+3. **Avoid workflow changes in registered versions**: If possible, make workflow changes in separate commits from version bumps.
+
 ### I am missing old tags
 
 If you have missed tags due to now-fixed errors, you can manually trigger TagBot with a longer "lookback" period (days) in order to try to find them (assuming your workflow has been configured as shown in [Setup](#Setup) with a `workflow_dispatch` trigger). See the [Github docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow) for more on manually running workflows.
