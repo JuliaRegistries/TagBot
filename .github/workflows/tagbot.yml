@@ -16,5 +16,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          # NOTE: if you don't provide a valid ssh key, any attempts to tag commits where github actions workflows
+          # were changed will fail due to GITHUB_TOKEN alone not having sufficient permissions.
           ssh: ${{ secrets.DOCUMENTER_KEY }}
-          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
