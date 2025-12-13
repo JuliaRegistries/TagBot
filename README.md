@@ -500,9 +500,11 @@ $ poetry run python -m tagbot.local --help
 
 If the tagged commit changes `.github/workflows/*.yml`, GitHub blocks both tag pushes and releases from `GITHUB_TOKEN`. You'll see errors like `refusing to allow a GitHub App to create or update workflow` or `403: Resource not accessible by integration`.
 
+When this happens, TagBot will automatically open an issue on your repository with instructions for manual release creation.
+
 **Workarounds:**
 - **Best**: Avoid workflow changes in version-bump commits
-- **Manual**: `git tag v1.2.3 <sha> && git push origin v1.2.3 && gh release create v1.2.3`
+- **Manual**: `git tag -a v1.2.3 <sha> -m v1.2.3 && git push origin v1.2.3 && gh release create v1.2.3`
 - **PAT**: Use a [fine-grained PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) with `contents: write` + `workflows: write` as the `token`
 
 ### Missing old tags
