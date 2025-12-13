@@ -98,6 +98,26 @@ def test_project():
         r._project("name")
 
 
+def test_project_malformed_toml():
+    """Test that malformed Project.toml raises InvalidProject."""
+    r = _repo()
+    r._repo.get_contents = Mock(
+        return_value=Mock(decoded_content=b"""name = "FooBar"\nuuid""")
+    )
+    r._Repo__project = None
+    with pytest.raises(InvalidProject, match="Failed to parse Project.toml"):
+        r._project("name")
+
+
+def test_project_invalid_encoding():
+    """Invalid UTF-8 in Project.toml raises InvalidProject."""
+    r = _repo()
+    r._repo.get_contents = Mock(return_value=Mock(decoded_content=b"name = \xff\xfe"))
+    r._Repo__project = None
+    with pytest.raises(InvalidProject, match="Failed to parse Project.toml"):
+        r._project("name")
+
+
 def test_project_subdir():
     r = _repo(subdir="path/to/FooBar.jl")
     r._repo.get_contents = Mock(
@@ -146,6 +166,71 @@ def test_registry_path_with_uppercase_uuid():
     assert r._registry_path == "B/Bar"
 
 
+@patch("tagbot.action.repo.logger")
+def test_registry_path_malformed_toml(logger):
+    """Test that malformed Registry.toml returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Malformed TOML content (missing closing bracket)
+    r._registry.get_git_blob.return_value.content = b64encode(b"[packages\nkey")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
+    assert "malformed TOML" in logger.warning.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_registry_path_invalid_encoding(logger):
+    """Invalid UTF-8 in Registry.toml returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Mock get_git_blob to return content with invalid UTF-8 bytes
+    r._registry.get_git_blob.return_value.content = b64encode(b"\x80\x81[packages]")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
+    assert "UnicodeDecodeError" in logger.warning.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_registry_path_file_not_found(logger):
+    """Test that missing Registry.toml file returns None and logs warning."""
+    r = _repo(registry_ssh="key")  # Use SSH to trigger clone path
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._clone_registry = True
+    r._Repo__registry_clone_dir = "/nonexistent/path"
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "Failed to parse Registry.toml" in logger.warning.call_args[0][0]
+    assert "FileNotFoundError" in logger.warning.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_registry_path_missing_packages_key(logger):
+    """Missing 'packages' key returns None and logs warning."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Valid TOML but missing required 'packages' section
+    r._registry.get_git_blob.return_value.content = b64encode(b"[foo]\nbar=1")
+    r._project = lambda _k: "abc-def"
+    result = r._registry_path
+    assert result is None
+    logger.warning.assert_called_once()
+    assert "missing the 'packages' key" in logger.warning.call_args[0][0]
+
+
 def test_registry_url():
     r = _repo()
     r._Repo__registry_path = "E/Example"
@@ -158,6 +243,39 @@ def test_registry_url():
     assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
     assert r._registry_url == "https://github.com/JuliaLang/Example.jl.git"
     assert r._registry.get_contents.call_count == 1
+
+
+def test_registry_url_malformed_toml():
+    """Test that malformed Package.toml raises InvalidProject."""
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    # Malformed TOML content
+    r._registry.get_contents.return_value.decoded_content = b"name = \n[incomplete"
+    with pytest.raises(InvalidProject, match="Failed to parse Package.toml"):
+        _ = r._registry_url
+
+
+def test_registry_url_invalid_encoding():
+    """Test that invalid UTF-8 encoding in Package.toml raises InvalidProject."""
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    # Invalid UTF-8 bytes (0x80 and 0x81 are not valid UTF-8 start bytes)
+    r._registry.get_contents.return_value.decoded_content = b"\x80\x81"
+    with pytest.raises(InvalidProject, match="Failed to parse Package.toml"):
+        _ = r._registry_url
+
+
+def test_registry_url_missing_repo_key():
+    """Missing 'repo' key in Package.toml raises InvalidProject."""
+    r = _repo()
+    r._Repo__registry_path = "E/Example"
+    r._registry = Mock()
+    # Valid TOML but missing required 'repo' field
+    r._registry.get_contents.return_value.decoded_content = b"name = 'Example'\n"
+    with pytest.raises(InvalidProject, match="missing the 'repo' key"):
+        _ = r._registry_url
 
 
 def test_release_branch():

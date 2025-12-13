@@ -168,7 +168,12 @@ class Repo:
                 pass  # Try the next filename
         else:
             raise InvalidProject("Project file was not found")
-        self.__project = toml.loads(contents.decoded_content.decode())
+        try:
+            self.__project = toml.loads(contents.decoded_content.decode())
+        except toml.TomlDecodeError as e:
+            raise InvalidProject(f"Failed to parse Project.toml: {e}")
+        except UnicodeDecodeError as e:
+            raise InvalidProject(f"Failed to parse Project.toml (encoding error): {e}")
         return str(self.__project[k])
 
     @property
@@ -194,16 +199,35 @@ class Repo:
             uuid = self._project("uuid").lower()
         except KeyError:
             raise InvalidProject("Project file has no UUID")
-        if self._clone_registry:
-            with open(os.path.join(self._registry_clone_dir, "Registry.toml")) as f:
-                registry = toml.load(f)
-        else:
-            contents = self._only(self._registry.get_contents("Registry.toml"))
-            blob = self._registry.get_git_blob(contents.sha)
-            b64 = b64decode(blob.content)
-            string_contents = b64.decode("utf8")
-            registry = toml.loads(string_contents)
+        try:
+            if self._clone_registry:
+                with open(os.path.join(self._registry_clone_dir, "Registry.toml")) as f:
+                    registry = toml.load(f)
+            else:
+                contents = self._only(self._registry.get_contents("Registry.toml"))
+                blob = self._registry.get_git_blob(contents.sha)
+                b64 = b64decode(blob.content)
+                string_contents = b64.decode("utf8")
+                registry = toml.loads(string_contents)
+        except toml.TomlDecodeError as e:
+            logger.warning(
+                f"Failed to parse Registry.toml (malformed TOML): {e}. "
+                "This may indicate a structural issue with the registry file."
+            )
+            return None
+        except (UnicodeDecodeError, OSError) as e:
+            logger.warning(
+                f"Failed to parse Registry.toml ({type(e).__name__}): {e}. "
+                "This may indicate a temporary issue with the registry file."
+            )
+            return None
 
+        if "packages" not in registry:
+            logger.warning(
+                "Registry.toml is missing the 'packages' key. "
+                "This may indicate a structural issue with the registry file."
+            )
+            return None
         if uuid in registry["packages"]:
             self.__registry_path = registry["packages"][uuid]["path"]
             return self.__registry_path
@@ -219,8 +243,16 @@ class Repo:
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
         except UnknownObjectExceptions:
             raise InvalidProject("Package.toml was not found")
-        package = toml.loads(contents.decoded_content.decode())
-        self.__registry_url = package["repo"]
+        try:
+            package = toml.loads(contents.decoded_content.decode())
+        except toml.TomlDecodeError as e:
+            raise InvalidProject(f"Failed to parse Package.toml: {e}")
+        except UnicodeDecodeError as e:
+            raise InvalidProject(f"Failed to parse Package.toml (encoding error): {e}")
+        try:
+            self.__registry_url = package["repo"]
+        except KeyError:
+            raise InvalidProject("Package.toml is missing the 'repo' key")
         return self.__registry_url
 
     @property
