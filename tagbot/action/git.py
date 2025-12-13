@@ -108,9 +108,11 @@ class Git:
             self.command("push", "origin", version)
         except Abort:
             logger.error(
-                f"Failed to push tag {version}. If this is due to workflow file changes in the tagged commit, "
-                f"use an SSH deploy key (see README) or manually create the tag/release:\n"
-                f"  git tag -a {version} {sha} -m '{version}' && git push origin {version}"
+                f"Failed to push tag {version}. If this is due to workflow "
+                f"file changes in the tagged commit, use an SSH deploy key "
+                f"(see README) or manually run: "
+                f"git tag -a {version} {sha} -m '{version}' && "
+                f"git push origin {version}"
             )
             raise
 
