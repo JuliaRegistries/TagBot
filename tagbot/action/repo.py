@@ -275,7 +275,8 @@ class Repo:
             elif "permission denied" in output.lower():
                 logger.warning(
                     "SSH key authentication failed: Permission denied. "
-                    "Verify the deploy key is added to the repository and has write access."
+                    "Verify the deploy key is added to the repository "
+                    "and has write access."
                 )
             else:
                 logger.debug(f"SSH test output: {output}")

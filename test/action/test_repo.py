@@ -571,11 +571,18 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     r._git.set_remote_url.assert_called_with("sshurl")
     open.assert_has_calls([call("abc", "w"), call("xyz", "w")], any_order=True)
     open.return_value.write.assert_called_with("BEGIN OPENSSH PRIVATE KEY\n")
-    run.assert_called_with(
+    run.assert_any_call(
         ["ssh-keyscan", "-t", "rsa", "gh.com"],
         check=True,
         stdout=open.return_value,
         stderr=DEVNULL,
+    )
+    # Also verify SSH connection test was called
+    run.assert_any_call(
+        ["ssh", "-i", "abc", "-o", "UserKnownHostsFile=xyz", "-T", "git@gh.com"],
+        text=True,
+        capture_output=True,
+        timeout=30,
     )
     chmod.assert_called_with("abc", S_IREAD)
     r._git.config.assert_called_with(
@@ -593,7 +600,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     with patch("builtins.open", open):
         r.configure_ssh("Zm9v", "mypassword")
     open.return_value.write.assert_called_with("foo\n")
-    run.assert_called_with(["ssh-agent"], check=True, text=True, capture_output=True)
+    run.assert_any_call(["ssh-agent"], check=True, text=True, capture_output=True)
     assert os.getenv("VAR1") == "value"
     assert os.getenv("VAR2") == "123"
     spawn.assert_called_with("ssh-add abc")
