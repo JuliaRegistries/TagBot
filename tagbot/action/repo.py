@@ -269,6 +269,54 @@ class Repo:
         key = key.strip()
         return key if "PRIVATE KEY" in key else b64decode(key).decode()
 
+    def _validate_ssh_key(self, key: str) -> None:
+        """Warn if the SSH key appears to be invalid."""
+        key = key.strip()
+        if not key:
+            logger.warning("SSH key is empty")
+            return
+        # Check for common SSH private key markers
+        valid_markers = [
+            "-----BEGIN OPENSSH PRIVATE KEY-----",
+            "-----BEGIN RSA PRIVATE KEY-----",
+            "-----BEGIN DSA PRIVATE KEY-----",
+            "-----BEGIN EC PRIVATE KEY-----",
+            "-----BEGIN PRIVATE KEY-----",
+        ]
+        if not any(marker in key for marker in valid_markers):
+            logger.warning(
+                "SSH key does not appear to be a valid private key. "
+                "Expected a key starting with '-----BEGIN ... PRIVATE KEY-----'. "
+                "Make sure you're using the private key, not the public key."
+            )
+
+    def _test_ssh_connection(self, ssh_cmd: str, host: str) -> None:
+        """Test SSH authentication and warn if it fails."""
+        try:
+            # ssh -T returns exit code 1 even on success (no shell access),
+            # but outputs "successfully authenticated" on success
+            proc = subprocess.run(
+                ssh_cmd.split() + ["-T", f"git@{host}"],
+                text=True,
+                capture_output=True,
+                timeout=30,
+            )
+            output = proc.stdout + proc.stderr
+            if "successfully authenticated" in output.lower():
+                logger.info("SSH key authentication successful")
+            elif "permission denied" in output.lower():
+                logger.warning(
+                    "SSH key authentication failed: Permission denied. "
+                    "Verify the deploy key is added to the repository "
+                    "and has write access."
+                )
+            else:
+                logger.debug(f"SSH test output: {output}")
+        except subprocess.TimeoutExpired:
+            logger.warning("SSH connection test timed out")
+        except Exception as e:
+            logger.debug(f"SSH connection test failed: {e}")
+
     def _create_release_branch_pr(self, version_tag: str, branch: str) -> None:
         """Create a pull request for the release branch."""
         self._repo.create_pull(
@@ -549,6 +597,104 @@ class Repo:
         container = client.containers.get(host)
         return container.image.id
 
+    def _tag_exists(self, version: str) -> bool:
+        """Check if a tag already exists."""
+        try:
+            self._repo.get_git_ref(f"tags/{version}")
+            return True
+        except UnknownObjectException:
+            return False
+
+    def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
+        """Create an issue requesting manual intervention for failed releases.
+
+        Args:
+            failures: List of (version, sha, error_message) tuples
+        """
+        if not failures:
+            return
+
+        # Check for existing open issue to avoid duplicates
+        existing = list(self._repo.get_issues(state="open", labels=["tagbot-manual"]))
+        if existing:
+            logger.info(
+                "Issue already exists for manual tag intervention: "
+                f"{existing[0].html_url}"
+            )
+            return
+
+        # Create label if it doesn't exist
+        try:
+            self._repo.get_label("tagbot-manual")
+        except UnknownObjectException:
+            self._repo.create_label(
+                "tagbot-manual", "d73a4a", "TagBot needs manual intervention"
+            )
+
+        # Build command list, checking which tags already exist
+        commands = []
+        for v, sha, _ in failures:
+            if self._tag_exists(v):
+                # Tag exists, just need to create release
+                commands.append(f"gh release create {v} --generate-notes")
+            else:
+                # Need to create tag and release
+                commands.append(
+                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
+                    f"gh release create {v} --generate-notes"
+                )
+
+        versions_list = "\n".join(
+            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {err}"
+            for v, sha, err in failures
+        )
+        pat_url = (
+            "https://docs.github.com/en/authentication/"
+            "keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
+        )
+        troubleshoot_url = (
+            "https://github.com/JuliaRegistries/TagBot"
+            "#commits-that-modify-workflow-files"
+        )
+        body = f"""\
+TagBot could not automatically create releases for the following versions \
+because the commits modify workflow files (`.github/workflows/`). \
+GitHub restricts `GITHUB_TOKEN` from operating on such commits.
+
+## Versions needing manual release
+
+{versions_list}
+
+## How to fix
+
+Run these commands locally:
+
+```bash
+{chr(10).join(commands)}
+```
+
+Or create releases manually via the GitHub UI.
+
+## Prevent this in the future
+
+Avoid modifying workflow files in the same commit as version bumps, \
+or use a [Personal Access Token with `workflow` scope]({pat_url}).
+
+See [TagBot troubleshooting]({troubleshoot_url}) for details.
+
+---
+*This issue was automatically created by TagBot. ([Run logs]({self._run_url()}))*
+"""
+        try:
+            issue = self._repo.create_issue(
+                title="TagBot: Manual intervention needed for releases",
+                body=body,
+                labels=["tagbot-manual"],
+            )
+            logger.info(f"Created issue for manual intervention: {issue.html_url}")
+        except GithubException as e:
+            logger.warning(f"Could not create issue for manual intervention: {e}")
+
     def _report_error(self, trace: str) -> None:
         """Report an error."""
         try:
@@ -622,12 +768,14 @@ class Repo:
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
         """Configure the repo to use an SSH key for authentication."""
+        decoded_key = self._maybe_decode_private_key(key)
+        self._validate_ssh_key(decoded_key)
         if not repo:
             self._git.set_remote_url(self._repo.ssh_url)
         _, priv = mkstemp(prefix="tagbot_key_")
         with open(priv, "w") as f:
             # SSH keys must end with a single newline.
-            f.write(self._maybe_decode_private_key(key).strip() + "\n")
+            f.write(decoded_key.strip() + "\n")
         os.chmod(priv, S_IREAD)
         # Add the host key to a known hosts file
         # so that we don't have to confirm anything when we try to push.
@@ -656,6 +804,8 @@ class Repo:
             child.expect("Enter passphrase")
             child.sendline(password)
             child.expect("Identity added")
+        # Test SSH authentication
+        self._test_ssh_connection(cmd, host)
 
     def configure_gpg(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to sign tags with GPG."""
@@ -721,10 +871,11 @@ class Repo:
             # commit on a branch.
             # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
-        logger.info(f"Creating release {version_tag} at {sha}")
+        logger.info(f"Creating GitHub release {version_tag} at {sha}")
         self._repo.create_git_release(
             version_tag, version_tag, log, target_commitish=target, draft=self._draft
         )
+        logger.info(f"GitHub release {version_tag} created successfully")
 
     def _check_rate_limit(self) -> None:
         """Check and log GitHub API rate limit status."""
@@ -743,7 +894,12 @@ class Repo:
         allowed = False
         internal = True
         trace = traceback.format_exc()
-        if isinstance(e, RequestException):
+        if isinstance(e, Abort):
+            # Abort is raised for characterized failures (e.g., git command failures)
+            # Don't report as "unexpected internal failure"
+            internal = False
+            allowed = False
+        elif isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
             logger.info(trace)
             allowed = True
