@@ -7,9 +7,9 @@ on:
         required: true
         description: What kind of bump
         options:
-        - major
-        - minor
         - patch
+        - minor
+        - major
   pull_request:
     types:
       - closed
