@@ -109,14 +109,17 @@ try:
     if errors:
         failed = ", ".join(v for v, _, _ in errors)
         logger.error(f"Failed to release versions: {failed}")
-        # Create an issue if any failures look like workflow permission issues
-        workflow_errors = [
+        # Create an issue if any failures need manual intervention
+        # This includes workflow permission issues and git push failures
+        actionable_errors = [
             (v, sha, err)
             for v, sha, err in errors
-            if "workflow" in err.lower() or "Resource not accessible" in err
+            if "workflow" in err.lower()
+            or "Resource not accessible" in err
+            or "Git command" in err
         ]
-        if workflow_errors:
-            repo.create_issue_for_manual_tag(workflow_errors)
+        if actionable_errors:
+            repo.create_issue_for_manual_tag(actionable_errors)
         sys.exit(1)
 except Exception as e:
     try:
