@@ -141,6 +141,7 @@ def create_release(repo: Repository, pr: PullRequest) -> None:
             name=release,
             message=notes,
             target_commitish=pr.merge_commit_sha,
+            generate_release_notes=True,
         )
     except GithubException as e:
         if e.status == 422:
