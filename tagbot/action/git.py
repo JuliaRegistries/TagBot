@@ -115,7 +115,9 @@ class Git:
 
         # Check if tag already exists on remote
         if self.remote_tag_exists(version):
-            logger.info(f"Tag {version} already exists on remote, skipping tag creation")
+            logger.info(
+                f"Tag {version} already exists on remote, skipping tag creation"
+            )
             return
 
         self.command("tag", *sign, "-m", message, version, sha)
