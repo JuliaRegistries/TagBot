@@ -657,9 +657,12 @@ class Repo:
             "#commits-that-modify-workflow-files"
         )
         body = f"""\
-TagBot could not automatically create releases for the following versions \
-because the commits modify workflow files (`.github/workflows/`). \
-GitHub restricts `GITHUB_TOKEN` from operating on such commits.
+TagBot could not automatically create releases for the following versions. \
+This may be because:
+- The commits modify workflow files (`.github/workflows/`), \
+which `GITHUB_TOKEN` cannot operate on
+- The tag already exists but the release failed to be created
+- A network or API error occurred
 
 ## Versions needing manual release
 
@@ -677,8 +680,9 @@ Or create releases manually via the GitHub UI.
 
 ## Prevent this in the future
 
-Avoid modifying workflow files in the same commit as version bumps, \
-or use a [Personal Access Token with `workflow` scope]({pat_url}).
+If this is due to workflow file changes, avoid modifying them in the same \
+commit as version bumps, or use a \
+[Personal Access Token with `workflow` scope]({pat_url}).
 
 See [TagBot troubleshooting]({troubleshoot_url}) for details.
 

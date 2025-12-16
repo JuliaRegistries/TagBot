@@ -96,17 +96,29 @@ def test_config():
 def test_create_tag():
     g = _git(user="me", email="hi@foo.bar", command="hm")
     g.config = Mock()
+    g.remote_tag_exists = Mock(return_value=False)
     g.create_tag("v1", "abcdef", "log")
     calls = [
         call("user.name", "me"),
         call("user.email", "hi@foo.bar"),
     ]
     g.config.assert_has_calls(calls)
+    g.remote_tag_exists.assert_called_once_with("v1")
     calls = [
         call("tag", "-m", "log", "v1", "abcdef"),
         call("push", "origin", "v1"),
     ]
     g.command.assert_has_calls(calls)
+
+
+def test_create_tag_already_exists():
+    g = _git(user="me", email="hi@foo.bar", command="hm")
+    g.config = Mock()
+    g.remote_tag_exists = Mock(return_value=True)
+    g.create_tag("v1", "abcdef", "log")
+    g.remote_tag_exists.assert_called_once_with("v1")
+    # Should not call tag or push when tag already exists
+    g.command.assert_not_called()
 
 
 def test_fetch_branch():

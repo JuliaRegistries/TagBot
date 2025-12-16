@@ -97,12 +97,29 @@ class Git:
         """Configure the repository."""
         self.command("config", key, val, repo=repo)
 
+    def remote_tag_exists(self, version: str) -> bool:
+        """Check if a tag exists on the remote."""
+        # Use ls-remote to check if the tag exists on origin
+        try:
+            output = self.command("ls-remote", "--tags", "origin", version)
+            return bool(output.strip())
+        except Abort:
+            return False
+
     def create_tag(self, version: str, sha: str, message: str) -> None:
         """Create and push a Git tag."""
         self.config("user.name", self._user)
         self.config("user.email", self._email)
         # As mentioned in configure_gpg, we can't fully configure automatic signing.
         sign = ["--sign"] if self._gpgsign else []
+
+        # Check if tag already exists on remote
+        if self.remote_tag_exists(version):
+            logger.info(
+                f"Tag {version} already exists on remote, skipping tag creation"
+            )
+            return
+
         self.command("tag", *sign, "-m", message, version, sha)
         try:
             self.command("push", "origin", version)
