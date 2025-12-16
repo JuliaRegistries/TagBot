@@ -111,7 +111,7 @@ inputs:
     required: false
 runs:
   using: docker
-  image: docker://ghcr.io/juliaregistries/tagbot:1.22.1
+  image: docker://ghcr.io/juliaregistries/tagbot:1.22.2
 branding:
   icon: tag
   color: red
