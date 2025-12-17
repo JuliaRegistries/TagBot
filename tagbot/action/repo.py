@@ -604,6 +604,9 @@ class Repo:
             return True
         except UnknownObjectException:
             return False
+        except GithubException:
+            # If we can't check, assume it doesn't exist
+            return False
 
     def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
         """Create an issue requesting manual intervention for failed releases.
@@ -615,21 +618,34 @@ class Repo:
             return
 
         # Check for existing open issue to avoid duplicates
-        existing = list(self._repo.get_issues(state="open", labels=["tagbot-manual"]))
-        if existing:
-            logger.info(
-                "Issue already exists for manual tag intervention: "
-                f"{existing[0].html_url}"
-            )
-            return
+        # Search by title since labels may not be available
+        try:
+            existing = list(self._repo.get_issues(state="open"))
+            for issue in existing:
+                if "TagBot: Manual intervention" in issue.title:
+                    logger.info(
+                        "Issue already exists for manual tag intervention: "
+                        f"{issue.html_url}"
+                    )
+                    return
+        except GithubException as e:
+            logger.debug(f"Could not check for existing issues: {e}")
 
-        # Create label if it doesn't exist
+        # Try to create/get the label
+        label_available = False
         try:
             self._repo.get_label("tagbot-manual")
+            label_available = True
         except UnknownObjectException:
-            self._repo.create_label(
-                "tagbot-manual", "d73a4a", "TagBot needs manual intervention"
-            )
+            try:
+                self._repo.create_label(
+                    "tagbot-manual", "d73a4a", "TagBot needs manual intervention"
+                )
+                label_available = True
+            except GithubException as e:
+                logger.debug(f"Could not create 'tagbot-manual' label: {e}")
+        except GithubException as e:
+            logger.debug(f"Could not check for 'tagbot-manual' label: {e}")
 
         # Build command list, checking which tags already exist
         commands = []
@@ -693,7 +709,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             issue = self._repo.create_issue(
                 title="TagBot: Manual intervention needed for releases",
                 body=body,
-                labels=["tagbot-manual"],
+                labels=["tagbot-manual"] if label_available else [],
             )
             logger.info(f"Created issue for manual intervention: {issue.html_url}")
         except GithubException as e:
