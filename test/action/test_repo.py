@@ -758,7 +758,8 @@ def test_new_versions():
         {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
     r._filter_map_versions = lambda vs: vs
-    assert list(r.new_versions().items()) == [("1.2.3", "abc"), ("2.3.4", "bcd"), ("3.4.5", "cde")]
+    expected = [("1.2.3", "abc"), ("2.3.4", "bcd"), ("3.4.5", "cde")]
+    assert list(r.new_versions().items()) == expected
 
 
 def test_create_dispatch_event():
