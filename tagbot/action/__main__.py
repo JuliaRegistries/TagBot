@@ -60,7 +60,6 @@ try:
         registry_ssh=get_input("registry_ssh"),
         user=get_input("user"),
         email=get_input("email"),
-        lookback=0,
         branch=get_input("branch"),
         subdir=get_input("subdir"),
         tag_prefix=get_input("tag_prefix"),

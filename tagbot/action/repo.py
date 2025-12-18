@@ -12,7 +12,7 @@ import requests
 import toml
 
 from base64 import b64decode
-from datetime import datetime, timedelta
+from datetime import datetime
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
