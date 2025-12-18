@@ -12,7 +12,7 @@ import requests
 import toml
 
 from base64 import b64decode
-from datetime import datetime
+from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
@@ -84,7 +84,6 @@ class Repo:
         registry_ssh: str,
         user: str,
         email: str,
-        lookback: int,
         branch: Optional[str],
         subdir: Optional[str] = None,
         tag_prefix: Optional[str] = None,
@@ -146,7 +145,6 @@ class Repo:
         self._user = user
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
-        self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
         self.__subdir = subdir

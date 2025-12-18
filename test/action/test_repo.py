@@ -33,7 +33,6 @@ def _repo(
     registry_ssh="",
     user="",
     email="",
-    lookback=3,
     branch=None,
     subdir=None,
     tag_prefix=None,
@@ -52,7 +51,6 @@ def _repo(
         registry_ssh=registry_ssh,
         user=user,
         email=email,
-        lookback=lookback,
         branch=branch,
         subdir=subdir,
         tag_prefix=tag_prefix,
@@ -570,11 +568,9 @@ def test_commit_sha_of_tree_subdir_fallback():
 def test_commit_sha_of_tree_subdir_fallback_no_match():
     """Test subdirectory fallback returns None when no match found."""
     r = _repo(subdir="path/to/package")
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock()]
     branches[0].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     r._git.command = Mock(return_value="abc123\ndef456")
     # No matches found
