@@ -5,8 +5,8 @@ on:
       - created
   workflow_dispatch:
     inputs:
-      lookback:
-        default: "3"
+      draft:
+        default: false
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'

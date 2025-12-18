@@ -533,18 +533,16 @@ def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
 
 def test_commit_sha_of_tree():
     r = _repo()
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock(), Mock()]
     branches[0].name = "foo"
     branches[1].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     r._commit_sha_of_tree_from_branch = Mock(side_effect=["sha1", None, "sha2"])
     assert r._commit_sha_of_tree("tree") == "sha1"
     r._repo.get_branches.assert_not_called()
-    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree", now)
+    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree")
     assert r._commit_sha_of_tree("tree") == "sha2"
-    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree", now)
+    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree")
     r._commit_sha_of_tree_from_branch.side_effect = None
     r._commit_sha_of_tree_from_branch.return_value = None
     r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
@@ -555,11 +553,9 @@ def test_commit_sha_of_tree():
 def test_commit_sha_of_tree_subdir_fallback():
     """Test subdirectory fallback when branch lookups fail."""
     r = _repo(subdir="path/to/package")
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock()]
     branches[0].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     # Branch lookups return None (fail)
     r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     # git log returns commit SHAs
@@ -759,12 +755,10 @@ def test_is_registered():
 def test_new_versions():
     r = _repo()
     r._versions = lambda min_age=None: (
-        {"1.2.3": "abc"}
-        if min_age
-        else {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
+        {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
     r._filter_map_versions = lambda vs: vs
-    assert list(r.new_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
+    assert list(r.new_versions().items()) == [("1.2.3", "abc"), ("2.3.4", "bcd"), ("3.4.5", "cde")]
 
 
 def test_create_dispatch_event():

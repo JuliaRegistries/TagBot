@@ -29,10 +29,6 @@ inputs:
     description: Number of minutes to wait after creating a repository dispatch event
     required: false
     default: 5
-  lookback:
-    description: Number of days to look back in time for new releases
-    required: false
-    default: 3
   ssh:
     description: SSH private key for pushing tags
     required: false

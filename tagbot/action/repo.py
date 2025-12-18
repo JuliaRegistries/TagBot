@@ -360,20 +360,17 @@ class Repo:
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
-        now = datetime.now(timezone.utc)
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._registry
         owner = registry.owner.login
         logger.debug(f"Trying to find PR by registry owner first ({owner})")
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
-            if pr.merged_at is not None and now - pr.merged_at < self._lookback:
+            if pr.merged_at is not None:
                 return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
         prs = registry.get_pulls(state="closed")
         for pr in prs:
-            if now - cast(datetime, pr.closed_at) > self._lookback:
-                break
             if pr.merged and pr.head.ref == head:
                 return cast(PullRequest, pr)
         return None
@@ -407,10 +404,13 @@ class Repo:
             return None
 
     def _commit_sha_of_tree_from_branch(
-        self, branch: str, tree: str, since: datetime
+        self, branch: str, tree: str, since: Optional[datetime] = None
     ) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
-        for commit in self._repo.get_commits(sha=branch, since=since):
+        kwargs: Dict[str, object] = {"sha": branch}
+        if since is not None:
+            kwargs["since"] = since
+        for commit in self._repo.get_commits(**kwargs):
             if self.__subdir:
                 subdir_tree_hash = self._subdir_tree_hash(
                     commit.sha, suppress_abort=True
@@ -424,14 +424,13 @@ class Repo:
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
-        since = datetime.now() - self._lookback
-        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree, since)
+        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree)
         if sha:
             return sha
         for branch in self._repo.get_branches():
             if branch.name == self._release_branch:
                 continue
-            sha = self._commit_sha_of_tree_from_branch(branch.name, tree, since)
+            sha = self._commit_sha_of_tree_from_branch(branch.name, tree)
             if sha:
                 return sha
         # For a valid tree SHA, the only time that we reach here is when a release
@@ -772,13 +771,13 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         """Get all new versions of the package."""
         current = self._versions()
         logger.debug(f"There are {len(current)} total versions")
-        old = self._versions(min_age=self._lookback)
-        logger.debug(f"There are {len(current) - len(old)} new versions")
+        # Check all versions every time (no lookback window)
+        # This allows backfilling old releases if TagBot is set up later
+        logger.debug(f"Checking all {len(current)} versions")
         # Make sure to insert items in SemVer order.
         versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
-            if v not in old:
-                versions[v] = current[v]
+            versions[v] = current[v]
         return self._filter_map_versions(versions)
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:

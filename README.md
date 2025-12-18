@@ -265,20 +265,6 @@ with:
 It's also recommended to set your Git email address to one that is attached to the GPG key (see [Git Configuration](#git-configuration)).
 If you fail to do so, your tags will be marked "Unverified" in the GitHub UI.
 
-### Lookback Period
-
-By default, TagBot checks for new releases that are at most 3 days old.
-Therefore, if you only run TagBot every five days, it might miss some releases.
-To fix this, you can specify a custom number of days to look back in time with the `lookback` input:
-
-```yml
-with:
-  token: ${{ secrets.GITHUB_TOKEN }}
-  lookback: 14
-```
-
-An extra hour is always added, so if you run TagBot every 5 days, you can safely set this input to `5`.
-
 ### Personal Access Tokens (PATs)
 
 We highly recommend that you use an SSH deploy key instead of a personal access token (PAT).
@@ -509,4 +495,4 @@ When this happens, TagBot will automatically open an issue on your repository wi
 
 ### Missing old tags
 
-Manually trigger TagBot with a longer `lookback` period. See [GitHub docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow).
+TagBot now checks all releases every time, so old releases should be automatically created when TagBot is set up or triggered on a repository.
