@@ -463,8 +463,8 @@ class Repo:
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
 
-        # Use the cached PR lookup - fetches once and reuses for all versions
-        # This is much faster than per-version owner lookups when processing many versions
+        # Use the cached PR lookup - fetches once and reuses for all versions.
+        # This is much faster than per-version owner lookups.
         pr_cache = self._build_registry_prs_cache()
         if head in pr_cache:
             pr = pr_cache[head]
