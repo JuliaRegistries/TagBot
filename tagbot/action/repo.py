@@ -315,7 +315,17 @@ class Repo:
     def _maybe_decode_private_key(self, key: str) -> str:
         """Return a decoded value if it is Base64-encoded, or the original value."""
         key = key.strip()
-        return key if "PRIVATE KEY" in key else b64decode(key).decode()
+        if "PRIVATE KEY" in key:
+            return key
+        try:
+            return b64decode(key).decode()
+        except Exception as e:
+            raise ValueError(
+                "SSH key does not appear to be a valid private key. "
+                "Expected either a PEM-formatted key (starting with "
+                "'-----BEGIN ... PRIVATE KEY-----') or a valid Base64-encoded key. "
+                f"Decoding error: {e}"
+            ) from e
 
     def _validate_ssh_key(self, key: str) -> None:
         """Warn if the SSH key appears to be invalid."""
@@ -851,7 +861,13 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             )
             logger.info(f"Created issue for manual intervention: {issue.html_url}")
         except GithubException as e:
-            logger.warning(f"Could not create issue for manual intervention: {e}")
+            logger.warning(
+                f"Could not create issue for manual intervention: {e}\n"
+                "To fix permission issues, check your repository settings:\n"
+                "1. Go to Settings > Actions > General > Workflow permissions\n"
+                "2. Select 'Read and write permissions'\n"
+                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
+            )
 
     def _report_error(self, trace: str) -> None:
         """Report an error."""
