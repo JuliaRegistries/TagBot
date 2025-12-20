@@ -32,6 +32,9 @@ def get_input(key: str, default: str = "") -> str:
 
 
 try:
+    # Reset metrics at start of each run
+    _metrics.reset()
+
     if os.getenv("GITHUB_EVENT_NAME") == "schedule":
         logger.warning(CRON_WARNING)
     token = get_input("token")

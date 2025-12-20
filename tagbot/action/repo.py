@@ -73,6 +73,10 @@ class _PerformanceMetrics:
     """Track performance metrics for API calls and processing."""
 
     def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset all metrics to initial state."""
         self.api_calls = 0
         self.start_time = time.time()
         self.prs_checked = 0
@@ -190,6 +194,8 @@ class Repo:
         self.__registry_url: Optional[str] = None
         # Cache for registry PRs to avoid re-fetching for each version
         self.__registry_prs_cache: Optional[Dict[str, PullRequest]] = None
+        # Cache for commit datetimes to avoid redundant API calls
+        self.__commit_datetimes: Dict[str, datetime] = {}
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -581,6 +587,8 @@ class Repo:
         commit should be marked as latest, preventing backfilled old releases
         from being incorrectly marked as the latest release.
 
+        Uses cached commit datetimes when available to avoid redundant API calls.
+
         Args:
             versions: Dict mapping version strings to commit SHAs
 
@@ -592,15 +600,21 @@ class Repo:
         latest_version: Optional[str] = None
         latest_datetime: Optional[datetime] = None
         for version, sha in versions.items():
-            try:
-                commit = self._repo.get_commit(sha)
-                commit_dt = commit.commit.author.date
-                if latest_datetime is None or commit_dt > latest_datetime:
-                    latest_datetime = commit_dt
-                    latest_version = version
-            except Exception as e:
-                logger.debug(f"Could not get commit datetime for {version} ({sha}): {e}")
-                continue
+            # Check cache first
+            if sha in self.__commit_datetimes:
+                commit_dt = self.__commit_datetimes[sha]
+            else:
+                try:
+                    _metrics.api_calls += 1
+                    commit = self._repo.get_commit(sha)
+                    commit_dt = commit.commit.author.date
+                    self.__commit_datetimes[sha] = commit_dt
+                except Exception as e:
+                    logger.debug(f"Could not get commit datetime for {version} ({sha}): {e}")
+                    continue
+            if latest_datetime is None or commit_dt > latest_datetime:
+                latest_datetime = commit_dt
+                latest_version = version
         return latest_version
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:

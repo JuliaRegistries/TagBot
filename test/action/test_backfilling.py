@@ -3,9 +3,10 @@ Tests for backfilling behavior - ensuring TagBot can create releases for old ver
 when set up later in a package's lifecycle.
 """
 
-from unittest.mock import Mock
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
-from tagbot.action.repo import Repo
+from tagbot.action.repo import Repo, _metrics, _PerformanceMetrics
 
 
 def _repo(
@@ -191,3 +192,135 @@ def test_backfilling_with_prereleases():
 
     # All versions should be present, sorted by SemVer
     assert len(result) >= 3  # At least the stable versions
+
+def test_version_with_latest_commit():
+    """Test that version_with_latest_commit returns the version with newest commit."""
+    r = _repo()
+
+    # Create mock commits with different datetimes
+    old_commit = Mock()
+    old_commit.commit.author.date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    new_commit = Mock()
+    new_commit.commit.author.date = datetime(2024, 6, 15, tzinfo=timezone.utc)
+
+    newest_commit = Mock()
+    newest_commit.commit.author.date = datetime(2024, 12, 1, tzinfo=timezone.utc)
+
+    r._repo = Mock()
+    r._repo.get_commit = Mock(
+        side_effect=lambda sha: {
+            "sha_old": old_commit,
+            "sha_new": new_commit,
+            "sha_newest": newest_commit,
+        }[sha]
+    )
+
+    versions = {
+        "v0.1.0": "sha_old",
+        "v0.2.0": "sha_new",
+        "v0.3.0": "sha_newest",
+    }
+
+    result = r.version_with_latest_commit(versions)
+
+    # Should return v0.3.0 as it has the newest commit
+    assert result == "v0.3.0"
+
+
+def test_version_with_latest_commit_caches_results():
+    """Test that version_with_latest_commit caches commit datetimes."""
+    r = _repo()
+
+    commit = Mock()
+    commit.commit.author.date = datetime(2024, 6, 15, tzinfo=timezone.utc)
+
+    r._repo = Mock()
+    r._repo.get_commit = Mock(return_value=commit)
+
+    versions = {"v1.0.0": "sha1", "v1.1.0": "sha1"}  # Same SHA
+
+    r.version_with_latest_commit(versions)
+
+    # Should only call get_commit once due to caching
+    assert r._repo.get_commit.call_count == 1
+
+
+def test_version_with_latest_commit_empty():
+    """Test that version_with_latest_commit handles empty dict."""
+    r = _repo()
+    assert r.version_with_latest_commit({}) is None
+
+
+def test_performance_metrics_reset():
+    """Test that performance metrics can be reset."""
+    _metrics.api_calls = 100
+    _metrics.prs_checked = 50
+    _metrics.versions_checked = 25
+
+    _metrics.reset()
+
+    assert _metrics.api_calls == 0
+    assert _metrics.prs_checked == 0
+    assert _metrics.versions_checked == 0
+
+
+def test_build_registry_prs_cache():
+    """Test that PR cache is built and reused."""
+    r = _repo()
+
+    # Create mock PRs
+    pr1 = Mock()
+    pr1.merged = True
+    pr1.head.ref = "registrator-pkg-uuid1234-v1.0.0-hash12345"
+
+    pr2 = Mock()
+    pr2.merged = True
+    pr2.head.ref = "registrator-pkg-uuid1234-v1.1.0-hash12345"
+
+    pr3 = Mock()
+    pr3.merged = False  # Not merged, should be excluded
+    pr3.head.ref = "registrator-pkg-uuid1234-v1.2.0-hash12345"
+
+    r._registry = Mock()
+    r._registry.get_pulls = Mock(return_value=[pr1, pr2, pr3])
+
+    # Build cache
+    cache = r._build_registry_prs_cache()
+
+    # Only merged PRs should be in cache
+    assert len(cache) == 2
+    assert "registrator-pkg-uuid1234-v1.0.0-hash12345" in cache
+    assert "registrator-pkg-uuid1234-v1.1.0-hash12345" in cache
+    assert "registrator-pkg-uuid1234-v1.2.0-hash12345" not in cache
+
+    # Second call should return cached result without new API call
+    r._registry.get_pulls.reset_mock()
+    cache2 = r._build_registry_prs_cache()
+    r._registry.get_pulls.assert_not_called()
+    assert cache2 is cache
+
+
+@patch("tagbot.action.repo.logger")
+def test_create_release_with_is_latest(logger):
+    """Test that create_release respects is_latest parameter."""
+    r = _repo()
+
+    r._repo = Mock()
+    r._repo.default_branch = "main"
+    r._changelog = Mock()
+    r._changelog.get = Mock(return_value="Changelog content")
+    r._git = Mock()
+    r._commit_sha_of_release_branch = Mock(return_value="different_sha")
+
+    # Test with is_latest=True
+    r.create_release("v1.0.0", "sha123", is_latest=True)
+    call_kwargs = r._repo.create_git_release.call_args[1]
+    assert call_kwargs["make_latest"] == "true"
+
+    r._repo.create_git_release.reset_mock()
+
+    # Test with is_latest=False
+    r.create_release("v0.9.0", "sha456", is_latest=False)
+    call_kwargs = r._repo.create_git_release.call_args[1]
+    assert call_kwargs["make_latest"] == "false"
