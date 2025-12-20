@@ -86,11 +86,18 @@ class Repo:
         email: str,
         branch: Optional[str],
         subdir: Optional[str] = None,
+        lookback: Optional[int] = None,
         tag_prefix: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
             github_kwargs = {}
+        if lookback is not None:
+            logger.warning(
+                "The 'lookback' parameter is deprecated and no longer has any effect. "
+                "TagBot now checks all releases every time to support backfilling. "
+                "You can safely remove this parameter from your configuration."
+            )
         if not urlparse(github).scheme:
             github = f"https://{github}"
         if not urlparse(github_api).scheme:

@@ -265,6 +265,14 @@ with:
 It's also recommended to set your Git email address to one that is attached to the GPG key (see [Git Configuration](#git-configuration)).
 If you fail to do so, your tags will be marked "Unverified" in the GitHub UI.
 
+### Lookback Period (Deprecated)
+
+**Note: The `lookback` parameter is deprecated as of v1.23.0 and will be removed in a future version.**
+
+TagBot now checks all package versions every time it runs, which allows it to automatically backfill old releases if TagBot is set up later in a package's lifecycle. The `lookback` parameter is accepted for backward compatibility but has no effect.
+
+If you have `lookback` configured in your workflow, you can safely remove it.
+
 ### Personal Access Tokens (PATs)
 
 We highly recommend that you use an SSH deploy key instead of a personal access token (PAT).
