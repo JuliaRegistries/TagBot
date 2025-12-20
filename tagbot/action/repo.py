@@ -543,6 +543,36 @@ class Repo:
         branch = self._repo.get_branch(self._release_branch)
         return cast(str, branch.commit.sha)
 
+    def version_with_latest_commit(self, versions: Dict[str, str]) -> Optional[str]:
+        """Find the version with the most recent commit datetime.
+
+        This is used to determine which release should be marked as "latest"
+        when creating multiple releases. Only the version with the most recent
+        commit should be marked as latest, preventing backfilled old releases
+        from being incorrectly marked as the latest release.
+
+        Args:
+            versions: Dict mapping version strings to commit SHAs
+
+        Returns:
+            The version string with the most recent commit, or None if empty.
+        """
+        if not versions:
+            return None
+        latest_version: Optional[str] = None
+        latest_datetime: Optional[datetime] = None
+        for version, sha in versions.items():
+            try:
+                commit = self._repo.get_commit(sha)
+                commit_dt = commit.commit.author.date
+                if latest_datetime is None or commit_dt > latest_datetime:
+                    latest_datetime = commit_dt
+                    latest_version = version
+            except Exception as e:
+                logger.debug(f"Could not get commit datetime for {version} ({sha}): {e}")
+                continue
+        return latest_version
+
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
         valid = {}
@@ -941,8 +971,16 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             version_tag = self._get_version_tag(version)
             self._create_release_branch_pr(version_tag, branch)
 
-    def create_release(self, version: str, sha: str) -> None:
-        """Create a GitHub release."""
+    def create_release(self, version: str, sha: str, is_latest: bool = True) -> None:
+        """Create a GitHub release.
+
+        Args:
+            version: The version string (e.g., "v1.2.3")
+            sha: The commit SHA to tag
+            is_latest: Whether this release should be marked as the latest release.
+                       Set to False when backfilling old releases to avoid marking
+                       them as latest.
+        """
         target = sha
         if self._commit_sha_of_release_branch() == sha:
             # If we use <branch> as the target, GitHub will show
@@ -958,8 +996,12 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
+        # Use make_latest=False for backfilled old releases to avoid marking them
+        # as the "Latest" release on GitHub
+        make_latest_str = "true" if is_latest else "false"
         self._repo.create_git_release(
-            version_tag, version_tag, log, target_commitish=target, draft=self._draft
+            version_tag, version_tag, log, target_commitish=target, draft=self._draft,
+            make_latest=make_latest_str
         )
         logger.info(f"GitHub release {version_tag} created successfully")
 

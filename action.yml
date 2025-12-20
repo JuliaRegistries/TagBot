@@ -26,13 +26,13 @@ inputs:
     required: false
     default: false
   dispatch_delay:
+    description: Number of minutes to wait after creating a repository dispatch event
+    required: false
+    default: 5
   lookback:
     description: "[DEPRECATED] This parameter no longer has any effect and will be removed in a future version"
     required: false
     default: 3
-    description: Number of minutes to wait after creating a repository dispatch event
-    required: false
-    default: 5
   ssh:
     description: SSH private key for pushing tags
     required: false
