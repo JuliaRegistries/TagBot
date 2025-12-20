@@ -196,6 +196,8 @@ class Repo:
         self.__registry_prs_cache: Optional[Dict[str, PullRequest]] = None
         # Cache for commit datetimes to avoid redundant API calls
         self.__commit_datetimes: Dict[str, datetime] = {}
+        # Cache for existing tags to avoid per-version API calls
+        self.__existing_tags_cache: Optional[Dict[str, str]] = None
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -461,20 +463,8 @@ class Repo:
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
 
-        # Check for an owner's PR first, since this is way faster (only one request).
-        registry = self._registry
-        owner = registry.owner.login
-        logger.debug(f"Trying to find PR by registry owner first ({owner})")
-        _metrics.api_calls += 1
-        prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
-        for pr in prs:
-            _metrics.prs_checked += 1
-            if pr.merged_at is not None:
-                logger.debug(f"Found registry PR #{pr.number} by registry owner")
-                return cast(PullRequest, pr)
-        logger.debug("Did not find registry PR by registry owner")
-
         # Use the cached PR lookup - fetches once and reuses for all versions
+        # This is much faster than per-version owner lookups when processing many versions
         pr_cache = self._build_registry_prs_cache()
         if head in pr_cache:
             pr = pr_cache[head]
@@ -573,20 +563,56 @@ class Repo:
                 return None
             raise
 
+    def _build_tags_cache(self) -> Dict[str, str]:
+        """Build a cache of all existing tags mapped to their commit SHAs.
+
+        This fetches all tags once and caches them, avoiding per-version API calls.
+        Returns a dict mapping tag names (without 'refs/tags/' prefix) to commit SHAs.
+        """
+        if self.__existing_tags_cache is not None:
+            return self.__existing_tags_cache
+
+        logger.debug("Building tags cache (fetching all tags)")
+        _metrics.api_calls += 1
+        cache: Dict[str, str] = {}
+        try:
+            # Fetch all tag refs in one paginated call
+            refs = self._repo.get_git_refs()
+            for ref in refs:
+                if not ref.ref.startswith("refs/tags/"):
+                    continue
+                tag_name = ref.ref[len("refs/tags/"):]
+                ref_type = getattr(ref.object, "type", None)
+                if ref_type == "commit":
+                    cache[tag_name] = ref.object.sha
+                elif ref_type == "tag":
+                    # Annotated tag - need to resolve to commit
+                    # We'll resolve these lazily if needed
+                    cache[tag_name] = f"annotated:{ref.object.sha}"
+        except Exception as e:
+            logger.debug(f"Could not build tags cache: {e}")
+
+        logger.debug(f"Tags cache built with {len(cache)} tags")
+        self.__existing_tags_cache = cache
+        return cache
+
     def _commit_sha_of_tag(self, version_tag: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
-        try:
-            ref = self._repo.get_git_ref(f"tags/{version_tag}")
-        except UnknownObjectExceptions:
+        # Use cached tags to avoid per-version API calls
+        tags_cache = self._build_tags_cache()
+        if version_tag not in tags_cache:
             return None
-        ref_type = getattr(ref.object, "type", None)
-        if ref_type == "commit":
-            return cast(str, ref.object.sha)
-        elif ref_type == "tag":
-            tag = self._repo.get_git_tag(ref.object.sha)
-            return cast(str, tag.object.sha)
-        else:
-            return None
+
+        sha = tags_cache[version_tag]
+        if sha.startswith("annotated:"):
+            # Resolve annotated tag to commit SHA
+            _metrics.api_calls += 1
+            tag = self._repo.get_git_tag(sha[len("annotated:"):])
+            resolved_sha = cast(str, tag.object.sha)
+            # Update cache with resolved value
+            tags_cache[version_tag] = resolved_sha
+            return resolved_sha
+        return sha
 
     def _commit_sha_of_release_branch(self) -> str:
         """Get the latest commit SHA of the release branch."""
@@ -635,9 +661,29 @@ class Repo:
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
+        # Pre-build caches to avoid repeated API calls
+        self._build_tags_cache()
+        # Pre-build PR cache for versions that need commit SHA lookup
+        if not self._clone_registry:
+            self._build_registry_prs_cache()
+
         valid = {}
+        skipped_existing = 0
         for version, tree in versions.items():
             version = f"v{version}"
+            version_tag = self._get_version_tag(version)
+
+            # Fast path: check if tag already exists using cached tags
+            existing_sha = self._commit_sha_of_tag(version_tag)
+            if existing_sha:
+                # Tag exists - we skip without full validation for performance.
+                # Previously we'd verify the tag points to the expected commit,
+                # but that requires expensive PR/tree lookups for each version.
+                logger.info(f"Tag {version_tag} already exists")
+                skipped_existing += 1
+                continue
+
+            # Tag doesn't exist - need to find expected commit SHA
             expected = self._commit_sha_from_registry_pr(version, tree)
             if not expected:
                 expected = self._commit_sha_of_tree(tree)
@@ -646,16 +692,10 @@ class Repo:
                     f"No matching commit was found for version {version} ({tree})"
                 )
                 continue
-            version_tag = self._get_version_tag(version)
-            sha = self._commit_sha_of_tag(version_tag)
-            if sha:
-                if sha != expected:
-                    msg = f"Existing tag {version_tag} points at the wrong commit (expected {expected})"  # noqa: E501
-                    logger.error(msg)
-                else:
-                    logger.info(f"Tag {version_tag} already exists")
-                continue
             valid[version] = expected
+
+        if skipped_existing > 0:
+            logger.debug(f"Skipped {skipped_existing} versions with existing tags")
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
