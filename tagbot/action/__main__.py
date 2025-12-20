@@ -9,7 +9,7 @@ from datetime import timedelta
 
 from .. import logger
 from .changelog import Changelog
-from .repo import Repo
+from .repo import Repo, _metrics
 
 INPUTS: Optional[Dict[str, str]] = None
 CRON_WARNING = """\
@@ -32,6 +32,9 @@ def get_input(key: str, default: str = "") -> str:
 
 
 try:
+    # Reset metrics at start of each run
+    _metrics.reset()
+
     if os.getenv("GITHUB_EVENT_NAME") == "schedule":
         logger.warning(CRON_WARNING)
     token = get_input("token")
@@ -60,7 +63,6 @@ try:
         registry_ssh=get_input("registry_ssh"),
         user=get_input("user"),
         email=get_input("email"),
-        lookback=int(get_input("lookback")),
         branch=get_input("branch"),
         subdir=get_input("subdir"),
         tag_prefix=get_input("tag_prefix"),
@@ -89,6 +91,16 @@ try:
     if gpg:
         repo.configure_gpg(gpg, get_input("gpg_password"))
 
+    # Determine which version should be marked as "latest" release.
+    # Only the version with the most recent commit should be marked as latest.
+    # This prevents backfilled old releases from being incorrectly marked as latest.
+    latest_version = repo.version_with_latest_commit(versions)
+    if latest_version:
+        logger.info(
+            f"Version {latest_version} has the most recent commit, "
+            "will be marked as latest"
+        )
+
     errors = []
     successes = []
     for version, sha in versions.items():
@@ -96,7 +108,10 @@ try:
             logger.info(f"Processing version {version} ({sha})")
             if get_input("branches", "false") == "true":
                 repo.handle_release_branch(version)
-            repo.create_release(version, sha)
+            is_latest = version == latest_version
+            if not is_latest:
+                logger.info(f"Version {version} will not be marked as latest release")
+            repo.create_release(version, sha, is_latest=is_latest)
             successes.append(version)
             logger.info(f"Successfully released {version}")
         except Exception as e:
@@ -120,7 +135,9 @@ try:
         ]
         if actionable_errors:
             repo.create_issue_for_manual_tag(actionable_errors)
+        _metrics.log_summary()
         sys.exit(1)
+    _metrics.log_summary()
 except Exception as e:
     try:
         repo.handle_error(e)

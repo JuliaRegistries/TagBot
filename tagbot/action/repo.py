@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import traceback
 
 import docker
@@ -12,7 +13,7 @@ import requests
 import toml
 
 from base64 import b64decode
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
@@ -62,6 +63,38 @@ if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
 RequestException = requests.RequestException
+
+# Maximum number of PRs to check when looking for registry PR
+# This prevents excessive API calls on large registries
+MAX_PRS_TO_CHECK = int(os.getenv("TAGBOT_MAX_PRS_TO_CHECK", "300"))
+
+
+class _PerformanceMetrics:
+    """Track performance metrics for API calls and processing."""
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset all metrics to initial state."""
+        self.api_calls = 0
+        self.start_time = time.time()
+        self.prs_checked = 0
+        self.versions_checked = 0
+
+    def log_summary(self) -> None:
+        """Log performance summary."""
+        elapsed = time.time() - self.start_time
+        logger.info(
+            f"Performance: {self.api_calls} API calls, "
+            f"{self.prs_checked} PRs checked, "
+            f"{self.versions_checked} versions processed, "
+            f"{elapsed:.2f}s elapsed"
+        )
+
+
+_metrics = _PerformanceMetrics()
+
 T = TypeVar("T")
 
 
@@ -84,14 +117,20 @@ class Repo:
         registry_ssh: str,
         user: str,
         email: str,
-        lookback: int,
         branch: Optional[str],
         subdir: Optional[str] = None,
+        lookback: Optional[int] = None,
         tag_prefix: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         if github_kwargs is None:
             github_kwargs = {}
+        if lookback is not None:
+            logger.warning(
+                "The 'lookback' parameter is deprecated and no longer has any effect. "
+                "TagBot now checks all releases every time to support backfilling. "
+                "You can safely remove this parameter from your configuration."
+            )
         if not urlparse(github).scheme:
             github = f"https://{github}"
         if not urlparse(github_api).scheme:
@@ -146,7 +185,6 @@ class Repo:
         self._user = user
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
-        self._lookback = timedelta(days=lookback, hours=1)
         self.__registry_clone_dir: Optional[str] = None
         self.__release_branch = branch
         self.__subdir = subdir
@@ -154,6 +192,10 @@ class Repo:
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
         self.__registry_url: Optional[str] = None
+        # Cache for registry PRs to avoid re-fetching for each version
+        self.__registry_prs_cache: Optional[Dict[str, PullRequest]] = None
+        # Cache for commit datetimes to avoid redundant API calls
+        self.__commit_datetimes: Dict[str, datetime] = {}
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -359,6 +401,48 @@ class Repo:
             package_version = package_version[1:]
         return self._tag_prefix() + package_version
 
+    def _build_registry_prs_cache(self) -> Dict[str, PullRequest]:
+        """Build a cache of registry PRs indexed by head branch name.
+
+        This fetches closed PRs once and caches them, avoiding repeated API calls
+        when checking multiple versions. Uses pagination to fetch PRs in batches.
+        """
+        if self.__registry_prs_cache is not None:
+            return self.__registry_prs_cache
+
+        logger.debug(
+            f"Building registry PR cache (fetching up to {MAX_PRS_TO_CHECK} PRs)"
+        )
+        cache: Dict[str, PullRequest] = {}
+        registry = self._registry
+
+        # Fetch PRs with explicit pagination using per_page parameter
+        # PyGithub handles pagination automatically, but we limit total PRs checked
+        _metrics.api_calls += 1
+        prs = registry.get_pulls(state="closed", sort="updated", direction="desc")
+
+        prs_fetched = 0
+        for pr in prs:
+            _metrics.prs_checked += 1
+            prs_fetched += 1
+            if prs_fetched >= MAX_PRS_TO_CHECK:
+                logger.info(
+                    f"PR cache built with {len(cache)} merged PRs "
+                    f"(stopped at {MAX_PRS_TO_CHECK} PR limit)"
+                )
+                break
+            # Only cache merged PRs (not closed without merging)
+            if pr.merged:
+                cache[pr.head.ref] = cast(PullRequest, pr)
+
+        if prs_fetched < MAX_PRS_TO_CHECK:
+            logger.debug(
+                f"PR cache built with {len(cache)} merged PRs (all PRs checked)"
+            )
+
+        self.__registry_prs_cache = cache
+        return cache
+
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
         if self._clone_registry:
@@ -376,22 +460,28 @@ class Repo:
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
-        now = datetime.now(timezone.utc)
+
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._registry
         owner = registry.owner.login
         logger.debug(f"Trying to find PR by registry owner first ({owner})")
+        _metrics.api_calls += 1
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
-            if pr.merged_at is not None and now - pr.merged_at < self._lookback:
+            _metrics.prs_checked += 1
+            if pr.merged_at is not None:
+                logger.debug(f"Found registry PR #{pr.number} by registry owner")
                 return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
-        prs = registry.get_pulls(state="closed")
-        for pr in prs:
-            if now - cast(datetime, pr.closed_at) > self._lookback:
-                break
-            if pr.merged and pr.head.ref == head:
-                return cast(PullRequest, pr)
+
+        # Use the cached PR lookup - fetches once and reuses for all versions
+        pr_cache = self._build_registry_prs_cache()
+        if head in pr_cache:
+            pr = pr_cache[head]
+            logger.debug(f"Found registry PR #{pr.number} in cache")
+            return pr
+
+        logger.debug(f"Did not find registry PR for branch {head}")
         return None
 
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
@@ -423,10 +513,13 @@ class Repo:
             return None
 
     def _commit_sha_of_tree_from_branch(
-        self, branch: str, tree: str, since: datetime
+        self, branch: str, tree: str, since: Optional[datetime] = None
     ) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA on one branch."""
-        for commit in self._repo.get_commits(sha=branch, since=since):
+        kwargs: Dict[str, object] = {"sha": branch}
+        if since is not None:
+            kwargs["since"] = since
+        for commit in self._repo.get_commits(**kwargs):
             if self.__subdir:
                 subdir_tree_hash = self._subdir_tree_hash(
                     commit.sha, suppress_abort=True
@@ -440,14 +533,13 @@ class Repo:
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
-        since = datetime.now() - self._lookback
-        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree, since)
+        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree)
         if sha:
             return sha
         for branch in self._repo.get_branches():
             if branch.name == self._release_branch:
                 continue
-            sha = self._commit_sha_of_tree_from_branch(branch.name, tree, since)
+            sha = self._commit_sha_of_tree_from_branch(branch.name, tree)
             if sha:
                 return sha
         # For a valid tree SHA, the only time that we reach here is when a release
@@ -500,6 +592,46 @@ class Repo:
         """Get the latest commit SHA of the release branch."""
         branch = self._repo.get_branch(self._release_branch)
         return cast(str, branch.commit.sha)
+
+    def version_with_latest_commit(self, versions: Dict[str, str]) -> Optional[str]:
+        """Find the version with the most recent commit datetime.
+
+        This is used to determine which release should be marked as "latest"
+        when creating multiple releases. Only the version with the most recent
+        commit should be marked as latest, preventing backfilled old releases
+        from being incorrectly marked as the latest release.
+
+        Uses cached commit datetimes when available to avoid redundant API calls.
+
+        Args:
+            versions: Dict mapping version strings to commit SHAs
+
+        Returns:
+            The version string with the most recent commit, or None if empty.
+        """
+        if not versions:
+            return None
+        latest_version: Optional[str] = None
+        latest_datetime: Optional[datetime] = None
+        for version, sha in versions.items():
+            # Check cache first
+            if sha in self.__commit_datetimes:
+                commit_dt = self.__commit_datetimes[sha]
+            else:
+                try:
+                    _metrics.api_calls += 1
+                    commit = self._repo.get_commit(sha)
+                    commit_dt = commit.commit.author.date
+                    self.__commit_datetimes[sha] = commit_dt
+                except Exception as e:
+                    logger.debug(
+                        f"Could not get commit datetime for {version} ({sha}): {e}"
+                    )
+                    continue
+            if latest_datetime is None or commit_dt > latest_datetime:
+                latest_datetime = commit_dt
+                latest_version = version
+        return latest_version
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -792,16 +924,24 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
+        start_time = time.time()
         current = self._versions()
-        logger.debug(f"There are {len(current)} total versions")
-        old = self._versions(min_age=self._lookback)
-        logger.debug(f"There are {len(current) - len(old)} new versions")
+        logger.info(f"Found {len(current)} total versions in registry")
+        # Check all versions every time (no lookback window)
+        # This allows backfilling old releases if TagBot is set up later
+        logger.debug(f"Checking all {len(current)} versions")
         # Make sure to insert items in SemVer order.
         versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
-            if v not in old:
-                versions[v] = current[v]
-        return self._filter_map_versions(versions)
+            versions[v] = current[v]
+            _metrics.versions_checked += 1
+        result = self._filter_map_versions(versions)
+        elapsed = time.time() - start_time
+        logger.info(
+            f"Version check complete: {len(result)} new versions found "
+            f"(checked {len(current)} total versions in {elapsed:.2f}s)"
+        )
+        return result
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
@@ -897,8 +1037,16 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             version_tag = self._get_version_tag(version)
             self._create_release_branch_pr(version_tag, branch)
 
-    def create_release(self, version: str, sha: str) -> None:
-        """Create a GitHub release."""
+    def create_release(self, version: str, sha: str, is_latest: bool = True) -> None:
+        """Create a GitHub release.
+
+        Args:
+            version: The version string (e.g., "v1.2.3")
+            sha: The commit SHA to tag
+            is_latest: Whether this release should be marked as the latest release.
+                       Set to False when backfilling old releases to avoid marking
+                       them as latest.
+        """
         target = sha
         if self._commit_sha_of_release_branch() == sha:
             # If we use <branch> as the target, GitHub will show
@@ -914,8 +1062,16 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
+        # Use make_latest=False for backfilled old releases to avoid marking them
+        # as the "Latest" release on GitHub
+        make_latest_str = "true" if is_latest else "false"
         self._repo.create_git_release(
-            version_tag, version_tag, log, target_commitish=target, draft=self._draft
+            version_tag,
+            version_tag,
+            log,
+            target_commitish=target,
+            draft=self._draft,
+            make_latest=make_latest_str,
         )
         logger.info(f"GitHub release {version_tag} created successfully")
 

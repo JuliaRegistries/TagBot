@@ -40,6 +40,7 @@ Read on for a full description of all of the available configuration options.
   - [Git configuration](#git-configuration)
   - [GPG Signing](#gpg-signing)
   - [Lookback Period](#lookback-period)
+  - [Performance and Scalability](#performance-and-scalability)
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
   - [Pre-Release Hooks](#pre-release-hooks)
   - [Release Branch Selection](#release-branch-selection)
@@ -265,19 +266,46 @@ with:
 It's also recommended to set your Git email address to one that is attached to the GPG key (see [Git Configuration](#git-configuration)).
 If you fail to do so, your tags will be marked "Unverified" in the GitHub UI.
 
-### Lookback Period
+### Lookback Period (Deprecated)
 
-By default, TagBot checks for new releases that are at most 3 days old.
-Therefore, if you only run TagBot every five days, it might miss some releases.
-To fix this, you can specify a custom number of days to look back in time with the `lookback` input:
+**Note: The `lookback` parameter is deprecated as of v1.23.0 and will be removed in a future version.**
+
+TagBot now checks all package versions every time it runs, which allows it to automatically backfill old releases if TagBot is set up later in a package's lifecycle. The `lookback` parameter is accepted for backward compatibility but has no effect.
+
+If you have `lookback` configured in your workflow, you can safely remove it.
+
+### Performance and Scalability
+
+With the removal of the lookback time window, TagBot now checks all package versions every time it runs. This enables automatic backfilling of old releases but may consume more GitHub API calls, especially for large registries.
+
+**Performance Features:**
+
+- **PR Pagination Limit**: TagBot limits the number of closed PRs it checks per version to avoid excessive API calls. The default limit is 300 PRs. You can configure this by setting the `TAGBOT_MAX_PRS_TO_CHECK` environment variable in your workflow.
+
+- **Performance Logging**: TagBot logs performance metrics including API calls made, PRs checked, versions processed, and total execution time. This helps you understand resource consumption.
+
+**Recommendations:**
+
+- For most packages, the default settings work well. API rate limits are unlikely to be hit.
+- For very large registries or packages with many old versions, monitor the performance logs and adjust `TAGBOT_MAX_PRS_TO_CHECK` if needed.
+- If you notice rate limiting issues, consider:
+  - Increasing the workflow run interval
+  - Adjusting the PR pagination limit
+  - Using a personal access token with higher rate limits
+
+**Example with custom PR limit:**
 
 ```yml
-with:
-  token: ${{ secrets.GITHUB_TOKEN }}
-  lookback: 14
+jobs:
+  TagBot:
+    runs-on: ubuntu-latest
+    env:
+      TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
+    steps:
+      - uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-An extra hour is always added, so if you run TagBot every 5 days, you can safely set this input to `5`.
 
 ### Personal Access Tokens (PATs)
 
@@ -509,4 +537,4 @@ When this happens, TagBot will automatically open an issue on your repository wi
 
 ### Missing old tags
 
-Manually trigger TagBot with a longer `lookback` period. See [GitHub docs](https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow).
+TagBot now checks all releases every time, so old releases should be automatically created when TagBot is set up or triggered on a repository.

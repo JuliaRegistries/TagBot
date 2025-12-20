@@ -53,7 +53,6 @@ def main(
         registry_ssh="",
         user=USER,
         email=EMAIL,
-        lookback=0,
         branch=None,
         subdir=subdir,
         tag_prefix=tag_prefix,

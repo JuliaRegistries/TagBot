@@ -33,7 +33,6 @@ def _repo(
     registry_ssh="",
     user="",
     email="",
-    lookback=3,
     branch=None,
     subdir=None,
     tag_prefix=None,
@@ -52,7 +51,6 @@ def _repo(
         registry_ssh=registry_ssh,
         user=user,
         email=email,
-        lookback=lookback,
         branch=branch,
         subdir=subdir,
         tag_prefix=tag_prefix,
@@ -439,29 +437,27 @@ def test_registry_pr():
     r._registry.get_pulls.assert_called_once_with(
         head="Owner:registrator-pkgname-abcdef01-v1.2.3-d745cc13b3", state="closed"
     )
-    r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
-    assert r._registry_pr("v2.3.4") is None
-    calls = [
-        call(
-            head="Owner:registrator-pkgname-abcdef01-v2.3.4-d745cc13b3", state="closed"
-        ),
-        call(state="closed"),
-    ]
-    r._registry.get_pulls.assert_has_calls(calls)
+    # Reset for next test - need fresh repo to avoid cache
+    r2 = _repo()
+    r2._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r2._registry = Mock(owner=Mock(login="Owner"))
+    r2._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
+    r2._registry.get_pulls.side_effect = [[], []]
+    assert r2._registry_pr("v2.3.4") is None
+    # First call is owner lookup, second builds the cache
+    assert r2._registry.get_pulls.call_count == 2
+    # Test finding PR in cache
+    r3 = _repo()
+    r3._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r3._registry = Mock(owner=Mock(login="Owner"))
+    r3._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
     good_pr = Mock(
         closed_at=now - timedelta(days=2),
         merged=True,
         head=Mock(ref="registrator-pkgname-abcdef01-v3.4.5-d745cc13b3"),
     )
-    r._registry.get_pulls.side_effect = [[], [good_pr]]
-    assert r._registry_pr("v3.4.5") is good_pr
-    calls = [
-        call(
-            head="Owner:registrator-pkgname-abcdef01-v3.4.5-d745cc13b3", state="closed"
-        ),
-        call(state="closed"),
-    ]
-    r._registry.get_pulls.assert_has_calls(calls)
+    r3._registry.get_pulls.side_effect = [[], [good_pr]]
+    assert r3._registry_pr("v3.4.5") is good_pr
 
 
 @patch("tagbot.action.repo.logger")
@@ -487,26 +483,24 @@ def test_commit_sha_from_registry_pr(logger):
 
 def test_commit_sha_of_tree_from_branch():
     r = _repo()
-    since = datetime.now(timezone.utc)
     r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
     r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
-    assert r._commit_sha_of_tree_from_branch("master", "tree", since) == "sha"
-    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    assert r._commit_sha_of_tree_from_branch("master", "tree") == "sha"
+    r._repo.get_commits.assert_called_with(sha="master")
     r._repo.get_commits.return_value.pop()
-    assert r._commit_sha_of_tree_from_branch("master", "tree", since) is None
+    assert r._commit_sha_of_tree_from_branch("master", "tree") is None
 
 
 @patch("tagbot.action.repo.logger")
 def test_commit_sha_of_tree_from_branch_subdir(logger):
     r = _repo(subdir="path/to/package")
-    since = datetime.now(timezone.utc)
     commits = [Mock(sha="abc"), Mock(sha="sha")]
     r._repo.get_commits = Mock(return_value=commits)
     r._git.command = Mock(side_effect=["other", "tree_hash"])
 
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
 
-    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    r._repo.get_commits.assert_called_with(sha="master")
     r._git.command.assert_has_calls(
         [
             call("rev-parse", "abc:path/to/package"),
@@ -519,14 +513,13 @@ def test_commit_sha_of_tree_from_branch_subdir(logger):
 @patch("tagbot.action.repo.logger")
 def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
     r = _repo(subdir="path/to/package")
-    since = datetime.now(timezone.utc)
     commits = [Mock(sha="abc"), Mock(sha="sha")]
     r._repo.get_commits = Mock(return_value=commits)
     r._git.command = Mock(side_effect=[Abort("missing"), "tree_hash"])
 
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash", since) == "sha"
+    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
 
-    r._repo.get_commits.assert_called_with(sha="master", since=since)
+    r._repo.get_commits.assert_called_with(sha="master")
     logger.debug.assert_called_with(
         "rev-parse failed while inspecting %s", "abc:path/to/package"
     )
@@ -540,18 +533,16 @@ def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
 
 def test_commit_sha_of_tree():
     r = _repo()
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock(), Mock()]
     branches[0].name = "foo"
     branches[1].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     r._commit_sha_of_tree_from_branch = Mock(side_effect=["sha1", None, "sha2"])
     assert r._commit_sha_of_tree("tree") == "sha1"
     r._repo.get_branches.assert_not_called()
-    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree", now)
+    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree")
     assert r._commit_sha_of_tree("tree") == "sha2"
-    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree", now)
+    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree")
     r._commit_sha_of_tree_from_branch.side_effect = None
     r._commit_sha_of_tree_from_branch.return_value = None
     r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
@@ -562,11 +553,9 @@ def test_commit_sha_of_tree():
 def test_commit_sha_of_tree_subdir_fallback():
     """Test subdirectory fallback when branch lookups fail."""
     r = _repo(subdir="path/to/package")
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock()]
     branches[0].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     # Branch lookups return None (fail)
     r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     # git log returns commit SHAs
@@ -581,11 +570,9 @@ def test_commit_sha_of_tree_subdir_fallback():
 def test_commit_sha_of_tree_subdir_fallback_no_match():
     """Test subdirectory fallback returns None when no match found."""
     r = _repo(subdir="path/to/package")
-    now = datetime.now(timezone.utc)
     r._repo = Mock(default_branch="master")
     branches = r._repo.get_branches.return_value = [Mock()]
     branches[0].name = "master"
-    r._lookback = Mock(__rsub__=lambda x, y: now)
     r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     r._git.command = Mock(return_value="abc123\ndef456")
     # No matches found
@@ -766,12 +753,11 @@ def test_is_registered():
 def test_new_versions():
     r = _repo()
     r._versions = lambda min_age=None: (
-        {"1.2.3": "abc"}
-        if min_age
-        else {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
+        {"1.2.3": "abc", "3.4.5": "cde", "2.3.4": "bcd"}
     )
     r._filter_map_versions = lambda vs: vs
-    assert list(r.new_versions().items()) == [("2.3.4", "bcd"), ("3.4.5", "cde")]
+    expected = [("1.2.3", "abc"), ("2.3.4", "bcd"), ("3.4.5", "cde")]
+    assert list(r.new_versions().items()) == expected
 
 
 def test_create_dispatch_event():
@@ -930,11 +916,11 @@ def test_create_release():
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="default", draft=False
+        "v1", "v1", "l", target_commitish="default", draft=False, make_latest="true"
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="b", draft=False
+        "v1", "v1", "l", target_commitish="b", draft=False, make_latest="true"
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("v1", "c", "l")
@@ -943,7 +929,13 @@ def test_create_release():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="d", draft=True
+        "v1", "v1", "l", target_commitish="d", draft=True, make_latest="true"
+    )
+    # Test is_latest=False
+    r._draft = False
+    r.create_release("v0.9", "e", is_latest=False)
+    r._repo.create_git_release.assert_called_with(
+        "v0.9", "v0.9", "l", target_commitish="e", draft=False, make_latest="false"
     )
 
 
@@ -961,11 +953,16 @@ def test_create_release_subdir():
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("Foo-v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="default", draft=False
+        "Foo-v1",
+        "Foo-v1",
+        "l",
+        target_commitish="default",
+        draft=False,
+        make_latest="true",
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False
+        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False, make_latest="true"
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("Foo-v1", "c", "l")
@@ -974,7 +971,7 @@ def test_create_release_subdir():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True
+        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True, make_latest="true"
     )
 
 

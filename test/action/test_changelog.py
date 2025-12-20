@@ -27,7 +27,6 @@ def _changelog(*, template="", ignore=set(), subdir=None):
         registry_ssh="",
         user="",
         email="",
-        lookback=3,
         branch=None,
         subdir=subdir,
     )

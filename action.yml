@@ -30,7 +30,7 @@ inputs:
     required: false
     default: 5
   lookback:
-    description: Number of days to look back in time for new releases
+    description: "[DEPRECATED] This parameter no longer has any effect and will be removed in a future version"
     required: false
     default: 3
   ssh:
