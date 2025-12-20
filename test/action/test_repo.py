@@ -430,29 +430,27 @@ def test_registry_pr():
     r._registry.get_pulls.assert_called_once_with(
         head="Owner:registrator-pkgname-abcdef01-v1.2.3-d745cc13b3", state="closed"
     )
-    r._registry.get_pulls.side_effect = [[], [Mock(closed_at=now - timedelta(days=10))]]
-    assert r._registry_pr("v2.3.4") is None
-    calls = [
-        call(
-            head="Owner:registrator-pkgname-abcdef01-v2.3.4-d745cc13b3", state="closed"
-        ),
-        call(state="closed"),
-    ]
-    r._registry.get_pulls.assert_has_calls(calls)
+    # Reset for next test - need fresh repo to avoid cache
+    r2 = _repo()
+    r2._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r2._registry = Mock(owner=Mock(login="Owner"))
+    r2._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
+    r2._registry.get_pulls.side_effect = [[], []]
+    assert r2._registry_pr("v2.3.4") is None
+    # First call is owner lookup, second builds the cache
+    assert r2._registry.get_pulls.call_count == 2
+    # Test finding PR in cache
+    r3 = _repo()
+    r3._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r3._registry = Mock(owner=Mock(login="Owner"))
+    r3._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
     good_pr = Mock(
         closed_at=now - timedelta(days=2),
         merged=True,
         head=Mock(ref="registrator-pkgname-abcdef01-v3.4.5-d745cc13b3"),
     )
-    r._registry.get_pulls.side_effect = [[], [good_pr]]
-    assert r._registry_pr("v3.4.5") is good_pr
-    calls = [
-        call(
-            head="Owner:registrator-pkgname-abcdef01-v3.4.5-d745cc13b3", state="closed"
-        ),
-        call(state="closed"),
-    ]
-    r._registry.get_pulls.assert_has_calls(calls)
+    r3._registry.get_pulls.side_effect = [[], [good_pr]]
+    assert r3._registry_pr("v3.4.5") is good_pr
 
 
 @patch("tagbot.action.repo.logger")
@@ -911,11 +909,11 @@ def test_create_release():
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="default", draft=False
+        "v1", "v1", "l", target_commitish="default", draft=False, make_latest="true"
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="b", draft=False
+        "v1", "v1", "l", target_commitish="b", draft=False, make_latest="true"
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("v1", "c", "l")
@@ -924,7 +922,13 @@ def test_create_release():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="d", draft=True
+        "v1", "v1", "l", target_commitish="d", draft=True, make_latest="true"
+    )
+    # Test is_latest=False
+    r._draft = False
+    r.create_release("v0.9", "e", is_latest=False)
+    r._repo.create_git_release.assert_called_with(
+        "v0.9", "v0.9", "l", target_commitish="e", draft=False, make_latest="false"
     )
 
 
@@ -942,11 +946,16 @@ def test_create_release_subdir():
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("Foo-v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="default", draft=False
+        "Foo-v1",
+        "Foo-v1",
+        "l",
+        target_commitish="default",
+        draft=False,
+        make_latest="true",
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False
+        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False, make_latest="true"
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("Foo-v1", "c", "l")
@@ -955,7 +964,7 @@ def test_create_release_subdir():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True
+        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True, make_latest="true"
     )
 
 

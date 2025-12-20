@@ -97,7 +97,8 @@ try:
     latest_version = repo.version_with_latest_commit(versions)
     if latest_version:
         logger.info(
-            f"Version {latest_version} has the most recent commit and will be marked as latest"
+            f"Version {latest_version} has the most recent commit, "
+            "will be marked as latest"
         )
 
     errors = []

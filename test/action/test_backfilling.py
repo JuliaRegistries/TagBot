@@ -6,7 +6,7 @@ when set up later in a package's lifecycle.
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
-from tagbot.action.repo import Repo, _metrics, _PerformanceMetrics
+from tagbot.action.repo import Repo, _metrics
 
 
 def _repo(
