@@ -24,10 +24,20 @@ def handler(event: Dict[str, str], ctx: object = None) -> None:
         repo=event["repo"],
         run=event["run"],
         stacktrace=event["stacktrace"],
+        version=event.get("version"),
+        manual_intervention_url=event.get("manual_intervention_url"),
     )
 
 
-def _handle_report(*, image: str, repo: str, run: str, stacktrace: str) -> None:
+def _handle_report(
+    *,
+    image: str,
+    repo: str,
+    run: str,
+    stacktrace: str,
+    version: Optional[str] = None,
+    manual_intervention_url: Optional[str] = None,
+) -> None:
     """Report an error."""
     duplicate = _find_duplicate(stacktrace)
     if duplicate:
@@ -37,12 +47,25 @@ def _handle_report(*, image: str, repo: str, run: str, stacktrace: str) -> None:
         else:
             logger.info("Adding a comment")
             comment = _add_duplicate_comment(
-                duplicate, image=image, repo=repo, run=run, stacktrace=stacktrace
+                duplicate,
+                image=image,
+                repo=repo,
+                run=run,
+                stacktrace=stacktrace,
+                version=version,
+                manual_intervention_url=manual_intervention_url,
             )
             logger.info(f"Created comment: {comment.html_url}")
     else:
         logger.info("Creating a new issue")
-        issue = _create_issue(image=image, repo=repo, run=run, stacktrace=stacktrace)
+        issue = _create_issue(
+            image=image,
+            repo=repo,
+            run=run,
+            stacktrace=stacktrace,
+            version=version,
+            manual_intervention_url=manual_intervention_url,
+        )
         logger.info(f"Created issue: {issue.html_url}")
 
 
@@ -80,29 +103,64 @@ def _find_duplicate(stacktrace: str) -> Optional[Issue]:
     return None
 
 
-def _report_body(*, image: str, repo: str, run: str, stacktrace: str) -> str:
+def _report_body(
+    *,
+    image: str,
+    repo: str,
+    run: str,
+    stacktrace: str,
+    version: Optional[str] = None,
+    manual_intervention_url: Optional[str] = None,
+) -> str:
     """Format the error report."""
-    return (
-        f"Repo: {repo}\n"
-        f"Run URL: {run}\n"
-        f"Image ID: {image}\n"
-        f"Stacktrace:\n```py\n{stacktrace}\n```\n"
-    )
+    lines = [
+        f"Repo: {repo}",
+        f"Run URL: {run}",
+        f"Image ID: {image}",
+    ]
+    if version:
+        lines.append(f"TagBot version: {version}")
+    if manual_intervention_url:
+        lines.append(f"Manual intervention issue: {manual_intervention_url}")
+    lines.append(f"Stacktrace:\\n```py\\n{stacktrace}\\n```\\n")
+    return "\n".join(lines)
 
 
 def _add_duplicate_comment(
-    issue: Issue, *, image: str, repo: str, run: str, stacktrace: str
+    issue: Issue,
+    *,
+    image: str,
+    repo: str,
+    run: str,
+    stacktrace: str,
+    version: Optional[str] = None,
+    manual_intervention_url: Optional[str] = None,
 ) -> IssueComment:
     """Comment on an existing error report."""
     body = (
         f"Probably duplicate error:\n"
-        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)}"
+        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace, version=version, manual_intervention_url=manual_intervention_url)}"
     )
     return issue.create_comment(body)
 
 
-def _create_issue(*, image: str, repo: str, run: str, stacktrace: str) -> Issue:
+def _create_issue(
+    *,
+    image: str,
+    repo: str,
+    run: str,
+    stacktrace: str,
+    version: Optional[str] = None,
+    manual_intervention_url: Optional[str] = None,
+) -> Issue:
     """Create a new error report."""
     title = f"Automatic error report from {repo}"
-    body = _report_body(image=image, repo=repo, run=run, stacktrace=stacktrace)
+    body = _report_body(
+        image=image,
+        repo=repo,
+        run=run,
+        stacktrace=stacktrace,
+        version=version,
+        manual_intervention_url=manual_intervention_url,
+    )
     return TAGBOT_ISSUES_REPO.create_issue(title, body)

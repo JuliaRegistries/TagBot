@@ -7,6 +7,8 @@ import sys
 import time
 import traceback
 
+from importlib.metadata import version as pkg_version, PackageNotFoundError
+
 import docker
 import pexpect
 import requests
@@ -94,6 +96,15 @@ class _PerformanceMetrics:
 
 
 _metrics = _PerformanceMetrics()
+
+
+def _get_tagbot_version() -> str:
+    """Get the TagBot version."""
+    try:
+        return pkg_version("tagbot")
+    except PackageNotFoundError:
+        return "Unknown"
+
 
 T = TypeVar("T")
 
@@ -198,6 +209,8 @@ class Repo:
         self.__commit_datetimes: Dict[str, datetime] = {}
         # Cache for existing tags to avoid per-version API calls
         self.__existing_tags_cache: Optional[Dict[str, str]] = None
+        # Track manual intervention issue URL for error reporting
+        self._manual_intervention_issue_url: Optional[str] = None
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -976,6 +989,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 labels=["tagbot-manual"] if label_available else [],
             )
             logger.info(f"Created issue for manual intervention: {issue.html_url}")
+            self._manual_intervention_issue_url = issue.html_url
         except GithubException as e:
             logger.warning(
                 f"Could not create issue for manual intervention: {e}\n"
@@ -1000,12 +1014,15 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             logger.debug("Not reporting")
             return
         logger.debug("Reporting error")
-        data = {
+        data: Dict[str, Any] = {
             "image": self._image_id(),
             "repo": self._repo.full_name,
             "run": self._run_url(),
             "stacktrace": trace,
+            "version": _get_tagbot_version(),
         }
+        if self._manual_intervention_issue_url:
+            data["manual_intervention_url"] = self._manual_intervention_issue_url
         resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
         output = json.dumps(resp.json(), indent=2)
         logger.info(f"Response ({resp.status_code}): {output}")
