@@ -619,6 +619,31 @@ class Repo:
         branch = self._repo.get_branch(self._release_branch)
         return cast(str, branch.commit.sha)
 
+    def _highest_existing_version(self) -> Optional[VersionInfo]:
+        """Get the highest existing version tag by semver.
+
+        Uses the tags cache to find existing version tags and returns the
+        highest version number among them.
+        """
+        tags_cache = self._build_tags_cache()
+        prefix = self._tag_prefix()
+
+        highest: Optional[VersionInfo] = None
+        for tag_name in tags_cache:
+            # Only consider version tags with our prefix
+            if not tag_name.startswith(prefix):
+                continue
+            version_str = tag_name[len(prefix):]
+            try:
+                version = VersionInfo.parse(version_str)
+                if highest is None or version > highest:
+                    highest = version
+            except ValueError:
+                # Not a valid semver tag, skip
+                continue
+
+        return highest
+
     def version_with_latest_commit(self, versions: Dict[str, str]) -> Optional[str]:
         """Find the version with the most recent commit datetime.
 
@@ -627,16 +652,42 @@ class Repo:
         commit should be marked as latest, preventing backfilled old releases
         from being incorrectly marked as the latest release.
 
+        Also considers existing tags - if any existing tag has a higher semver
+        than all new versions, no new version will be marked as latest.
+
         Uses cached commit datetimes when available to avoid redundant API calls.
 
         Args:
             versions: Dict mapping version strings to commit SHAs
 
         Returns:
-            The version string with the most recent commit, or None if empty.
+            The version string with the most recent commit, or None if empty
+            or if an existing tag has a higher version.
         """
         if not versions:
             return None
+
+        # Check if any existing tag has a higher version than all new versions
+        highest_existing = self._highest_existing_version()
+        if highest_existing:
+            # Find highest new version (versions dict has "v1.2.3" format)
+            highest_new: Optional[VersionInfo] = None
+            for version in versions:
+                v_str = version[1:] if version.startswith("v") else version
+                try:
+                    v = VersionInfo.parse(v_str)
+                    if highest_new is None or v > highest_new:
+                        highest_new = v
+                except ValueError:
+                    continue
+
+            if highest_new and highest_existing > highest_new:
+                logger.info(
+                    f"Existing tag v{highest_existing} is newer than all new versions; "
+                    "no new release will be marked as latest"
+                )
+                return None
+
         latest_version: Optional[str] = None
         latest_datetime: Optional[datetime] = None
         for version, sha in versions.items():
