@@ -40,6 +40,7 @@ Read on for a full description of all of the available configuration options.
   - [Git configuration](#git-configuration)
   - [GPG Signing](#gpg-signing)
   - [Lookback Period](#lookback-period)
+  - [Performance and Scalability](#performance-and-scalability)
   - [Personal Access Tokens (PATs)](#personal-access-tokens-pats)
   - [Pre-Release Hooks](#pre-release-hooks)
   - [Release Branch Selection](#release-branch-selection)
@@ -272,6 +273,39 @@ If you fail to do so, your tags will be marked "Unverified" in the GitHub UI.
 TagBot now checks all package versions every time it runs, which allows it to automatically backfill old releases if TagBot is set up later in a package's lifecycle. The `lookback` parameter is accepted for backward compatibility but has no effect.
 
 If you have `lookback` configured in your workflow, you can safely remove it.
+
+### Performance and Scalability
+
+With the removal of the lookback time window, TagBot now checks all package versions every time it runs. This enables automatic backfilling of old releases but may consume more GitHub API calls, especially for large registries.
+
+**Performance Features:**
+
+- **PR Pagination Limit**: TagBot limits the number of closed PRs it checks per version to avoid excessive API calls. The default limit is 300 PRs. You can configure this by setting the `TAGBOT_MAX_PRS_TO_CHECK` environment variable in your workflow.
+
+- **Performance Logging**: TagBot logs performance metrics including API calls made, PRs checked, versions processed, and total execution time. This helps you understand resource consumption.
+
+**Recommendations:**
+
+- For most packages, the default settings work well. API rate limits are unlikely to be hit.
+- For very large registries or packages with many old versions, monitor the performance logs and adjust `TAGBOT_MAX_PRS_TO_CHECK` if needed.
+- If you notice rate limiting issues, consider:
+  - Increasing the workflow run interval
+  - Adjusting the PR pagination limit
+  - Using a personal access token with higher rate limits
+
+**Example with custom PR limit:**
+
+```yml
+jobs:
+  TagBot:
+    runs-on: ubuntu-latest
+    env:
+      TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
+    steps:
+      - uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ### Personal Access Tokens (PATs)
 

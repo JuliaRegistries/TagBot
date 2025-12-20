@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import traceback
 
 import docker
@@ -62,6 +63,34 @@ if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
 RequestException = requests.RequestException
+
+# Maximum number of PRs to check when looking for registry PR
+# This prevents excessive API calls on large registries
+MAX_PRS_TO_CHECK = int(os.getenv("TAGBOT_MAX_PRS_TO_CHECK", "300"))
+
+
+class _PerformanceMetrics:
+    """Track performance metrics for API calls and processing."""
+
+    def __init__(self) -> None:
+        self.api_calls = 0
+        self.start_time = time.time()
+        self.prs_checked = 0
+        self.versions_checked = 0
+
+    def log_summary(self) -> None:
+        """Log performance summary."""
+        elapsed = time.time() - self.start_time
+        logger.info(
+            f"Performance: {self.api_calls} API calls, "
+            f"{self.prs_checked} PRs checked, "
+            f"{self.versions_checked} versions processed, "
+            f"{elapsed:.2f}s elapsed"
+        )
+
+
+_metrics = _PerformanceMetrics()
+
 T = TypeVar("T")
 
 
@@ -375,15 +404,34 @@ class Repo:
         registry = self._registry
         owner = registry.owner.login
         logger.debug(f"Trying to find PR by registry owner first ({owner})")
+        _metrics.api_calls += 1
         prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
         for pr in prs:
+            _metrics.prs_checked += 1
             if pr.merged_at is not None:
+                logger.debug(f"Found registry PR #{pr.number} by registry owner")
                 return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
+        logger.debug(f"Searching closed PRs (limited to {MAX_PRS_TO_CHECK} PRs)")
+        _metrics.api_calls += 1
         prs = registry.get_pulls(state="closed")
+        prs_checked = 0
         for pr in prs:
+            _metrics.prs_checked += 1
+            prs_checked += 1
+            if prs_checked >= MAX_PRS_TO_CHECK:
+                logger.warning(
+                    f"Reached maximum PR check limit ({MAX_PRS_TO_CHECK}). "
+                    f"PR for version {version} may not be found if it's very old. "
+                    f"Set TAGBOT_MAX_PRS_TO_CHECK environment variable to increase."
+                )
+                break
             if pr.merged and pr.head.ref == head:
+                logger.debug(
+                    f"Found registry PR #{pr.number} after checking {prs_checked} PRs"
+                )
                 return cast(PullRequest, pr)
+        logger.debug(f"Did not find registry PR after checking {prs_checked} PRs")
         return None
 
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
@@ -780,8 +828,9 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
     def new_versions(self) -> Dict[str, str]:
         """Get all new versions of the package."""
+        start_time = time.time()
         current = self._versions()
-        logger.debug(f"There are {len(current)} total versions")
+        logger.info(f"Found {len(current)} total versions in registry")
         # Check all versions every time (no lookback window)
         # This allows backfilling old releases if TagBot is set up later
         logger.debug(f"Checking all {len(current)} versions")
@@ -789,7 +838,14 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         versions = {}
         for v in sorted(current.keys(), key=VersionInfo.parse):
             versions[v] = current[v]
-        return self._filter_map_versions(versions)
+            _metrics.versions_checked += 1
+        result = self._filter_map_versions(versions)
+        elapsed = time.time() - start_time
+        logger.info(
+            f"Version check complete: {len(result)} new versions found "
+            f"(checked {len(current)} total versions in {elapsed:.2f}s)"
+        )
+        return result
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""

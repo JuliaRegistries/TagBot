@@ -9,7 +9,7 @@ from datetime import timedelta
 
 from .. import logger
 from .changelog import Changelog
-from .repo import Repo
+from .repo import Repo, _metrics
 
 INPUTS: Optional[Dict[str, str]] = None
 CRON_WARNING = """\
@@ -119,7 +119,9 @@ try:
         ]
         if actionable_errors:
             repo.create_issue_for_manual_tag(actionable_errors)
+        _metrics.log_summary()
         sys.exit(1)
+    _metrics.log_summary()
 except Exception as e:
     try:
         repo.handle_error(e)
