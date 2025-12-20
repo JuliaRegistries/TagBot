@@ -729,7 +729,13 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             )
             logger.info(f"Created issue for manual intervention: {issue.html_url}")
         except GithubException as e:
-            logger.warning(f"Could not create issue for manual intervention: {e}")
+            logger.warning(
+                f"Could not create issue for manual intervention: {e}\n"
+                "To fix permission issues, check your repository settings:\n"
+                "1. Go to Settings > Actions > General > Workflow permissions\n"
+                "2. Select 'Read and write permissions'\n"
+                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
+            )
 
     def _report_error(self, trace: str) -> None:
         """Report an error."""
