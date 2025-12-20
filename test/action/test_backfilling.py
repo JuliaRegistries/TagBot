@@ -3,10 +3,7 @@ Tests for backfilling behavior - ensuring TagBot can create releases for old ver
 when set up later in a package's lifecycle.
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, patch, PropertyMock
-
-import pytest
+from unittest.mock import Mock
 
 from tagbot.action.repo import Repo
 
@@ -54,11 +51,6 @@ def test_backfilling_discovers_all_versions():
     """Test that all versions are discovered regardless of age."""
     r = _repo()
 
-    # Simulate a package with versions spanning several months
-    old_date = datetime.now(timezone.utc) - timedelta(days=90)
-    medium_date = datetime.now(timezone.utc) - timedelta(days=30)
-    recent_date = datetime.now(timezone.utc) - timedelta(days=1)
-
     # Mock versions from registry - old, medium, and recent
     versions_by_age = {
         "0.1.0": "sha_old_v010",  # 90 days old
@@ -83,7 +75,7 @@ def test_backfilling_discovers_all_versions():
 
 
 def test_backfilling_handles_many_versions():
-    """Test that backfilling works with many versions without hitting pagination limits."""
+    """Backfilling should handle many versions without hitting pagination limits."""
     r = _repo()
 
     # Create 50 versions to simulate a mature package
