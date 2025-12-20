@@ -301,6 +301,13 @@ def test_maybe_decode_private_key():
     assert r._maybe_decode_private_key(b64) == plain
 
 
+def test_maybe_decode_private_key_invalid():
+    r = _repo()
+    with pytest.raises(ValueError) as exc_info:
+        r._maybe_decode_private_key("not valid base64 or key!!!")
+    assert "does not appear to be a valid private key" in str(exc_info.value)
+
+
 def test_validate_ssh_key(caplog):
     r = _repo()
     # Valid keys should not produce warnings
