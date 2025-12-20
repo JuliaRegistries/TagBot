@@ -193,6 +193,7 @@ def test_backfilling_with_prereleases():
     # All versions should be present, sorted by SemVer
     assert len(result) >= 3  # At least the stable versions
 
+
 def test_version_with_latest_commit():
     """Test that version_with_latest_commit returns the version with newest commit."""
     r = _repo()

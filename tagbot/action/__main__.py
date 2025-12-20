@@ -96,7 +96,9 @@ try:
     # This prevents backfilled old releases from being incorrectly marked as latest.
     latest_version = repo.version_with_latest_commit(versions)
     if latest_version:
-        logger.info(f"Version {latest_version} has the most recent commit and will be marked as latest")
+        logger.info(
+            f"Version {latest_version} has the most recent commit and will be marked as latest"
+        )
 
     errors = []
     successes = []

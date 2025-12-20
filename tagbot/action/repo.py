@@ -400,7 +400,9 @@ class Repo:
         if self.__registry_prs_cache is not None:
             return self.__registry_prs_cache
 
-        logger.debug(f"Building registry PR cache (fetching up to {MAX_PRS_TO_CHECK} PRs)")
+        logger.debug(
+            f"Building registry PR cache (fetching up to {MAX_PRS_TO_CHECK} PRs)"
+        )
         cache: Dict[str, PullRequest] = {}
         registry = self._registry
 
@@ -424,7 +426,9 @@ class Repo:
                 cache[pr.head.ref] = cast(PullRequest, pr)
 
         if prs_fetched < MAX_PRS_TO_CHECK:
-            logger.debug(f"PR cache built with {len(cache)} merged PRs (all PRs checked)")
+            logger.debug(
+                f"PR cache built with {len(cache)} merged PRs (all PRs checked)"
+            )
 
         self.__registry_prs_cache = cache
         return cache
@@ -610,7 +614,9 @@ class Repo:
                     commit_dt = commit.commit.author.date
                     self.__commit_datetimes[sha] = commit_dt
                 except Exception as e:
-                    logger.debug(f"Could not get commit datetime for {version} ({sha}): {e}")
+                    logger.debug(
+                        f"Could not get commit datetime for {version} ({sha}): {e}"
+                    )
                     continue
             if latest_datetime is None or commit_dt > latest_datetime:
                 latest_datetime = commit_dt
@@ -1044,8 +1050,12 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         # as the "Latest" release on GitHub
         make_latest_str = "true" if is_latest else "false"
         self._repo.create_git_release(
-            version_tag, version_tag, log, target_commitish=target, draft=self._draft,
-            make_latest=make_latest_str
+            version_tag,
+            version_tag,
+            log,
+            target_commitish=target,
+            draft=self._draft,
+            make_latest=make_latest_str,
         )
         logger.info(f"GitHub release {version_tag} created successfully")
 
