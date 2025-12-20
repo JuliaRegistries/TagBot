@@ -51,6 +51,12 @@ class Git:
             self.__default_branch = branch
         return branch
 
+    def _sanitize_command(self, cmd: str) -> str:
+        """Remove sensitive tokens from command strings."""
+        if self._token:
+            cmd = cmd.replace(self._token, "***")
+        return cmd
+
     def command(self, *argv: str, repo: Optional[str] = "") -> str:
         """Run a Git command."""
         args = ["git"]
@@ -60,15 +66,15 @@ class Git:
             args.extend(["-C", repo or self._dir])
         args.extend(argv)
         cmd = " ".join(args)
-        logger.debug(f"Running '{cmd}'")
+        logger.debug(f"Running '{self._sanitize_command(cmd)}'")
         proc = subprocess.run(args, text=True, capture_output=True)
         out = proc.stdout.strip()
         if proc.returncode:
             if out:
-                logger.info(out)
+                logger.info(self._sanitize_command(out))
             if proc.stderr:
-                logger.info(proc.stderr.strip())
-            raise Abort(f"Git command '{cmd}' failed")
+                logger.info(self._sanitize_command(proc.stderr.strip()))
+            raise Abort(f"Git command '{self._sanitize_command(cmd)}' failed")
         return out
 
     def check(self, *argv: str, repo: Optional[str] = "") -> bool:

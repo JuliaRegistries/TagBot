@@ -160,6 +160,12 @@ class Repo:
         self.__registry_path: Optional[str] = None
         self.__registry_url: Optional[str] = None
 
+    def _sanitize(self, text: str) -> str:
+        """Remove sensitive tokens from text."""
+        if self._token:
+            text = text.replace(self._token, "***")
+        return text
+
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""
         if self.__project is not None:
@@ -665,7 +671,7 @@ class Repo:
                 )
 
         versions_list = "\n".join(
-            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {err}"
+            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {self._sanitize(err)}"
             for v, sha, err in failures
         )
         pat_url = (
@@ -917,7 +923,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         """Handle an unexpected error."""
         allowed = False
         internal = True
-        trace = traceback.format_exc()
+        trace = self._sanitize(traceback.format_exc())
         if isinstance(e, Abort):
             # Abort is raised for characterized failures (e.g., git command failures)
             # Don't report as "unexpected internal failure"
