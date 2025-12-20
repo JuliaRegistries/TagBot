@@ -188,6 +188,8 @@ class Repo:
         self.__project: Optional[MutableMapping[str, object]] = None
         self.__registry_path: Optional[str] = None
         self.__registry_url: Optional[str] = None
+        # Cache for registry PRs to avoid re-fetching for each version
+        self.__registry_prs_cache: Optional[Dict[str, PullRequest]] = None
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -383,6 +385,44 @@ class Repo:
             package_version = package_version[1:]
         return self._tag_prefix() + package_version
 
+    def _build_registry_prs_cache(self) -> Dict[str, PullRequest]:
+        """Build a cache of registry PRs indexed by head branch name.
+
+        This fetches closed PRs once and caches them, avoiding repeated API calls
+        when checking multiple versions. Uses pagination to fetch PRs in batches.
+        """
+        if self.__registry_prs_cache is not None:
+            return self.__registry_prs_cache
+
+        logger.debug(f"Building registry PR cache (fetching up to {MAX_PRS_TO_CHECK} PRs)")
+        cache: Dict[str, PullRequest] = {}
+        registry = self._registry
+
+        # Fetch PRs with explicit pagination using per_page parameter
+        # PyGithub handles pagination automatically, but we limit total PRs checked
+        _metrics.api_calls += 1
+        prs = registry.get_pulls(state="closed", sort="updated", direction="desc")
+
+        prs_fetched = 0
+        for pr in prs:
+            _metrics.prs_checked += 1
+            prs_fetched += 1
+            if prs_fetched >= MAX_PRS_TO_CHECK:
+                logger.info(
+                    f"PR cache built with {len(cache)} merged PRs "
+                    f"(stopped at {MAX_PRS_TO_CHECK} PR limit)"
+                )
+                break
+            # Only cache merged PRs (not closed without merging)
+            if pr.merged:
+                cache[pr.head.ref] = cast(PullRequest, pr)
+
+        if prs_fetched < MAX_PRS_TO_CHECK:
+            logger.debug(f"PR cache built with {len(cache)} merged PRs (all PRs checked)")
+
+        self.__registry_prs_cache = cache
+        return cache
+
     def _registry_pr(self, version: str) -> Optional[PullRequest]:
         """Look up a merged registry pull request for this version."""
         if self._clone_registry:
@@ -400,6 +440,7 @@ class Repo:
         # 0de7540015c6b2c0ff31229fc6bb29663c52e5c4/src/utils.jl#L23-L23
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
+
         # Check for an owner's PR first, since this is way faster (only one request).
         registry = self._registry
         owner = registry.owner.login
@@ -412,26 +453,15 @@ class Repo:
                 logger.debug(f"Found registry PR #{pr.number} by registry owner")
                 return cast(PullRequest, pr)
         logger.debug("Did not find registry PR by registry owner")
-        logger.debug(f"Searching closed PRs (limited to {MAX_PRS_TO_CHECK} PRs)")
-        _metrics.api_calls += 1
-        prs = registry.get_pulls(state="closed")
-        prs_checked = 0
-        for pr in prs:
-            _metrics.prs_checked += 1
-            prs_checked += 1
-            if prs_checked >= MAX_PRS_TO_CHECK:
-                logger.warning(
-                    f"Reached maximum PR check limit ({MAX_PRS_TO_CHECK}). "
-                    f"PR for version {version} may not be found if it's very old. "
-                    f"Set TAGBOT_MAX_PRS_TO_CHECK environment variable to increase."
-                )
-                break
-            if pr.merged and pr.head.ref == head:
-                logger.debug(
-                    f"Found registry PR #{pr.number} after checking {prs_checked} PRs"
-                )
-                return cast(PullRequest, pr)
-        logger.debug(f"Did not find registry PR after checking {prs_checked} PRs")
+
+        # Use the cached PR lookup - fetches once and reuses for all versions
+        pr_cache = self._build_registry_prs_cache()
+        if head in pr_cache:
+            pr = pr_cache[head]
+            logger.debug(f"Found registry PR #{pr.number} in cache")
+            return pr
+
+        logger.debug(f"Did not find registry PR for branch {head}")
         return None
 
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
