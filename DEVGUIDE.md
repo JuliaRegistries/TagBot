@@ -1,5 +1,9 @@
 # TagBot Developer Guide
 
+> **For AI Agents**: This document serves as both DEVGUIDE.md and AGENTS.md (symlinked).
+> Read sections 1-12 for architecture understanding, then follow the [Agent Guidelines](#agent-guidelines)
+> at the end for coding conventions and contribution rules.
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -14,6 +18,7 @@
 10. [GitLab Support](#gitlab-support)
 11. [SSH and GPG Configuration](#ssh-and-gpg-configuration)
 12. [Manual Intervention](#manual-intervention)
+13. [Agent Guidelines](#agent-guidelines)
 
 ---
 
@@ -925,4 +930,181 @@ When TagBot cannot automatically create a release (e.g., workflow file modificat
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Agent Guidelines
+
+This section provides instructions for AI coding agents working on TagBot.
+
+### Quick Reference
+
+```
+Language:       Python 3.12+
+Formatter:      black
+Linter:         flake8
+Type Checker:   mypy (with stubs in stubs/)
+Test Framework: pytest
+Package Manager: pip (pyproject.toml)
+```
+
+### Project Structure Rules
+
+```
+tagbot/
+├── __init__.py        # Shared: LogFormatter, logger, TAGBOT_WEB
+├── action/            # GitHub Action code (runs in Docker)
+│   ├── __main__.py    # Entry point - parse inputs, orchestrate
+│   ├── repo.py        # Core logic - DO NOT split this file
+│   ├── git.py         # Git operations wrapper
+│   ├── changelog.py   # Release notes generation
+│   └── gitlab.py      # GitLab API adapter (optional)
+├── local/             # CLI for manual local usage
+└── web/               # AWS Lambda error reporting service
+    ├── __init__.py    # Flask app
+    └── reports.py     # Error deduplication logic
+```
+
+### Coding Conventions
+
+**Style**:
+- Use `black` for formatting (run `black tagbot/ test/` before committing)
+- Maximum line length: 88 characters (black default)
+- Use type hints for all function signatures
+- Prefer `Optional[X]` over `X | None` for consistency with existing code
+
+**Naming**:
+- Private methods/attributes: single underscore prefix (`_method`)
+- Cache attributes: double underscore prefix (`__cache`)
+- Constants: UPPER_SNAKE_CASE
+- Classes: PascalCase
+- Functions/methods: snake_case
+
+**Imports**:
+- Group: stdlib, then third-party, then local
+- Sort alphabetically within groups
+- Use absolute imports for cross-module references
+
+**Logging**:
+- Use `from .. import logger` (not stdlib logging directly)
+- Log levels: DEBUG for internal details, INFO for user-facing, WARNING/ERROR for problems
+- Never log secrets (use `_sanitize()` method)
+
+### Design Principles
+
+Follow these principles when making changes:
+
+1. **YAGNI** - Don't add features "just in case"
+2. **SOLID** - Single responsibility, especially for new methods
+3. **KISS** - Prefer simple solutions over clever ones
+4. **DRY** - Use caching to avoid repeated API calls (see Caching Strategy)
+5. **SRP** - Each method should do one thing well
+
+### Performance Considerations
+
+TagBot processes packages with 600+ versions in ~4 seconds. Maintain this by:
+
+- **Always use caches**: `_build_tags_cache()`, `_build_tree_to_commit_cache()`
+- **Batch operations**: Prefer single API call over per-item calls
+- **Lazy loading**: Build caches only when first needed
+- **Git over API**: Local git commands are faster than GitHub API
+
+```python
+# GOOD: O(1) lookup after cache build
+cache = self._build_tree_to_commit_cache()
+commit = cache.get(tree_sha)
+
+# BAD: O(n) API calls
+for commit in repo.get_commits():  # Paginated API calls!
+    if commit.tree.sha == tree_sha:
+        return commit
+```
+
+### Testing Requirements
+
+**Before submitting changes**:
+
+```bash
+# Format code
+black tagbot/ test/
+
+# Run tests
+pytest test/ -v
+
+# Type check
+mypy tagbot/
+```
+
+**Test file locations**:
+- `test/action/` - Tests for GitHub Action components
+- `test/web/` - Tests for web service
+- `test/test_tagbot.py` - Integration tests
+
+**Mocking guidelines**:
+- Mock external services (GitHub API, git commands)
+- Use `unittest.mock.patch` or pytest fixtures
+- Don't mock internal caches - test the real caching behavior
+
+### Common Patterns
+
+**Adding a new cache**:
+```python
+def __init__(self, ...):
+    self.__new_cache: Optional[Dict[str, str]] = None
+
+def _build_new_cache(self) -> Dict[str, str]:
+    if self.__new_cache is not None:
+        return self.__new_cache
+    # Build cache...
+    self.__new_cache = result
+    return result
+```
+
+**Handling API errors**:
+```python
+try:
+    result = self._repo.some_api_call()
+except GithubException as e:
+    if e.status == 404:
+        return None  # Expected case
+    raise  # Unexpected - let handle_error() deal with it
+```
+
+**Adding optional functionality**:
+```python
+# Check input before doing work
+if not some_input:
+    return  # Early return if feature not enabled
+```
+
+### What NOT to Do
+
+- ❌ Don't add print statements (use logger)
+- ❌ Don't catch broad `Exception` without re-raising
+- ❌ Don't make API calls in loops without caching
+- ❌ Don't store secrets in variables longer than necessary
+- ❌ Don't modify `action.yml` without also updating `pyproject.toml` version
+- ❌ Don't add dependencies without updating `pyproject.toml`
+- ❌ Don't use emoji in code comments (sparingly OK in user-facing text)
+
+### Making Changes Checklist
+
+- [ ] Read relevant sections of this guide first
+- [ ] Understand the data flow (see diagrams above)
+- [ ] Check if caching already exists for your use case
+- [ ] Write tests for new functionality
+- [ ] Run `black tagbot/ test/` before committing
+- [ ] Run `pytest test/ -v` to verify tests pass
+- [ ] Update DEVGUIDE.md if architecture changes
+
+### Commit Message Format
+
+```
+Short summary (50 chars or less)
+
+Longer description if needed. Explain what and why,
+not how (the code shows how).
+
+Co-authored-by: Name <email>  # If pair programming with AI
 ```
