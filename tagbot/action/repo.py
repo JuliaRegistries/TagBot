@@ -209,6 +209,8 @@ class Repo:
         self.__commit_datetimes: Dict[str, datetime] = {}
         # Cache for existing tags to avoid per-version API calls
         self.__existing_tags_cache: Optional[Dict[str, str]] = None
+        # Cache for tree SHA → commit SHA mapping (for non-PR registries)
+        self.__tree_to_commit_cache: Optional[Dict[str, str]] = None
         # Track manual intervention issue URL for error reporting
         self._manual_intervention_issue_url: Optional[str] = None
 
@@ -534,32 +536,58 @@ class Repo:
                     return cast(str, commit.sha)
         return None
 
+    def _build_tree_to_commit_cache(self) -> Dict[str, str]:
+        """Build a cache mapping tree SHAs to commit SHAs.
+
+        Uses git log to get all commit:tree pairs in one command,
+        enabling O(1) lookups instead of iterating through commits.
+        """
+        if self.__tree_to_commit_cache is not None:
+            return self.__tree_to_commit_cache
+
+        logger.debug("Building tree→commit cache")
+        cache: Dict[str, str] = {}
+        try:
+            # Get all commit:tree pairs in one git command
+            output = self._git.command("log", "--all", "--format=%H %T")
+            for line in output.splitlines():
+                parts = line.split()
+                if len(parts) == 2:
+                    commit_sha, tree_sha = parts
+                    # Only keep first occurrence (most recent commit for that tree)
+                    if tree_sha not in cache:
+                        cache[tree_sha] = commit_sha
+            logger.debug(f"Tree→commit cache built with {len(cache)} entries")
+        except Exception as e:
+            logger.warning(f"Failed to build tree→commit cache: {e}")
+
+        self.__tree_to_commit_cache = cache
+        return cache
+
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
-        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree)
-        if sha:
-            return sha
-        for branch in self._repo.get_branches():
-            if branch.name == self._release_branch:
-                continue
-            sha = self._commit_sha_of_tree_from_branch(branch.name, tree)
-            if sha:
-                return sha
-        # For a valid tree SHA, the only time that we reach here is when a release
-        # has been made long after the commit was made, which is reasonably rare.
-        # Fall back to cloning the repo in that case.
-        if self.__subdir:
-            # For subdirectories, we need to check the subdirectory tree hash.
-            # Limit to 10000 commits to avoid performance issues on large repos.
-            for line in self._git.command(
-                "log", "--all", "--format=%H", "-n", "10000"
-            ).splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
-                if subdir_tree_hash == tree:
-                    return line
+        # Fast path: use pre-built tree→commit cache (built from git log)
+        # This is O(1) vs O(branches * commits) for the API-based approach
+        if not self.__subdir:
+            cache = self._build_tree_to_commit_cache()
+            if tree in cache:
+                return cache[tree]
+            # Tree not found in any commit
             return None
-        else:
-            return self._git.commit_sha_of_tree(tree)
+
+        # For subdirectories, we need to check the subdirectory tree hash.
+        # Build a cache of subdir tree hashes from commits.
+        if self.__tree_to_commit_cache is None:
+            logger.debug("Building subdir tree→commit cache")
+            cache: Dict[str, str] = {}
+            for line in self._git.command("log", "--all", "--format=%H").splitlines():
+                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
+                if subdir_tree_hash and subdir_tree_hash not in cache:
+                    cache[subdir_tree_hash] = line
+            logger.debug(f"Subdir tree→commit cache built with {len(cache)} entries")
+            self.__tree_to_commit_cache = cache
+
+        return self.__tree_to_commit_cache.get(tree)
 
     def _subdir_tree_hash(
         self, commit_sha: str, *, suppress_abort: bool
@@ -748,11 +776,9 @@ class Repo:
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
-        # Pre-build caches to avoid repeated API calls
+        # Pre-build tags cache to check existing tags quickly
         self._build_tags_cache()
-        # Pre-build PR cache for versions that need commit SHA lookup
-        if not self._clone_registry:
-            self._build_registry_prs_cache()
+        # Note: PR cache is built lazily only when needed (first registry PR lookup)
 
         valid = {}
         skipped_existing = 0
@@ -761,22 +787,25 @@ class Repo:
             version_tag = self._get_version_tag(version)
 
             # Fast path: check if tag already exists using cached tags
-            existing_sha = self._commit_sha_of_tag(version_tag)
-            if existing_sha:
+            # Just check existence, don't resolve annotated tags (saves API calls)
+            tags_cache = self._build_tags_cache()
+            if version_tag in tags_cache:
                 # Tag exists - we skip without full validation for performance.
-                # Previously we'd verify the tag points to the expected commit,
-                # but that requires expensive PR/tree lookups for each version.
-                logger.info(f"Tag {version_tag} already exists")
                 skipped_existing += 1
                 continue
 
             # Tag doesn't exist - need to find expected commit SHA
+            # Try registry PR first (fast - uses cache)
             expected = self._commit_sha_from_registry_pr(version, tree)
             if not expected:
+                # Fall back to tree lookup (slower but more thorough)
+                logger.debug(
+                    f"No registry PR for {version}, falling back to tree lookup"
+                )
                 expected = self._commit_sha_of_tree(tree)
             if not expected:
-                logger.warning(
-                    f"No matching commit was found for version {version} ({tree})"
+                logger.debug(
+                    f"Skipping {version}: no registry PR or matching tree found"
                 )
                 continue
             valid[version] = expected

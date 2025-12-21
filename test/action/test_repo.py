@@ -740,21 +740,28 @@ def test_filter_map_versions(logger):
     r = _repo()
     # Mock the caches to avoid real API calls
     r._build_tags_cache = Mock(return_value={})
-    r._build_registry_prs_cache = Mock(return_value={})
     r._commit_sha_from_registry_pr = Mock(return_value=None)
     r._commit_sha_of_tree = Mock(return_value=None)
+    # No registry PR or tree found - should skip
     assert not r._filter_map_versions({"1.2.3": "tree1"})
-    logger.warning.assert_called_with(
-        "No matching commit was found for version v1.2.3 (tree1)"
+    logger.debug.assert_called_with(
+        "Skipping v1.2.3: no registry PR or matching tree found"
     )
-    r._commit_sha_of_tree.return_value = "sha"
-    r._commit_sha_of_tag = Mock(return_value="sha")
-    # Tag exists - skip it (no validation of commit SHA for performance)
-    assert not r._filter_map_versions({"2.3.4": "tree2"})
-    logger.info.assert_called_with("Tag v2.3.4 already exists")
-    # Tag doesn't exist - should be included
-    r._commit_sha_of_tag.return_value = None
+    # Tree lookup fallback should be called when PR not found
+    r._commit_sha_of_tree.assert_called_with("tree1")
+    # Registry PR found - should include (no tree lookup needed)
+    r._commit_sha_from_registry_pr.return_value = "sha"
+    r._commit_sha_of_tree.reset_mock()
     assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
+    r._commit_sha_of_tree.assert_not_called()
+    # Tag exists - skip it silently (no per-version logging for performance)
+    r._build_tags_cache.return_value = {"v2.3.4": "existing_sha"}
+    assert not r._filter_map_versions({"2.3.4": "tree2"})
+    # Tree fallback works when PR not found
+    r._build_tags_cache.return_value = {}
+    r._commit_sha_from_registry_pr.return_value = None
+    r._commit_sha_of_tree.return_value = "tree_sha"
+    assert r._filter_map_versions({"5.6.7": "tree5"}) == {"v5.6.7": "tree_sha"}
 
 
 @patch("tagbot.action.repo.logger")
