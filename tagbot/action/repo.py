@@ -584,7 +584,9 @@ class Repo:
                 subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
                 if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
                     subdir_cache[subdir_tree_hash] = line
-            logger.debug(f"Subdir tree→commit cache built with {len(subdir_cache)} entries")
+            logger.debug(
+                f"Subdir tree→commit cache built with {len(subdir_cache)} entries"
+            )
             self.__tree_to_commit_cache = subdir_cache
 
         return self.__tree_to_commit_cache.get(tree)

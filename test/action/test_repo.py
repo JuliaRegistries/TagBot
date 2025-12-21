@@ -546,7 +546,9 @@ def test_commit_sha_of_tree_subdir_fallback():
     # git log returns commit SHAs
     r._git.command = Mock(return_value="abc123\ndef456\nghi789")
     # _subdir_tree_hash called for each commit, match on second
-    with patch.object(r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]):
+    with patch.object(
+        r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]
+    ):
         assert r._commit_sha_of_tree("tree_hash") == "def456"
         r._git.command.assert_called_once_with("log", "--all", "--format=%H")
         # Cache is built, so subsequent lookups don't call git again
