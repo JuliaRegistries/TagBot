@@ -581,7 +581,8 @@ class Repo:
             for ref in refs:
                 if not ref.ref.startswith("refs/tags/"):
                     continue
-                tag_name = ref.ref[len("refs/tags/") :]
+                tags_prefix_len = len("refs/tags/")
+                tag_name = ref.ref[tags_prefix_len:]
                 ref_type = getattr(ref.object, "type", None)
                 if ref_type == "commit":
                     cache[tag_name] = ref.object.sha
@@ -607,7 +608,8 @@ class Repo:
         if sha.startswith("annotated:"):
             # Resolve annotated tag to commit SHA
             _metrics.api_calls += 1
-            tag = self._repo.get_git_tag(sha[len("annotated:") :])
+            annotated_prefix_len = len("annotated:")
+            tag = self._repo.get_git_tag(sha[annotated_prefix_len:])
             resolved_sha = cast(str, tag.object.sha)
             # Update cache with resolved value
             tags_cache[version_tag] = resolved_sha
@@ -633,7 +635,8 @@ class Repo:
             # Only consider version tags with our prefix
             if not tag_name.startswith(prefix):
                 continue
-            version_str = tag_name[len(prefix) :]
+            prefix_len = len(prefix)
+            version_str = tag_name[prefix_len:]
             try:
                 version = VersionInfo.parse(version_str)
                 if highest is None or version > highest:
