@@ -569,9 +569,9 @@ class Repo:
         # Fast path: use pre-built tree→commit cache (built from git log)
         # This is O(1) vs O(branches * commits) for the API-based approach
         if not self.__subdir:
-            cache = self._build_tree_to_commit_cache()
-            if tree in cache:
-                return cache[tree]
+            tree_cache = self._build_tree_to_commit_cache()
+            if tree in tree_cache:
+                return tree_cache[tree]
             # Tree not found in any commit
             return None
 
@@ -579,13 +579,13 @@ class Repo:
         # Build a cache of subdir tree hashes from commits.
         if self.__tree_to_commit_cache is None:
             logger.debug("Building subdir tree→commit cache")
-            cache: Dict[str, str] = {}
+            subdir_cache: Dict[str, str] = {}
             for line in self._git.command("log", "--all", "--format=%H").splitlines():
                 subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
-                if subdir_tree_hash and subdir_tree_hash not in cache:
-                    cache[subdir_tree_hash] = line
-            logger.debug(f"Subdir tree→commit cache built with {len(cache)} entries")
-            self.__tree_to_commit_cache = cache
+                if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
+                    subdir_cache[subdir_tree_hash] = line
+            logger.debug(f"Subdir tree→commit cache built with {len(subdir_cache)} entries")
+            self.__tree_to_commit_cache = subdir_cache
 
         return self.__tree_to_commit_cache.get(tree)
 

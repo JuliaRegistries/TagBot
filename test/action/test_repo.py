@@ -526,51 +526,40 @@ def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
 
 
 def test_commit_sha_of_tree():
+    """Test tree→commit lookup using git log cache."""
     r = _repo()
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock(), Mock()]
-    branches[0].name = "foo"
-    branches[1].name = "master"
-    r._commit_sha_of_tree_from_branch = Mock(side_effect=["sha1", None, "sha2"])
-    assert r._commit_sha_of_tree("tree") == "sha1"
-    r._repo.get_branches.assert_not_called()
-    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree")
-    assert r._commit_sha_of_tree("tree") == "sha2"
-    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree")
-    r._commit_sha_of_tree_from_branch.side_effect = None
-    r._commit_sha_of_tree_from_branch.return_value = None
-    r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
-    assert r._commit_sha_of_tree("tree") == "sha"
-    assert r._commit_sha_of_tree("tree") is None
+    # Mock git command to return commit:tree pairs
+    r._git.command = Mock(return_value="sha1 tree1\nsha2 tree2\nsha3 tree3")
+    # First lookup builds cache and finds match
+    assert r._commit_sha_of_tree("tree1") == "sha1"
+    r._git.command.assert_called_once_with("log", "--all", "--format=%H %T")
+    # Second lookup uses cache (no additional git command)
+    assert r._commit_sha_of_tree("tree2") == "sha2"
+    assert r._git.command.call_count == 1  # Still just one call
+    # Non-existent tree returns None
+    assert r._commit_sha_of_tree("nonexistent") is None
 
 
 def test_commit_sha_of_tree_subdir_fallback():
-    """Test subdirectory fallback when branch lookups fail."""
+    """Test subdirectory tree→commit cache."""
     r = _repo(subdir="path/to/package")
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock()]
-    branches[0].name = "master"
-    # Branch lookups return None (fail)
-    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     # git log returns commit SHAs
     r._git.command = Mock(return_value="abc123\ndef456\nghi789")
-    # _subdir_tree_hash called via helper, simulate finding match on second commit
-    with patch.object(r, "_subdir_tree_hash", side_effect=[None, "tree_hash", "other"]):
+    # _subdir_tree_hash called for each commit, match on second
+    with patch.object(r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]):
         assert r._commit_sha_of_tree("tree_hash") == "def456"
-        # Verify it iterated through commits
-        assert r._subdir_tree_hash.call_count == 2
+        r._git.command.assert_called_once_with("log", "--all", "--format=%H")
+        # Cache is built, so subsequent lookups don't call git again
+        assert r._commit_sha_of_tree("other") == "abc123"
+        assert r._git.command.call_count == 1
 
 
 def test_commit_sha_of_tree_subdir_fallback_no_match():
-    """Test subdirectory fallback returns None when no match found."""
+    """Test subdirectory cache returns None when no match found."""
     r = _repo(subdir="path/to/package")
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock()]
-    branches[0].name = "master"
-    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     r._git.command = Mock(return_value="abc123\ndef456")
-    # No matches found
-    with patch.object(r, "_subdir_tree_hash", return_value=None):
+    # No matching subdir tree hash
+    with patch.object(r, "_subdir_tree_hash", return_value="other_tree"):
         assert r._commit_sha_of_tree("tree_hash") is None
         assert r._subdir_tree_hash.call_count == 2
 
