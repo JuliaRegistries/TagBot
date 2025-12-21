@@ -1,23 +1,21 @@
-FROM python:3.14-slim as builder
-
-RUN apt-get update && apt-get install -y curl
-
-# Install Poetry (latest) using the official install script
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
-
-RUN poetry self add poetry-plugin-export
-
-COPY pyproject.toml .
-COPY poetry.lock .
-RUN poetry export --format requirements.txt --output /root/requirements.txt
-
-FROM python:3.14-slim
+FROM julia:1.12
 LABEL org.opencontainers.image.source https://github.com/JuliaRegistries/TagBot
-ENV PYTHONPATH /root
-RUN apt-get update && apt-get install -y git gnupg make openssh-client
-COPY --from=builder /root/requirements.txt /root/requirements.txt
-RUN pip install --no-cache-dir --requirement /root/requirements.txt
-COPY action.yml /root/action.yml
-COPY tagbot /root/tagbot
-CMD python -m tagbot.action
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    gnupg \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Julia environment
+WORKDIR /app
+COPY julia/Project.toml ./
+RUN julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+# Copy source code
+COPY julia/src ./src
+
+# Set entrypoint
+ENV JULIA_PROJECT=/app
+CMD ["julia", "--project=/app", "-e", "using TagBot; TagBot.main()"]

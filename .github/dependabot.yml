@@ -10,26 +10,6 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: 'pip'
-    directory: '/'
-    schedule:
-      interval: 'monthly'
-    open-pull-requests-limit: 99
-    groups:
-      all-pip-packages:
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: '/'
-    schedule:
-      interval: 'monthly'
-    open-pull-requests-limit: 99
-    groups:
-      all-javascript-packages:
-        patterns:
-          - "*"
-
   - package-ecosystem: "docker"
     directory: '/'
     schedule:
@@ -37,5 +17,15 @@ updates:
     open-pull-requests-limit: 10
     groups:
       docker-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "julia"
+    directory: '/julia'
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      julia-packages:
         patterns:
           - "*"

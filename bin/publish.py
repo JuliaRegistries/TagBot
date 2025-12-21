@@ -42,9 +42,8 @@ def configure_ssh() -> None:
 def on_workflow_dispatch(version: str) -> None:
     semver = resolve_version(version)
     if semver.build is not None or semver.prerelease is not None:
-        # TODO: It might actually be nice to properly support prereleases.
         raise ValueError("Only major, minor, and patch components should be set")
-    update_pyproject_toml(semver)
+    update_project_toml(semver)
     update_action_yml(semver)
     branch = git_push(semver)
     repo = GH.get_repo(REPO)
@@ -74,11 +73,11 @@ def resolve_version(bump: str) -> VersionInfo:
 
 
 def current_version() -> VersionInfo:
-    with open(repo_file("pyproject.toml")) as f:
-        pyproject = f.read()
-    m = re.search(r'version = "(.*)"', pyproject)
+    with open(repo_file("julia", "Project.toml")) as f:
+        project = f.read()
+    m = re.search(r'version = "(.*)"', project)
     if not m:
-        raise ValueError("Invalid pyproject.toml")
+        raise ValueError("Invalid julia/Project.toml")
     return VersionInfo.parse(m[1])
 
 
@@ -86,11 +85,11 @@ def repo_file(*paths: str) -> str:
     return os.path.join(os.path.dirname(__file__), "..", *paths)
 
 
-def update_pyproject_toml(version: VersionInfo) -> None:
-    path = repo_file("pyproject.toml")
+def update_project_toml(version: VersionInfo) -> None:
+    path = repo_file("julia", "Project.toml")
     with open(path) as f:
-        pyproject = f.read()
-    updated = re.sub(r"version = .*", f'version = "{version}"', pyproject, count=1)
+        project = f.read()
+    updated = re.sub(r'version = ".*"', f'version = "{version}"', project, count=1)
     with open(path, "w") as f:
         f.write(updated)
 

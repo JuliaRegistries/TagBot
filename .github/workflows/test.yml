@@ -6,38 +6,43 @@ on:
   pull_request:
 jobs:
   test:
+    name: Julia ${{ matrix.version }}
     runs-on: ubuntu-latest
-    env:
-      COLUMNS: 200
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1'
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
         with:
-          python-version: 3.12
-      - run: pip install poetry
-      - run: poetry install
-      - run: poetry run make test
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          project: julia
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          project: julia
+          coverage: true
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: julia/src
+      - uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
   docker:
     runs-on: ubuntu-latest
-    env:
-      COLUMNS: 200
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t tagbot:test .
-      - name: Install dependencies
+      - name: Test Docker image
         run: |
-          docker run --name tagbot-deps --mount type=bind,source=$(pwd),target=/repo tagbot:test sh -c '
-            pip install poetry && cd /repo && poetry install'
-          docker commit tagbot-deps tagbot:ready
-          docker rm tagbot-deps
-      - name: Run pytest
-        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make pytest'
-      - name: Run black
-        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make black'
-      - name: Run flake8
-        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make flake8'
-      - name: Run mypy
-        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make mypy'
-
-
+          docker run --rm tagbot:test julia --project=/app -e '
+            using TagBot
+            println("TagBot v", TagBot.VERSION, " loaded successfully")'

@@ -24,9 +24,9 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: '3.12'
       - run: pip install PyGithub semver
-      - run: make publish
+      - run: python bin/publish.py
         env:
           DOCKER_IMAGE: ghcr.io/juliaregistries/tagbot
           DOCKER_USERNAME: christopher-dG
