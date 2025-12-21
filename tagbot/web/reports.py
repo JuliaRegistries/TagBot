@@ -122,7 +122,7 @@ def _report_body(
         lines.append(f"TagBot version: {version}")
     if manual_intervention_url:
         lines.append(f"Manual intervention issue: {manual_intervention_url}")
-    lines.append(f"Stacktrace:\\n```py\\n{stacktrace}\\n```\\n")
+    lines.append(f"Stacktrace:\n```py\n{stacktrace}\n```\n")
     return "\n".join(lines)
 
 
@@ -137,11 +137,15 @@ def _add_duplicate_comment(
     manual_intervention_url: Optional[str] = None,
 ) -> IssueComment:
     """Comment on an existing error report."""
-    body = (
-        f"Probably duplicate error:\n"
-        f"{_report_body(image=image, repo=repo, run=run, stacktrace=stacktrace, version=version, manual_intervention_url=manual_intervention_url)}"
+    body = _report_body(
+        image=image,
+        repo=repo,
+        run=run,
+        stacktrace=stacktrace,
+        version=version,
+        manual_intervention_url=manual_intervention_url,
     )
-    return issue.create_comment(body)
+    return issue.create_comment(f"Probably duplicate error:\n{body}")
 
 
 def _create_issue(

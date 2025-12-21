@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      COLUMNS: 200
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -17,6 +19,8 @@ jobs:
       - run: poetry run make test
   docker:
     runs-on: ubuntu-latest
+    env:
+      COLUMNS: 200
     steps:
       - uses: actions/checkout@v6
       - run: make test-docker
