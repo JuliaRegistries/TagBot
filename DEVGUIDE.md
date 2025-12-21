@@ -93,9 +93,9 @@ TagBot consists of three main components:
 
 ```
 tagbot/
-├── __init__.py           # LogFormatter, logger, TAGBOT_WEB constant
+├── __init__.py           # LogFormatter, logger
 ├── action/
-│   ├── __init__.py       # Abort, InvalidProject exceptions
+│   ├── __init__.py       # TAGBOT_WEB, Abort, InvalidProject exceptions
 │   ├── __main__.py       # GitHub Action entrypoint
 │   ├── changelog.py      # Release notes generation (Jinja2 templates)
 │   ├── git.py            # Git command wrapper (clone, tag, push)
@@ -953,7 +953,7 @@ Package Manager: pip (pyproject.toml)
 
 ```
 tagbot/
-├── __init__.py        # Shared: LogFormatter, logger, TAGBOT_WEB
+├── __init__.py        # Shared: LogFormatter, logger
 ├── action/            # GitHub Action code (runs in Docker)
 │   ├── __main__.py    # Entry point - parse inputs, orchestrate
 │   ├── repo.py        # Core logic - DO NOT split this file
