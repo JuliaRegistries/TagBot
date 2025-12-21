@@ -683,26 +683,28 @@ def test_filter_map_versions(logger):
     r._build_tags_cache = Mock(return_value={})
     r._commit_sha_from_registry_pr = Mock(return_value=None)
     r._commit_sha_of_tree = Mock(return_value=None)
-    # No registry PR or tree found - should skip
+    # No tree or registry PR found - should skip
     assert not r._filter_map_versions({"1.2.3": "tree1"})
     logger.debug.assert_called_with(
-        "Skipping v1.2.3: no registry PR or matching tree found"
+        "Skipping v1.2.3: no matching tree or registry PR found"
     )
-    # Tree lookup fallback should be called when PR not found
+    # Tree lookup (primary) should be called first
     r._commit_sha_of_tree.assert_called_with("tree1")
-    # Registry PR found - should include (no tree lookup needed)
-    r._commit_sha_from_registry_pr.return_value = "sha"
-    r._commit_sha_of_tree.reset_mock()
+    # Registry PR fallback should be called when tree not found
+    r._commit_sha_from_registry_pr.assert_called_with("v1.2.3", "tree1")
+    # Tree found - should include (no registry PR lookup needed)
+    r._commit_sha_of_tree.return_value = "sha"
+    r._commit_sha_from_registry_pr.reset_mock()
     assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
-    r._commit_sha_of_tree.assert_not_called()
+    r._commit_sha_from_registry_pr.assert_not_called()
     # Tag exists - skip it silently (no per-version logging for performance)
     r._build_tags_cache.return_value = {"v2.3.4": "existing_sha"}
     assert not r._filter_map_versions({"2.3.4": "tree2"})
-    # Tree fallback works when PR not found
+    # Registry PR fallback works when tree not found
     r._build_tags_cache.return_value = {}
-    r._commit_sha_from_registry_pr.return_value = None
-    r._commit_sha_of_tree.return_value = "tree_sha"
-    assert r._filter_map_versions({"5.6.7": "tree5"}) == {"v5.6.7": "tree_sha"}
+    r._commit_sha_of_tree.return_value = None
+    r._commit_sha_from_registry_pr.return_value = "pr_sha"
+    assert r._filter_map_versions({"5.6.7": "tree5"}) == {"v5.6.7": "pr_sha"}
 
 
 @patch("tagbot.action.repo.logger")

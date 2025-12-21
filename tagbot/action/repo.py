@@ -735,13 +735,18 @@ class Repo:
                 )
                 return None
 
+        # Pre-populate commit datetime cache using git log (single command)
+        # This avoids N API calls when checking N versions
+        self._build_commit_datetime_cache(list(versions.values()))
+
         latest_version: Optional[str] = None
         latest_datetime: Optional[datetime] = None
         for version, sha in versions.items():
-            # Check cache first
+            # Check cache first (should be populated by _build_commit_datetime_cache)
             if sha in self.__commit_datetimes:
                 commit_dt = self.__commit_datetimes[sha]
             else:
+                # Fallback to API if not in cache (shouldn't happen normally)
                 try:
                     _metrics.api_calls += 1
                     commit = self._repo.get_commit(sha)
@@ -756,6 +761,49 @@ class Repo:
                 latest_datetime = commit_dt
                 latest_version = version
         return latest_version
+
+    def _build_commit_datetime_cache(self, shas: List[str]) -> None:
+        """Pre-populate commit datetime cache using git log.
+
+        This fetches commit datetimes in a single git command instead of
+        making individual API calls for each commit.
+
+        Args:
+            shas: List of commit SHAs to fetch datetimes for
+        """
+        if not shas:
+            return
+
+        # Check which SHAs are not already cached
+        uncached = [sha for sha in shas if sha not in self.__commit_datetimes]
+        if not uncached:
+            return
+
+        logger.debug(f"Building commit datetime cache for {len(uncached)} commits")
+        try:
+            # Get all commit datetimes in one git command
+            # Format: %H = commit hash, %aI = author date (ISO 8601 strict)
+            output = self._git.command("log", "--all", "--format=%H %aI")
+            sha_set = set(uncached)
+            found = 0
+            for line in output.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2:
+                    commit_sha, iso_date = parts
+                    if commit_sha in sha_set:
+                        # Parse ISO 8601 date and convert to UTC without timezone
+                        dt = datetime.fromisoformat(iso_date)
+                        offset = dt.utcoffset()
+                        if offset:
+                            dt = dt - offset
+                        dt = dt.replace(tzinfo=None)
+                        self.__commit_datetimes[commit_sha] = dt
+                        found += 1
+                        if found >= len(uncached):
+                            break  # Found all we need
+            logger.debug(f"Cached {found} commit datetimes from git log")
+        except Exception as e:
+            logger.warning(f"Failed to build commit datetime cache: {e}")
 
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
@@ -778,17 +826,17 @@ class Repo:
                 continue
 
             # Tag doesn't exist - need to find expected commit SHA
-            # Try registry PR first (fast - uses cache)
-            expected = self._commit_sha_from_registry_pr(version, tree)
+            # Try git log first (fast - O(1) cache lookup)
+            expected = self._commit_sha_of_tree(tree)
             if not expected:
-                # Fall back to tree lookup (slower but more thorough)
+                # Fall back to registry PR lookup (slower - requires API calls)
                 logger.debug(
-                    f"No registry PR for {version}, falling back to tree lookup"
+                    f"No matching tree for {version}, falling back to registry PR"
                 )
-                expected = self._commit_sha_of_tree(tree)
+                expected = self._commit_sha_from_registry_pr(version, tree)
             if not expected:
                 logger.debug(
-                    f"Skipping {version}: no registry PR or matching tree found"
+                    f"Skipping {version}: no matching tree or registry PR found"
                 )
                 continue
             valid[version] = expected

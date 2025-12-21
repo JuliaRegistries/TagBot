@@ -969,7 +969,7 @@ tagbot/
 ### Coding Conventions
 
 **Style**:
-- Use `black` for formatting (run `black tagbot/ test/` before committing)
+- Use `black` for formatting (run `make black` to check)
 - Maximum line length: 88 characters (black default)
 - Use type hints for all function signatures
 - Prefer `Optional[X]` over `X | None` for consistency with existing code
@@ -1026,14 +1026,14 @@ for commit in repo.get_commits():  # Paginated API calls!
 **Before submitting changes**:
 
 ```bash
-# Format code
-black tagbot/ test/
+# Run all checks (recommended)
+make test
 
-# Run tests
-pytest test/ -v
-
-# Type check
-mypy tagbot/
+# Or run individual checks via make targets
+make pytest    # Run tests with coverage
+make black     # Check formatting
+make flake8    # Lint
+make mypy      # Type check
 ```
 
 **Test file locations**:
@@ -1094,8 +1094,7 @@ if not some_input:
 - [ ] Understand the data flow (see diagrams above)
 - [ ] Check if caching already exists for your use case
 - [ ] Write tests for new functionality
-- [ ] Run `black tagbot/ test/` before committing
-- [ ] Run `pytest test/ -v` to verify tests pass
+- [ ] Run `make test` to verify all checks pass
 - [ ] Update DEVGUIDE.md if architecture changes
 
 ### Commit Message Format
