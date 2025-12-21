@@ -517,25 +517,6 @@ class Repo:
             logger.warning("Tree SHA of commit from registry PR does not match")
             return None
 
-    def _commit_sha_of_tree_from_branch(
-        self, branch: str, tree: str, since: Optional[datetime] = None
-    ) -> Optional[str]:
-        """Look up the commit SHA of a tree with the given SHA on one branch."""
-        kwargs: Dict[str, object] = {"sha": branch}
-        if since is not None:
-            kwargs["since"] = since
-        for commit in self._repo.get_commits(**kwargs):
-            if self.__subdir:
-                subdir_tree_hash = self._subdir_tree_hash(
-                    commit.sha, suppress_abort=True
-                )
-                if subdir_tree_hash == tree:
-                    return cast(str, commit.sha)
-            else:
-                if commit.commit.tree.sha == tree:
-                    return cast(str, commit.sha)
-        return None
-
     def _build_tree_to_commit_cache(self) -> Dict[str, str]:
         """Build a cache mapping tree SHAs to commit SHAs.
 

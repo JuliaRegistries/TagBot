@@ -475,56 +475,6 @@ def test_commit_sha_from_registry_pr(logger):
     assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
 
 
-def test_commit_sha_of_tree_from_branch():
-    r = _repo()
-    r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
-    r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
-    assert r._commit_sha_of_tree_from_branch("master", "tree") == "sha"
-    r._repo.get_commits.assert_called_with(sha="master")
-    r._repo.get_commits.return_value.pop()
-    assert r._commit_sha_of_tree_from_branch("master", "tree") is None
-
-
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_from_branch_subdir(logger):
-    r = _repo(subdir="path/to/package")
-    commits = [Mock(sha="abc"), Mock(sha="sha")]
-    r._repo.get_commits = Mock(return_value=commits)
-    r._git.command = Mock(side_effect=["other", "tree_hash"])
-
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
-
-    r._repo.get_commits.assert_called_with(sha="master")
-    r._git.command.assert_has_calls(
-        [
-            call("rev-parse", "abc:path/to/package"),
-            call("rev-parse", "sha:path/to/package"),
-        ]
-    )
-    logger.debug.assert_not_called()
-
-
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
-    r = _repo(subdir="path/to/package")
-    commits = [Mock(sha="abc"), Mock(sha="sha")]
-    r._repo.get_commits = Mock(return_value=commits)
-    r._git.command = Mock(side_effect=[Abort("missing"), "tree_hash"])
-
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
-
-    r._repo.get_commits.assert_called_with(sha="master")
-    logger.debug.assert_called_with(
-        "rev-parse failed while inspecting %s", "abc:path/to/package"
-    )
-    r._git.command.assert_has_calls(
-        [
-            call("rev-parse", "abc:path/to/package"),
-            call("rev-parse", "sha:path/to/package"),
-        ]
-    )
-
-
 def test_commit_sha_of_tree():
     """Test tree→commit lookup using git log cache."""
     r = _repo()
