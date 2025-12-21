@@ -835,10 +835,41 @@ def test_report_error(post):
         r._report_error("ahh")
     post.assert_not_called()
     with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
-        r._report_error("ahh")
+        with patch("tagbot.action.repo._get_tagbot_version", return_value="1.2.3"):
+            r._report_error("ahh")
     post.assert_called_with(
         f"{TAGBOT_WEB}/report",
-        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
+        json={
+            "image": "id",
+            "repo": "Foo/Bar",
+            "run": "url",
+            "stacktrace": "ahh",
+            "version": "1.2.3",
+        },
+    )
+
+
+@patch("requests.post")
+def test_report_error_with_manual_intervention(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar", private=False)
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
+    r._manual_intervention_issue_url = "https://github.com/Foo/Bar/issues/42"
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        with patch("tagbot.action.repo._get_tagbot_version", return_value="1.2.3"):
+            r._report_error("ahh")
+    post.assert_called_with(
+        f"{TAGBOT_WEB}/report",
+        json={
+            "image": "id",
+            "repo": "Foo/Bar",
+            "run": "url",
+            "stacktrace": "ahh",
+            "version": "1.2.3",
+            "manual_intervention_url": "https://github.com/Foo/Bar/issues/42",
+        },
     )
 
 
