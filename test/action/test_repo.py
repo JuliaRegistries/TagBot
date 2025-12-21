@@ -691,7 +691,7 @@ def test_filter_map_versions(logger):
     # Tree lookup (primary) should be called first
     r._commit_sha_of_tree.assert_called_with("tree1")
     # Registry PR fallback should be called when tree not found
-    r._commit_sha_from_registry_pr.assert_called_with("1.2.3", "tree1")
+    r._commit_sha_from_registry_pr.assert_called_with("v1.2.3", "tree1")
     # Tree found - should include (no registry PR lookup needed)
     r._commit_sha_of_tree.return_value = "sha"
     r._commit_sha_from_registry_pr.reset_mock()
