@@ -595,11 +595,9 @@ class Repo:
         for attempt in range(retries):
             try:
                 _metrics.api_calls += 1
-                # Fetch all tag refs in one paginated call
-                refs = self._repo.get_git_refs()
+                # Fetch only tag refs using server-side filtering (much faster)
+                refs = self._repo.get_git_matching_refs("tags/")
                 for ref in refs:
-                    if not ref.ref.startswith("refs/tags/"):
-                        continue
                     tags_prefix_len = len("refs/tags/")
                     tag_name = ref.ref[tags_prefix_len:]
                     ref_type = getattr(ref.object, "type", None)

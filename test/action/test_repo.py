@@ -577,14 +577,14 @@ def test_commit_sha_of_tree_subdir_fallback_no_match():
 
 def test_commit_sha_of_tag():
     r = _repo()
-    # Mock get_git_refs to return tags (used by _build_tags_cache)
+    # Mock get_git_matching_refs to return tags (used by _build_tags_cache)
     mock_ref1 = Mock(ref="refs/tags/v1.2.3")
     mock_ref1.object.type = "commit"
     mock_ref1.object.sha = "c"
     mock_ref2 = Mock(ref="refs/tags/v2.3.4")
     mock_ref2.object.type = "tag"
     mock_ref2.object.sha = "tag_sha"
-    r._repo.get_git_refs = Mock(return_value=[mock_ref1, mock_ref2])
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
     r._repo.get_git_tag = Mock()
     r._repo.get_git_tag.return_value.object.sha = "t"
 
@@ -598,7 +598,7 @@ def test_commit_sha_of_tag():
 
 
 def test_build_tags_cache():
-    """Test _build_tags_cache builds cache from git refs."""
+    """Test _build_tags_cache builds cache from git matching refs."""
     r = _repo()
     mock_ref1 = Mock(ref="refs/tags/v1.0.0")
     mock_ref1.object.type = "commit"
@@ -606,18 +606,16 @@ def test_build_tags_cache():
     mock_ref2 = Mock(ref="refs/tags/v2.0.0")
     mock_ref2.object.type = "tag"
     mock_ref2.object.sha = "def456"
-    mock_ref3 = Mock(ref="refs/heads/main")  # Not a tag, should be skipped
-    mock_ref3.object.type = "commit"
-    mock_ref3.object.sha = "ghi789"
-    r._repo.get_git_refs = Mock(return_value=[mock_ref1, mock_ref2, mock_ref3])
+    # get_git_matching_refs("tags/") only returns tag refs
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
 
     cache = r._build_tags_cache()
     assert cache == {"v1.0.0": "abc123", "v2.0.0": "annotated:def456"}
     # Cache should be reused on second call
-    r._repo.get_git_refs.reset_mock()
+    r._repo.get_git_matching_refs.reset_mock()
     cache2 = r._build_tags_cache()
     assert cache2 == cache
-    r._repo.get_git_refs.assert_not_called()
+    r._repo.get_git_matching_refs.assert_not_called()
 
 
 @patch("tagbot.action.repo.logger")
@@ -630,13 +628,13 @@ def test_build_tags_cache_retry(mock_sleep, logger):
     mock_ref.object.type = "commit"
     mock_ref.object.sha = "abc123"
     # Fail twice, succeed on third attempt
-    r._repo.get_git_refs = Mock(
+    r._repo.get_git_matching_refs = Mock(
         side_effect=[Exception("API error"), Exception("API error"), [mock_ref]]
     )
 
     cache = r._build_tags_cache(retries=3)
     assert cache == {"v1.0.0": "abc123"}
-    assert r._repo.get_git_refs.call_count == 3
+    assert r._repo.get_git_matching_refs.call_count == 3
     assert mock_sleep.call_count == 2  # Sleep between retries
     assert logger.warning.call_count == 2
 
@@ -646,11 +644,11 @@ def test_build_tags_cache_retry(mock_sleep, logger):
 def test_build_tags_cache_all_retries_fail(mock_sleep, logger):
     """Test _build_tags_cache returns empty cache after all retries fail."""
     r = _repo()
-    r._repo.get_git_refs = Mock(side_effect=Exception("API error"))
+    r._repo.get_git_matching_refs = Mock(side_effect=Exception("API error"))
 
     cache = r._build_tags_cache(retries=3)
     assert cache == {}
-    assert r._repo.get_git_refs.call_count == 3
+    assert r._repo.get_git_matching_refs.call_count == 3
     logger.error.assert_called_once()
     assert "after 3 attempts" in logger.error.call_args[0][0]
 
