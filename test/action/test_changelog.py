@@ -82,6 +82,9 @@ def test_issues_and_pulls():
     now = datetime.now(timezone.utc)
     start = now - timedelta(days=10)
     end = now
+    # Mock search_issues to raise an exception so we fall back to get_issues
+    c._repo._gh = Mock()
+    c._repo._gh.search_issues = Mock(side_effect=Exception("search failed"))
     c._repo._repo.get_issues = Mock(return_value=[])
     assert c._issues_and_pulls(end, end) == []
     assert c._issues_and_pulls(end, end) == []
