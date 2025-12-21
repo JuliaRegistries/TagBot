@@ -39,9 +39,9 @@ registered in a Julia registry (typically [General](https://github.com/JuliaRegi
 │   │ Project.toml │───────────>│ Versions.toml│<──────────│  new_versions│   │
 │   │ (uuid, name) │  register  │ (tree-sha1)  │   query   │     ()       │   │
 │   └──────────────┘            └──────────────┘           └──────┬───────┘   │
-│                                                                  │          │
-│   ┌──────────────┐                                               │          │
-│   │ Git History  │<──────────────────────────────────────────────┘          │
+│                                                                 │           │
+│   ┌──────────────┐                                              │           │
+│   │ Git History  │<─────────────────────────────────────────────┘           │
 │   │ (commits)    │   find commit for tree-sha1                              │
 │   └──────┬───────┘                                                          │
 │          │                                                                  │
