@@ -563,35 +563,57 @@ class Repo:
                 return None
             raise
 
-    def _build_tags_cache(self) -> Dict[str, str]:
+    def _build_tags_cache(self, retries: int = 3) -> Dict[str, str]:
         """Build a cache of all existing tags mapped to their commit SHAs.
 
         This fetches all tags once and caches them, avoiding per-version API calls.
         Returns a dict mapping tag names (without 'refs/tags/' prefix) to commit SHAs.
+
+        Args:
+            retries: Number of retry attempts on failure (default 3).
         """
         if self.__existing_tags_cache is not None:
             return self.__existing_tags_cache
 
         logger.debug("Building tags cache (fetching all tags)")
-        _metrics.api_calls += 1
         cache: Dict[str, str] = {}
-        try:
-            # Fetch all tag refs in one paginated call
-            refs = self._repo.get_git_refs()
-            for ref in refs:
-                if not ref.ref.startswith("refs/tags/"):
-                    continue
-                tags_prefix_len = len("refs/tags/")
-                tag_name = ref.ref[tags_prefix_len:]
-                ref_type = getattr(ref.object, "type", None)
-                if ref_type == "commit":
-                    cache[tag_name] = ref.object.sha
-                elif ref_type == "tag":
-                    # Annotated tag - need to resolve to commit
-                    # We'll resolve these lazily if needed
-                    cache[tag_name] = f"annotated:{ref.object.sha}"
-        except Exception as e:
-            logger.debug(f"Could not build tags cache: {e}")
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retries):
+            try:
+                _metrics.api_calls += 1
+                # Fetch all tag refs in one paginated call
+                refs = self._repo.get_git_refs()
+                for ref in refs:
+                    if not ref.ref.startswith("refs/tags/"):
+                        continue
+                    tags_prefix_len = len("refs/tags/")
+                    tag_name = ref.ref[tags_prefix_len:]
+                    ref_type = getattr(ref.object, "type", None)
+                    if ref_type == "commit":
+                        cache[tag_name] = ref.object.sha
+                    elif ref_type == "tag":
+                        # Annotated tag - need to resolve to commit
+                        # We'll resolve these lazily if needed
+                        cache[tag_name] = f"annotated:{ref.object.sha}"
+                # Success - break out of retry loop
+                last_error = None
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(
+                        f"Failed to fetch tags (attempt {attempt + 1}/{retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+
+        if last_error is not None:
+            logger.error(
+                f"Could not build tags cache after {retries} attempts: {last_error}. "
+                "All versions will be treated as new."
+            )
 
         logger.debug(f"Tags cache built with {len(cache)} tags")
         self.__existing_tags_cache = cache

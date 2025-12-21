@@ -597,6 +597,138 @@ def test_commit_sha_of_tag():
     assert r._commit_sha_of_tag("v3.4.5") is None
 
 
+def test_build_tags_cache():
+    """Test _build_tags_cache builds cache from git refs."""
+    r = _repo()
+    mock_ref1 = Mock(ref="refs/tags/v1.0.0")
+    mock_ref1.object.type = "commit"
+    mock_ref1.object.sha = "abc123"
+    mock_ref2 = Mock(ref="refs/tags/v2.0.0")
+    mock_ref2.object.type = "tag"
+    mock_ref2.object.sha = "def456"
+    mock_ref3 = Mock(ref="refs/heads/main")  # Not a tag, should be skipped
+    mock_ref3.object.type = "commit"
+    mock_ref3.object.sha = "ghi789"
+    r._repo.get_git_refs = Mock(return_value=[mock_ref1, mock_ref2, mock_ref3])
+
+    cache = r._build_tags_cache()
+    assert cache == {"v1.0.0": "abc123", "v2.0.0": "annotated:def456"}
+    # Cache should be reused on second call
+    r._repo.get_git_refs.reset_mock()
+    cache2 = r._build_tags_cache()
+    assert cache2 == cache
+    r._repo.get_git_refs.assert_not_called()
+
+
+@patch("tagbot.action.repo.logger")
+@patch("tagbot.action.repo.time.sleep")
+def test_build_tags_cache_retry(mock_sleep, logger):
+    """Test _build_tags_cache retries on failure."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    mock_ref = Mock(ref="refs/tags/v1.0.0")
+    mock_ref.object.type = "commit"
+    mock_ref.object.sha = "abc123"
+    # Fail twice, succeed on third attempt
+    r._repo.get_git_refs = Mock(
+        side_effect=[Exception("API error"), Exception("API error"), [mock_ref]]
+    )
+
+    cache = r._build_tags_cache(retries=3)
+    assert cache == {"v1.0.0": "abc123"}
+    assert r._repo.get_git_refs.call_count == 3
+    assert mock_sleep.call_count == 2  # Sleep between retries
+    assert logger.warning.call_count == 2
+
+
+@patch("tagbot.action.repo.logger")
+@patch("tagbot.action.repo.time.sleep")
+def test_build_tags_cache_all_retries_fail(mock_sleep, logger):
+    """Test _build_tags_cache returns empty cache after all retries fail."""
+    r = _repo()
+    r._repo.get_git_refs = Mock(side_effect=Exception("API error"))
+
+    cache = r._build_tags_cache(retries=3)
+    assert cache == {}
+    assert r._repo.get_git_refs.call_count == 3
+    logger.error.assert_called_once()
+    assert "after 3 attempts" in logger.error.call_args[0][0]
+
+
+def test_highest_existing_version():
+    """Test _highest_existing_version finds highest semver tag."""
+    r = _repo()
+    r._build_tags_cache = Mock(
+        return_value={
+            "v1.0.0": "abc",
+            "v2.5.0": "def",
+            "v2.4.9": "ghi",
+            "v3.0.0-rc1": "jkl",  # Pre-release, lower than 3.0.0
+            "not-a-version": "mno",  # Invalid semver, should be skipped
+        }
+    )
+    from semver import VersionInfo
+
+    result = r._highest_existing_version()
+    assert result == VersionInfo.parse("3.0.0-rc1")
+
+
+def test_highest_existing_version_empty():
+    """Test _highest_existing_version with no tags."""
+    r = _repo()
+    r._build_tags_cache = Mock(return_value={})
+    assert r._highest_existing_version() is None
+
+
+def test_highest_existing_version_with_prefix():
+    """Test _highest_existing_version respects tag prefix."""
+    r = _repo(subdir="path/to/pkg")
+    r._Repo__project = {"name": "MyPkg"}
+    r._build_tags_cache = Mock(
+        return_value={
+            "v1.0.0": "abc",  # Wrong prefix
+            "MyPkg-v2.0.0": "def",  # Correct prefix
+            "MyPkg-v1.5.0": "ghi",  # Correct prefix
+        }
+    )
+    from semver import VersionInfo
+
+    result = r._highest_existing_version()
+    assert result == VersionInfo.parse("2.0.0")
+
+
+@patch("tagbot.action.repo.logger")
+def test_version_with_latest_commit_respects_existing_tags(logger):
+    """Test that backfilled releases aren't marked latest when newer tags exist."""
+    r = _repo()
+    from semver import VersionInfo
+
+    # Existing tag v2.0.0 is higher than new version v1.5.0
+    r._highest_existing_version = Mock(return_value=VersionInfo.parse("2.0.0"))
+    r._Repo__commit_datetimes = {}
+
+    result = r.version_with_latest_commit({"v1.5.0": "abc123"})
+    assert result is None
+    logger.info.assert_called()
+    assert "v2.0.0 is newer" in logger.info.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_version_with_latest_commit_marks_latest_when_newer(logger):
+    """Test that new version is marked latest when it's higher than existing."""
+    r = _repo()
+    from semver import VersionInfo
+
+    # Existing tag v1.0.0 is lower than new version v2.0.0
+    r._highest_existing_version = Mock(return_value=VersionInfo.parse("1.0.0"))
+    r._Repo__commit_datetimes = {}
+    r._repo.get_commit = Mock()
+    r._repo.get_commit.return_value.commit.author.date = datetime.now(timezone.utc)
+
+    result = r.version_with_latest_commit({"v2.0.0": "abc123"})
+    assert result == "v2.0.0"
+
+
 def test_commit_sha_of_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
