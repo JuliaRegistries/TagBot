@@ -1,22 +1,17 @@
-.PHONY: test test-docker publish pytest black flake8 mypy
+.PHONY: test test-web docker publish
 
+# Run Julia tests
 test:
-	./bin/test.sh
+	cd julia && julia --color=yes --project=. -e 'using Pkg; Pkg.test()'
 
-test-docker:
-	./bin/test-docker.sh
+# Run Python web service tests
+test-web:
+	cd test/web && python -m pytest
 
-pytest:
-	python -m pytest --cov tagbot --ignore node_modules
+# Build Docker image
+docker:
+	docker build -t tagbot:test .
 
-black:
-	black --check bin stubs tagbot test
-
-flake8:
-	flake8 bin tagbot test
-
-mypy:
-	mypy --strict bin tagbot
-
+# Publish release (run from CI)
 publish:
-	./bin/publish.py
+	python bin/publish.py

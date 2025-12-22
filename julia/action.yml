@@ -1,0 +1,101 @@
+# TagBot.jl GitHub Action
+# Julia port of TagBot
+
+name: Julia TagBot
+description: Creates tags, releases, and changelogs for Julia packages
+author: JuliaRegistries
+
+branding:
+  icon: tag
+  color: purple
+
+inputs:
+  token:
+    description: GitHub API token
+    required: true
+    default: ${{ github.token }}
+  registry:
+    description: Julia registry (default is General)
+    required: false
+    default: JuliaRegistries/General
+  branch:
+    description: Branch to use for tags (default is repo default branch)
+    required: false
+    default: ''
+  changelog:
+    description: Custom changelog template
+    required: false
+    default: ''
+  changelog_ignore:
+    description: Comma-separated list of labels for issues/PRs to ignore
+    required: false
+    default: ''
+  dispatch:
+    description: Whether to create a repository dispatch event
+    required: false
+    default: 'false'
+  dispatch_delay:
+    description: Delay in minutes after dispatch event before continuing
+    required: false
+    default: '5'
+  draft:
+    description: Create releases as drafts
+    required: false
+    default: 'false'
+  gpg:
+    description: GPG private key for signing tags (Base64-encoded)
+    required: false
+    default: ''
+  gpg_password:
+    description: Password for GPG key
+    required: false
+    default: ''
+  registry_ssh:
+    description: SSH key for private registry access
+    required: false
+    default: ''
+  ssh:
+    description: SSH private key for pushing tags
+    required: false
+    default: ''
+  ssh_password:
+    description: Password for SSH key
+    required: false
+    default: ''
+  subdir:
+    description: Subdirectory for monorepo packages
+    required: false
+    default: ''
+  tag_prefix:
+    description: Tag prefix (use "NO_PREFIX" for none)
+    required: false
+    default: ''
+  user:
+    description: Git username for tagging
+    required: false
+    default: 'github-actions[bot]'
+  email:
+    description: Git email for tagging
+    required: false
+    default: 'github-actions[bot]@users.noreply.github.com'
+  github:
+    description: GitHub instance URL
+    required: false
+    default: 'github.com'
+  github_api:
+    description: GitHub API URL
+    required: false
+    default: 'api.github.com'
+  branches:
+    description: Enable release branches support
+    required: false
+    default: 'false'
+  lookback:
+    description: Days to look back for branches
+    required: false
+    default: '3'
+
+runs:
+  using: docker
+  # TODO: Update this to the published Julia image once released
+  image: docker://ghcr.io/juliaregistries/tagbot-julia:1.23.4
