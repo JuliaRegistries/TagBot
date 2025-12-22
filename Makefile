@@ -2,7 +2,7 @@
 
 # Run Julia tests
 test:
-	cd julia && julia --project=. -e 'using Pkg; Pkg.test()'
+	cd julia && julia --color=yes --project=. -e 'using Pkg; Pkg.test()'
 
 # Run Python web service tests
 test-web:

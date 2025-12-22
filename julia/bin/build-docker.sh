@@ -10,7 +10,7 @@ docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
 echo ""
 echo "Testing that image loads successfully..."
-docker run --rm "${IMAGE_NAME}:${IMAGE_TAG}" julia --project=. -e '
+docker run --rm "${IMAGE_NAME}:${IMAGE_TAG}" julia --color=yes --project=. -e '
     using TagBot
     println("✓ TagBot v$(TagBot.VERSION) loaded successfully")
     println("  Exports: $(join(names(TagBot), ", "))")

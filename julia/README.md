@@ -40,10 +40,10 @@ jobs:
 
 ```bash
 # Install dependencies
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate()'
 
 # Run tests
-julia --project=. -e 'using Pkg; Pkg.test()'
+julia --color=yes --project=. -e 'using Pkg; Pkg.test()'
 
 # Or use the helper script
 ./bin/test.sh

@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "Running TagBot.jl tests..."
-julia --project=. -e '
+julia --color=yes --project=. -e '
     using Pkg
     Pkg.instantiate()
     Pkg.test()

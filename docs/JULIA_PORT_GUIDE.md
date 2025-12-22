@@ -149,13 +149,13 @@ FROM julia:1.12 AS builder
 
 WORKDIR /app
 COPY Project.toml ./
-RUN julia --project=. -e 'using Pkg; Pkg.instantiate()'
+RUN julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate()'
 
 COPY src/ src/
 COPY precompile/ precompile/
 
 # Create system image with precompilation
-RUN julia --project=. -e '
+RUN julia --color=yes --project=. -e '
     using PackageCompiler
     create_sysimage(
         [:TagBot],
@@ -185,11 +185,11 @@ RUN apt-get update && apt-get install -y git gnupg openssh-client
 
 WORKDIR /app
 COPY Project.toml ./
-RUN julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+RUN julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
 COPY src/ src/
 # Trigger precompilation
-RUN julia --project=. -e 'using TagBot'
+RUN julia --color=yes --project=. -e 'using TagBot'
 
 CMD ["julia", "--project=.", "-e", "using TagBot; TagBot.main()"]
 ```

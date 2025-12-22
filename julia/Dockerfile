@@ -7,13 +7,13 @@ WORKDIR /app
 COPY Project.toml ./
 
 # Install dependencies
-RUN julia --project=. -e 'using Pkg; Pkg.instantiate()'
+RUN julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate()'
 
 # Copy source code
 COPY src/ src/
 
 # Precompile the package (this triggers PrecompileTools workload)
-RUN julia --project=. -e '
+RUN julia --color=yes --project=. -e '
     using Pkg
     Pkg.precompile()
     # Force loading to trigger all precompilation
@@ -45,7 +45,7 @@ COPY --from=builder /app/src /app/src
 COPY --from=builder /root/.julia /root/.julia
 
 # Verify the installation works
-RUN julia --project=. -e 'using TagBot; println("TagBot ready")'
+RUN julia --color=yes --project=. -e 'using TagBot; println("TagBot ready")'
 
 # Entry point
 CMD ["julia", "--project=.", "-e", "using TagBot; TagBot.main()"]
