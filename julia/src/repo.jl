@@ -484,13 +484,25 @@ function build_registry_prs_cache!(repo::Repo)
     prs_fetched = 0
     page = 1
     
+    # Get the registry repo name
+    registry_repo = get_registry_gh_repo(repo)
+    registry_name = registry_repo.full_name
+    api_url = repo._api isa GitHubWebAPI ? string(repo._api.endpoint) : "https://api.github.com"
+    
     while prs_fetched < MAX_PRS_TO_CHECK
         METRICS.api_calls += 1
-        prs, page_data = @mock pull_requests(repo._api, get_registry_gh_repo(repo);
-            auth=repo._auth,
-            params=Dict("state" => "closed", "sort" => "updated", "direction" => "desc",
-                       "per_page" => "100", "page" => string(page)))
         
+        # Use raw HTTP instead of GitHub.jl to avoid hangs with large repos
+        url = "$api_url/repos/$registry_name/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=$page"
+        
+        resp = @mock HTTP.get(url, [
+            "Authorization" => "Bearer $(repo.config.token)",
+            "Accept" => "application/vnd.github+json"
+        ]; status_exception=false)
+        
+        resp.status >= 400 && break
+        
+        prs = JSON3.read(String(resp.body))
         isempty(prs) && break
         
         for pr in prs
@@ -498,17 +510,22 @@ function build_registry_prs_cache!(repo::Repo)
             prs_fetched += 1
             
             # Only cache merged PRs
-            if pr.merged_at !== nothing
+            merged_at = get(pr, :merged_at, nothing)
+            if merged_at !== nothing
+                head_ref = get(get(pr, :head, Dict()), :ref, "")
+                labels = [l[:name] for l in get(pr, :labels, [])]
+                user_login = get(get(pr, :user, Dict()), :login, "")
+                
                 pr_obj = GitHubPullRequest(
-                    pr.number,
-                    something(pr.title, ""),
-                    something(pr.body, ""),
+                    pr[:number],
+                    something(get(pr, :title, nothing), ""),
+                    something(get(pr, :body, nothing), ""),
                     true,
-                    pr.merged_at,
-                    pr.head !== nothing ? name(pr.head) : "",
-                    string(pr.html_url),
-                    pr.user !== nothing ? name(pr.user) : "",
-                    [l["name"] for l in something(pr.labels, [])]
+                    DateTime(merged_at[1:19], dateformat"yyyy-mm-ddTHH:MM:SS"),
+                    head_ref,
+                    string(pr[:html_url]),
+                    user_login,
+                    labels
                 )
                 cache[pr_obj.head_ref] = pr_obj
             end
@@ -755,28 +772,38 @@ function create_release(repo::Repo, version::String, sha::String; is_latest::Boo
     
     @debug "Release $version_tag target: $target"
     
-    # Generate changelog
-    log = get_changelog(repo.changelog, version_tag, sha)
+    # Get custom release notes from registry PR (if any)
+    custom_notes = custom_release_notes(repo.changelog, version_tag)
     
     # Create tag via git (unless draft mode)
+    # Use custom notes as tag message, or just the version
+    tag_message = custom_notes !== nothing ? custom_notes : version_tag
     if !repo.config.draft
-        create_tag(repo.git, version_tag, sha, log)
+        create_tag(repo.git, version_tag, sha, tag_message)
     end
     
     @info "Creating GitHub release $version_tag at $sha"
+    
+    # Build release params - use GitHub's auto-generated notes
+    params = Dict{String,Any}(
+        "tag_name" => version_tag,
+        "name" => version_tag,
+        "target_commitish" => target,
+        "draft" => repo.config.draft,
+        "make_latest" => is_latest ? "true" : "false",
+        "generate_release_notes" => true,  # Use GitHub's changelog generator
+    )
+    
+    # If we have custom notes from the registry PR, prepend them to the body
+    if custom_notes !== nothing
+        params["body"] = custom_notes
+    end
     
     # Create GitHub release using GitHub.jl
     METRICS.api_calls += 1
     @mock gh_create_release(repo._api, get_gh_repo(repo);
         auth=repo._auth,
-        params=Dict(
-            "tag_name" => version_tag,
-            "name" => version_tag,
-            "body" => log,
-            "target_commitish" => target,
-            "draft" => repo.config.draft,
-            "make_latest" => is_latest ? "true" : "false",
-        ))
+        params=params)
     
     @info "GitHub release $version_tag created successfully"
 end
@@ -838,12 +865,18 @@ function get_commit(repo::Repo, sha::String)
     METRICS.api_calls += 1
     try
         c = GitHub.commit(repo._api, get_gh_repo(repo), sha; auth=repo._auth)
-        tree_sha = c.commit !== nothing && c.commit.tree !== nothing ? c.commit.tree["sha"] : ""
-        author_date = c.commit !== nothing && c.commit.author !== nothing ? 
-            DateTime(c.commit.author["date"][1:19], dateformat"yyyy-mm-ddTHH:MM:SS") : DateTime(0)
+        # The inner commit object has the git commit details
+        inner = c.commit
+        tree_sha = ""  # Tree SHA not available via this endpoint
+        author_date = if inner !== nothing && inner.author !== nothing && inner.author.date !== nothing
+            inner.author.date
+        else
+            DateTime(0)
+        end
         
         return GitHubCommit(sha, tree_sha, author_date)
-    catch
+    catch e
+        @warn "Failed to fetch commit $sha" exception=(e, catch_backtrace())
         return nothing
     end
 end
@@ -899,6 +932,14 @@ function search_issues(repo::Repo, query::String)
                 nothing
             end
             
+            is_pr = get(item, :pull_request, nothing) !== nothing
+            merged = if is_pr
+                pr_data = item[:pull_request]
+                get(pr_data, :merged_at, nothing) !== nothing
+            else
+                false
+            end
+            
             push!(results, GitHubIssue(
                 item[:number],
                 item[:title],
@@ -907,7 +948,8 @@ function search_issues(repo::Repo, query::String)
                 item[:html_url],
                 item[:user][:login],
                 [l[:name] for l in get(item, :labels, [])],
-                get(item, :pull_request, nothing) !== nothing
+                is_pr,
+                merged
             ))
         end
         
@@ -942,6 +984,10 @@ function get_issues(repo::Repo; state::String="all", since::Union{DateTime,Nothi
         
         for item in issue_list
             closed_at = item.closed_at
+            is_pr = item.pull_request !== nothing
+            # Note: We can't determine merged status from the issues endpoint
+            # For proper merged status, use search_issues with is:merged
+            merged = false
             
             push!(results, GitHubIssue(
                 item.number,
@@ -951,7 +997,8 @@ function get_issues(repo::Repo; state::String="all", since::Union{DateTime,Nothi
                 string(item.html_url),
                 item.user !== nothing ? name(item.user) : "",
                 [l["name"] for l in something(item.labels, [])],
-                item.pull_request !== nothing
+                is_pr,
+                merged
             ))
         end
         

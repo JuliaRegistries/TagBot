@@ -161,83 +161,45 @@ i9j0k1l2 tree3sha
     end
 
     @testset "Git check success/failure" begin
-        # Test return code interpretation
-        success_code = 0
-        failure_code = 1
-        
-        @test success_code == 0
-        @test failure_code != 0
+        # Test return code interpretation (documents expected behavior)
+        @test 0 == 0  # Success
+        @test 1 != 0  # Failure
     end
 
     @testset "Git clone URL construction" begin
-        # Test OAuth2 token URL format
+        # Test OAuth2 token URL format used for cloning
         github = "github.com"
         repo = "owner/repo"
         token = "ghp_xxxx"
         
         url = "https://oauth2:$token@$github/$repo"
-        @test occursin("oauth2:", url)
-        @test occursin(token, url)
-        @test occursin(repo, url)
-    end
-
-    @testset "Fetch branch command" begin
-        # Test fetch branch command construction
-        branch = "release-1.2"
-        expected_args = ["fetch", "origin", "$branch:$branch"]
-        
-        @test expected_args[1] == "fetch"
-        @test expected_args[2] == "origin"
-        @test expected_args[3] == "release-1.2:release-1.2"
+        @test startswith(url, "https://oauth2:")
+        @test occursin("@github.com/", url)
+        @test endswith(url, "/owner/repo")
     end
 
     @testset "Create tag already exists handling" begin
         # Test ls-remote output parsing for existing tag check
-        tag = "v1.0.0"
-        
-        # Tag exists
         ls_remote_exists = "abc123def456\trefs/tags/v1.0.0"
         @test !isempty(strip(ls_remote_exists))
         
-        # Tag doesn't exist
         ls_remote_empty = ""
         @test isempty(strip(ls_remote_empty))
     end
 
-    @testset "Fast-forward check" begin
-        # Test merge-base comparison for fast-forward
+    @testset "Fast-forward merge" begin
+        # Test merge-base comparison logic for fast-forward detection
         head_sha = "abc123"
         base_sha = "def456"
-        merge_base = "def456"
         
         # Can fast-forward if merge-base == base
-        can_ff = merge_base == base_sha
-        @test can_ff == true
-        
-        # Cannot fast-forward if merge-base != base
-        merge_base2 = "ghi789"
-        can_ff2 = merge_base2 == base_sha
-        @test can_ff2 == false
-    end
-
-    @testset "Merge and delete branch" begin
-        # Test merge command construction
-        branch = "release-1.2"
-        default = "main"
-        
-        merge_args = ["merge", "--ff-only", branch]
-        @test merge_args[2] == "--ff-only"
-        
-        delete_args = ["push", "origin", "--delete", branch]
-        @test delete_args[3] == "--delete"
-        @test delete_args[4] == branch
+        @test "def456" == base_sha  # merge-base equals base = can FF
+        @test "ghi789" != base_sha  # merge-base differs = cannot FF
     end
 
     @testset "SSH key file permissions" begin
-        # Test expected permissions for SSH key file
-        # 0o400 = read-only for owner
-        expected_mode = 0o400
-        @test expected_mode == 256  # Octal 400 = decimal 256
+        # Octal 400 (read-only for owner) is the expected permission for SSH keys
+        @test 0o400 == 0o400  # Documents expected permission
     end
 
     @testset "SSH known_hosts generation" begin

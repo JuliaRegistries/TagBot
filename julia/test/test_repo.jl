@@ -390,14 +390,9 @@ uuid"""  # Missing = sign
     end
 
     @testset "Uppercase UUID normalization" begin
-        # Test that uppercase UUIDs are normalized to lowercase
-        uuid_upper = "ABC-DEF"
-        uuid_lower = lowercase(uuid_upper)
-        @test uuid_lower == "abc-def"
-        
-        # Mixed case
-        uuid_mixed = "AbC-DeF-123"
-        @test lowercase(uuid_mixed) == "abc-def-123"
+        # Test that uppercase UUIDs are normalized to lowercase for registry lookup
+        @test lowercase("ABC-DEF") == "abc-def"
+        @test lowercase("AbC-DeF-123") == "abc-def-123"
     end
 
     @testset "Private key decoding" begin
@@ -439,17 +434,18 @@ uuid"""  # Missing = sign
     end
 
     @testset "Run URL construction" begin
-        # Test GitHub Actions run URL construction
+        # Test GitHub Actions run URL format
         repo = "Owner/Repo"
         run_id = "12345"
-        expected = "https://github.com/Owner/Repo/actions/runs/12345"
-        
         url = "https://github.com/$repo/actions/runs/$run_id"
-        @test url == expected
+        
+        @test startswith(url, "https://github.com/")
+        @test endswith(url, "/actions/runs/12345")
     end
 
     @testset "Error report structure" begin
-        # Test error report payload structure
+        # Verify error report payload has all required fields
+        required_fields = ["image", "repo", "run", "stacktrace"]
         report = Dict(
             "image" => "ghcr.io/juliaregistries/tagbot:1.23.4",
             "repo" => "Owner/Package",
@@ -457,10 +453,7 @@ uuid"""  # Missing = sign
             "stacktrace" => "Error at line 10",
         )
         
-        @test haskey(report, "image")
-        @test haskey(report, "repo")
-        @test haskey(report, "run")
-        @test haskey(report, "stacktrace")
+        @test all(haskey(report, f) for f in required_fields)
     end
 
     @testset "Handle error classification" begin

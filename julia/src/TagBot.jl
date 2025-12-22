@@ -51,9 +51,8 @@ export Abort, InvalidProject, RepoConfig, SemVer
 export main, new_versions, create_release, is_registered
 export configure_ssh, configure_gpg
 export get_tag_prefix, get_version_tag
-export DEFAULT_CHANGELOG_TEMPLATE, DEFAULT_CHANGELOG_IGNORE
 
 # Internal utilities (not exported but accessible via TagBot.X)
-# slug, sanitize are in changelog.jl and logging.jl respectively
+# slug is in changelog.jl
 
 end # module

@@ -259,6 +259,7 @@ struct GitHubIssue
     user_login::String
     labels::Vector{String}
     is_pull_request::Bool
+    merged::Bool  # For PRs: whether it was merged (not just closed)
 end
 
 """

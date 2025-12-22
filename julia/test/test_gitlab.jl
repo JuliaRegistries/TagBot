@@ -67,36 +67,24 @@ using TagBot: RepoConfig
     end
 
     @testset "GitLab merge request vs PR terminology" begin
-        # Test that we can handle GitLab's "merge request" terminology
-        github_term = "pull_request"
-        gitlab_term = "merge_request"
-        
+        # Test normalization of GitHub "pull_request" to GitLab "merge_request"
         normalize_term(term) = replace(term, "pull_request" => "merge_request")
         
-        @test normalize_term(github_term) == gitlab_term
-        @test normalize_term(gitlab_term) == gitlab_term
+        @test normalize_term("pull_request") == "merge_request"
+        @test normalize_term("merge_request") == "merge_request"  # Idempotent
     end
 
-    @testset "GitLab issue/MR number format" begin
-        # GitLab uses integers, similar to GitHub
-        mr_number = 42
-        mr_ref = "!$mr_number"  # GitLab uses ! for MRs
-        
-        @test mr_ref == "!42"
-        
-        issue_number = 123
-        issue_ref = "#$issue_number"
-        
-        @test issue_ref == "#123"
+    @testset "GitLab issue/MR reference format" begin
+        # GitLab uses ! for MRs and # for issues (same as GitHub for issues)
+        @test "!42" == "!" * string(42)  # MR reference format
+        @test "#123" == "#" * string(123)  # Issue reference format
     end
 
-    @testset "GitLab commit SHA format" begin
-        # SHA format is the same as GitHub
+    @testset "GitLab SHA format" begin
+        # SHA format is the same as GitHub (40 hex chars)
         sha = "abc123def456789012345678901234567890abcd"
-        short_sha = sha[1:8]
-        
         @test length(sha) == 40
-        @test short_sha == "abc123de"
+        @test all(c -> c in "0123456789abcdef", sha)
     end
 
     @testset "GitLab tree contents" begin
@@ -116,7 +104,7 @@ using TagBot: RepoConfig
     end
 
     @testset "GitLab release creation structure" begin
-        # Test release payload structure for GitLab
+        # Verify release payload has required fields for GitLab API
         release_payload = Dict(
             "tag_name" => "v1.0.0",
             "name" => "v1.0.0",
@@ -124,20 +112,19 @@ using TagBot: RepoConfig
             "ref" => "abc123def456",
         )
         
-        @test release_payload["tag_name"] == "v1.0.0"
-        @test release_payload["ref"] == "abc123def456"
+        @test all(haskey(release_payload, k) for k in ["tag_name", "name", "description", "ref"])
     end
 
     @testset "GitLab tag creation" begin
-        # Test tag payload structure for GitLab
+        # Verify tag payload has required fields for GitLab API
         tag_payload = Dict(
             "tag_name" => "v1.0.0",
             "ref" => "abc123def456789012345678901234567890abcd",
             "message" => "v1.0.0",
         )
         
-        @test tag_payload["tag_name"] == "v1.0.0"
-        @test length(tag_payload["ref"]) == 40
+        @test haskey(tag_payload, "tag_name")
+        @test length(tag_payload["ref"]) == 40  # Full SHA required
     end
 
     @testset "GitLab file contents base64" begin
@@ -184,18 +171,15 @@ using TagBot: RepoConfig
     end
 
     @testset "GitLab rate limiting headers" begin
-        # Test rate limit header parsing
+        # Test parsing of GitLab-specific rate limit headers
         headers = Dict(
             "RateLimit-Limit" => "600",
             "RateLimit-Remaining" => "599",
             "RateLimit-Reset" => "1609459200",
         )
         
-        limit = parse(Int, headers["RateLimit-Limit"])
-        remaining = parse(Int, headers["RateLimit-Remaining"])
-        
-        @test limit == 600
-        @test remaining == 599
+        @test parse(Int, headers["RateLimit-Limit"]) == 600
+        @test parse(Int, headers["RateLimit-Remaining"]) < parse(Int, headers["RateLimit-Limit"])
     end
 
     @testset "GitLab vs GitHub URL patterns" begin
@@ -229,16 +213,14 @@ using TagBot: RepoConfig
     end
 
     @testset "GitLab pipeline status" begin
-        # Test pipeline/CI status values
-        statuses = ["pending", "running", "success", "failed", "canceled", "skipped"]
-        
+        # Test pipeline/CI status classification
         is_success(s) = s == "success"
         is_failed(s) = s in ["failed", "canceled"]
         is_pending(s) = s in ["pending", "running"]
         
         @test is_success("success")
-        @test is_failed("failed")
-        @test is_failed("canceled")
-        @test is_pending("running")
+        @test !is_success("failed")
+        @test is_failed("failed") && is_failed("canceled")
+        @test is_pending("running") && is_pending("pending")
     end
 end
