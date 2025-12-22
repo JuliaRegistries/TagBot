@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Set up Julia environment
 WORKDIR /app
-COPY julia/* ./
+COPY julia/Project.toml ./
+COPY julia/src ./src
 RUN julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
 # Set entrypoint
