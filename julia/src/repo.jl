@@ -211,8 +211,16 @@ function get_registry_file_content(repo::Repo, path::String)
     METRICS.api_calls += 1
     try
         content_obj = @mock file(repo._api, get_registry_gh_repo(repo), path; auth=repo._auth)
-        if content_obj.content !== nothing
+        # Check for base64 encoded content
+        if content_obj.content !== nothing && !isempty(content_obj.content)
             return String(Base64.base64decode(replace(content_obj.content, "\n" => "")))
+        end
+        # For large files (>1MB), GitHub returns empty content with download_url
+        # Use download_url to fetch the content directly
+        if content_obj.download_url !== nothing
+            @debug "File too large for API, using download_url" path
+            response = HTTP.get(string(content_obj.download_url))
+            return String(response.body)
         end
     catch e
         throw(InvalidProject("Registry file not found: $path"))
@@ -343,7 +351,10 @@ function build_tags_cache!(repo::Repo; retries::Int=3)
             tags_list, _ = GitHub.tags(repo._api, get_gh_repo(repo); auth=repo._auth)
             
             for tag in tags_list
-                tag_name = name(tag)
+                # Tag type has .tag field (not .name)
+                tag_name = tag.tag
+                tag_name === nothing && continue
+                
                 # Tag object has sha field
                 if tag.object !== nothing
                     obj_type = get(tag.object, "type", "commit")
