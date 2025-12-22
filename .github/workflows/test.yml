@@ -19,9 +19,6 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-      - uses: julia-actions/julia-buildpkg@v1
-        with:
-          project: julia
       - uses: julia-actions/julia-runtest@v1
         with:
           project: julia
@@ -41,8 +38,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t tagbot:test .
-      - name: Test Docker image
+      - name: Test Docker image loads
         run: |
           docker run --rm tagbot:test julia --project=/app -e '
             using TagBot
             println("TagBot v", TagBot.VERSION, " loaded successfully")'
+      - name: Run tests in Docker
+        run: |
+          docker run --rm tagbot:test julia --project=/app -e '
+            using Pkg
+            Pkg.test()'

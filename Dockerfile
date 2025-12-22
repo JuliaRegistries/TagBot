@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY julia/Project.toml ./
 COPY julia/src ./src
+COPY julia/test ./test
 RUN julia --color=yes --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
 # Set entrypoint
