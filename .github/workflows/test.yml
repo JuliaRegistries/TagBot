@@ -40,12 +40,12 @@ jobs:
         run: docker build -t tagbot:test .
       - name: Test Docker image loads
         run: |
-          docker run --rm tagbot:test julia --project=/app -e '
+          docker run --rm tagbot:test julia --color=yes --project=/app -e '
             using TagBot
             println("TagBot v", TagBot.VERSION, " loaded successfully")'
       - name: Run tests in Docker
         run: |
-          docker run --rm tagbot:test julia --project=/app -e '
+          docker run --rm tagbot:test julia --color=yes --project=/app -e '
             using Pkg
             Pkg.test()'
       - name: Run Docker integration test
@@ -54,7 +54,7 @@ jobs:
         run: |
           # Clone Example.jl - a small, stable, registered package
           git clone --depth=100 https://github.com/JuliaLang/Example.jl.git /tmp/Example.jl
-          
+
           # Run TagBot in the Docker container exactly as action.yml would
           # (same CMD, same env vars GitHub Actions sets)
           docker run --rm \
@@ -73,7 +73,7 @@ jobs:
             -e INPUT_USER=github-actions[bot] \
             -e INPUT_EMAIL=41898282+github-actions[bot]@users.noreply.github.com \
             tagbot:test
-          
+
           # The container runs `julia -e "using TagBot; TagBot.main()"` by default
           # For Example.jl (fully tagged), it should exit successfully with "No new versions"
 
@@ -95,7 +95,6 @@ jobs:
         env:
           GITHUB_ACTIONS: true
           GITHUB_WORKSPACE: /tmp/Example.jl
-          GITHUB_REPOSITORY: JuliaLang/Example.jl
           INPUT_TOKEN: ${{ github.token }}
           INPUT_REGISTRY: JuliaRegistries/General
           INPUT_SSH: ''
@@ -108,19 +107,21 @@ jobs:
           INPUT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           cd julia
-          julia --project=. -e '
+          # Override GitHub's built-in GITHUB_REPOSITORY for testing
+          export GITHUB_REPOSITORY=JuliaLang/Example.jl
+          julia --color=yes --project=. -e '
             using TagBot
-            
+
             println("="^60)
             println("Integration Test - Running TagBot.main()")
             println("="^60)
             println("Repository: ", ENV["GITHUB_REPOSITORY"])
             println("Registry: ", ENV["INPUT_REGISTRY"])
             println()
-            
+
             # Run the actual main() function - same as Docker CMD
             TagBot.main()
-            
+
             println()
             println("="^60)
             println("✅ TagBot.main() completed successfully")
