@@ -1038,32 +1038,25 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             self._create_release_branch_pr(version_tag, branch)
 
     def create_release(self, version: str, sha: str, is_latest: bool = True) -> None:
-        """Create a GitHub release.
-
-        Args:
-            version: The version string (e.g., "v1.2.3")
-            sha: The commit SHA to tag
-            is_latest: Whether this release should be marked as the latest release.
-                       Set to False when backfilling old releases to avoid marking
-                       them as latest.
-        """
+        """Create a GitHub release, skipping if a release for the tag already exists."""
         target = sha
         if self._commit_sha_of_release_branch() == sha:
-            # If we use <branch> as the target, GitHub will show
-            # "<n> commits to <branch> since this release" on the release page.
             target = self._release_branch
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         log = self._changelog.get(version_tag, sha)
+        # Check if a release for this tag already exists
+        try:
+            releases = list(self._repo.get_releases())
+            for release in releases:
+                if release.tag_name == version_tag:
+                    logger.info(f"Release for tag {version_tag} already exists, skipping creation.")
+                    return
+        except Exception as e:
+            logger.warning(f"Could not check for existing releases: {e}")
         if not self._draft:
-            # Always create tags via the CLI as the GitHub API has a bug which
-            # only allows tags to be created for SHAs which are the the HEAD
-            # commit on a branch.
-            # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
-        # Use make_latest=False for backfilled old releases to avoid marking them
-        # as the "Latest" release on GitHub
         make_latest_str = "true" if is_latest else "false"
         self._repo.create_git_release(
             version_tag,
