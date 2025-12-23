@@ -110,28 +110,33 @@ T = TypeVar("T")
 
 
 class Repo:
-        def is_version_yanked(self, version: str) -> bool:
-            """Check if a version is yanked in the registry (Versions.toml)."""
-            if version.startswith("v"):
-                version = version[1:]
-            root = self._registry_path
-            if not root:
-                logger.error("Package is not registered")
+    def is_version_yanked(self, version: str) -> bool:
+        """Check if a version is yanked in the registry (Versions.toml)."""
+        if version.startswith("v"):
+            version = version[1:]
+        root = self._registry_path
+        if not root:
+            logger.error("Package is not registered")
+            return False
+        try:
+            if self._clone_registry:
+                with open(
+                    os.path.join(self._registry_clone_dir, root, "Versions.toml")
+                ) as f:
+                    versions = toml.load(f)
+            else:
+                contents = self._only(
+                    self._registry.get_contents(f"{root}/Versions.toml")
+                )
+                versions = toml.loads(contents.decoded_content.decode())
+            if version not in versions:
+                logger.error(f"Version {version} is not registered")
                 return False
-            try:
-                if self._clone_registry:
-                    with open(os.path.join(self._registry_clone_dir, root, "Versions.toml")) as f:
-                        versions = toml.load(f)
-                else:
-                    contents = self._only(self._registry.get_contents(f"{root}/Versions.toml"))
-                    versions = toml.loads(contents.decoded_content.decode())
-                if version not in versions:
-                    logger.error(f"Version {version} is not registered")
-                    return False
-                return bool(versions[version].get("yanked", False))
-            except Exception as e:
-                logger.error(f"Error checking if version is yanked: {e}")
-                return False
+            return bool(versions[version].get("yanked", False))
+        except Exception as e:
+            logger.error(f"Error checking if version is yanked: {e}")
+            return False
+
     """A Repo has access to its Git repository and registry metadata."""
 
     def __init__(
