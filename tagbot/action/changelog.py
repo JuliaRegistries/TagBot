@@ -123,11 +123,49 @@ class Changelog:
         if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
         xs: List[Union[Issue, PullRequest]] = []
-        # Get all closed issues and merged PRs that were closed/merged in the interval.
+
+        # Use search API to filter by date range on the server side.
+        # This is much more efficient than fetching all closed issues and filtering.
+        repo_name = self._repo._repo.full_name
+        # Format dates for GitHub search (ISO 8601 without timezone)
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S")
+        end_str = end.strftime("%Y-%m-%dT%H:%M:%S")
+        query = f"repo:{repo_name} is:closed closed:{start_str}..{end_str}"
+        logger.debug(f"Searching issues/PRs with query: {query}")
+
+        try:
+            # Use the GitHub instance from the repo to search
+            gh = self._repo._gh
+            for x in gh.search_issues(query, sort="created", order="asc"):
+                # Search returns issues, need to filter by closed_at within range
+                # (search date range is approximate, so we still need to verify)
+                if x.closed_at is None or x.closed_at <= start or x.closed_at > end:
+                    continue
+                if self._ignore.intersection(
+                    self._slug(label.name) for label in x.labels
+                ):
+                    continue
+                if x.pull_request:
+                    pr = x.as_pull_request()
+                    if pr.merged:
+                        xs.append(pr)
+                else:
+                    xs.append(x)
+        except Exception as e:
+            # Fall back to the old method if search fails
+            logger.warning(f"Search API failed, falling back to issues API: {e}")
+            return self._issues_and_pulls_fallback(start, end)
+
+        self.__range = (start, end)
+        self.__issues_and_pulls = xs
+        return self.__issues_and_pulls
+
+    def _issues_and_pulls_fallback(
+        self, start: datetime, end: datetime
+    ) -> List[Union[Issue, PullRequest]]:
+        """Fallback method using the issues API (slower but more reliable)."""
+        xs: List[Union[Issue, PullRequest]] = []
         for x in self._repo._repo.get_issues(state="closed", since=start):
-            # If a previous release's last commit closed an issue, then that issue
-            # should be included in the previous release's changelog and not this one.
-            # The interval includes the endpoint for this same reason.
             if x.closed_at <= start or x.closed_at > end:
                 continue
             if self._ignore.intersection(self._slug(label.name) for label in x.labels):
