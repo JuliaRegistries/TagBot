@@ -7,6 +7,8 @@ import sys
 import time
 import traceback
 
+from importlib.metadata import version as pkg_version, PackageNotFoundError
+
 import docker
 import pexpect
 import requests
@@ -94,6 +96,15 @@ class _PerformanceMetrics:
 
 
 _metrics = _PerformanceMetrics()
+
+
+def _get_tagbot_version() -> str:
+    """Get the TagBot version."""
+    try:
+        return pkg_version("tagbot")
+    except PackageNotFoundError:
+        return "Unknown"
+
 
 T = TypeVar("T")
 
@@ -196,6 +207,12 @@ class Repo:
         self.__registry_prs_cache: Optional[Dict[str, PullRequest]] = None
         # Cache for commit datetimes to avoid redundant API calls
         self.__commit_datetimes: Dict[str, datetime] = {}
+        # Cache for existing tags to avoid per-version API calls
+        self.__existing_tags_cache: Optional[Dict[str, str]] = None
+        # Cache for tree SHA → commit SHA mapping (for non-PR registries)
+        self.__tree_to_commit_cache: Optional[Dict[str, str]] = None
+        # Track manual intervention issue URL for error reporting
+        self._manual_intervention_issue_url: Optional[str] = None
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -461,20 +478,8 @@ class Repo:
         head = f"registrator-{name.lower()}-{uuid[:8]}-{version}-{url_hash[:10]}"
         logger.debug(f"Looking for PR from branch {head}")
 
-        # Check for an owner's PR first, since this is way faster (only one request).
-        registry = self._registry
-        owner = registry.owner.login
-        logger.debug(f"Trying to find PR by registry owner first ({owner})")
-        _metrics.api_calls += 1
-        prs = registry.get_pulls(head=f"{owner}:{head}", state="closed")
-        for pr in prs:
-            _metrics.prs_checked += 1
-            if pr.merged_at is not None:
-                logger.debug(f"Found registry PR #{pr.number} by registry owner")
-                return cast(PullRequest, pr)
-        logger.debug("Did not find registry PR by registry owner")
-
-        # Use the cached PR lookup - fetches once and reuses for all versions
+        # Use the cached PR lookup - fetches once and reuses for all versions.
+        # This is much faster than per-version owner lookups.
         pr_cache = self._build_registry_prs_cache()
         if head in pr_cache:
             pr = pr_cache[head]
@@ -512,51 +517,60 @@ class Repo:
             logger.warning("Tree SHA of commit from registry PR does not match")
             return None
 
-    def _commit_sha_of_tree_from_branch(
-        self, branch: str, tree: str, since: Optional[datetime] = None
-    ) -> Optional[str]:
-        """Look up the commit SHA of a tree with the given SHA on one branch."""
-        kwargs: Dict[str, object] = {"sha": branch}
-        if since is not None:
-            kwargs["since"] = since
-        for commit in self._repo.get_commits(**kwargs):
-            if self.__subdir:
-                subdir_tree_hash = self._subdir_tree_hash(
-                    commit.sha, suppress_abort=True
-                )
-                if subdir_tree_hash == tree:
-                    return cast(str, commit.sha)
-            else:
-                if commit.commit.tree.sha == tree:
-                    return cast(str, commit.sha)
-        return None
+    def _build_tree_to_commit_cache(self) -> Dict[str, str]:
+        """Build a cache mapping tree SHAs to commit SHAs.
+
+        Uses git log to get all commit:tree pairs in one command,
+        enabling O(1) lookups instead of iterating through commits.
+        """
+        if self.__tree_to_commit_cache is not None:
+            return self.__tree_to_commit_cache
+
+        logger.debug("Building tree→commit cache")
+        cache: Dict[str, str] = {}
+        try:
+            # Get all commit:tree pairs in one git command
+            output = self._git.command("log", "--all", "--format=%H %T")
+            for line in output.splitlines():
+                parts = line.split()
+                if len(parts) == 2:
+                    commit_sha, tree_sha = parts
+                    # Only keep first occurrence (most recent commit for that tree)
+                    if tree_sha not in cache:
+                        cache[tree_sha] = commit_sha
+            logger.debug(f"Tree→commit cache built with {len(cache)} entries")
+        except Exception as e:
+            logger.warning(f"Failed to build tree→commit cache: {e}")
+
+        self.__tree_to_commit_cache = cache
+        return cache
 
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
-        sha = self._commit_sha_of_tree_from_branch(self._release_branch, tree)
-        if sha:
-            return sha
-        for branch in self._repo.get_branches():
-            if branch.name == self._release_branch:
-                continue
-            sha = self._commit_sha_of_tree_from_branch(branch.name, tree)
-            if sha:
-                return sha
-        # For a valid tree SHA, the only time that we reach here is when a release
-        # has been made long after the commit was made, which is reasonably rare.
-        # Fall back to cloning the repo in that case.
-        if self.__subdir:
-            # For subdirectories, we need to check the subdirectory tree hash.
-            # Limit to 10000 commits to avoid performance issues on large repos.
-            for line in self._git.command(
-                "log", "--all", "--format=%H", "-n", "10000"
-            ).splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
-                if subdir_tree_hash == tree:
-                    return line
+        # Fast path: use pre-built tree→commit cache (built from git log)
+        # This is O(1) vs O(branches * commits) for the API-based approach
+        if not self.__subdir:
+            tree_cache = self._build_tree_to_commit_cache()
+            if tree in tree_cache:
+                return tree_cache[tree]
+            # Tree not found in any commit
             return None
-        else:
-            return self._git.commit_sha_of_tree(tree)
+
+        # For subdirectories, we need to check the subdirectory tree hash.
+        # Build a cache of subdir tree hashes from commits.
+        if self.__tree_to_commit_cache is None:
+            logger.debug("Building subdir tree→commit cache")
+            subdir_cache: Dict[str, str] = {}
+            for line in self._git.command("log", "--all", "--format=%H").splitlines():
+                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
+                if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
+                    subdir_cache[subdir_tree_hash] = line
+            logger.debug(
+                f"Subdir tree→commit cache built with {len(subdir_cache)} entries"
+            )
+            self.__tree_to_commit_cache = subdir_cache
+
+        return self.__tree_to_commit_cache.get(tree)
 
     def _subdir_tree_hash(
         self, commit_sha: str, *, suppress_abort: bool
@@ -573,25 +587,109 @@ class Repo:
                 return None
             raise
 
+    def _build_tags_cache(self, retries: int = 3) -> Dict[str, str]:
+        """Build a cache of all existing tags mapped to their commit SHAs.
+
+        This fetches all tags once and caches them, avoiding per-version API calls.
+        Returns a dict mapping tag names (without 'refs/tags/' prefix) to commit SHAs.
+
+        Args:
+            retries: Number of retry attempts on failure (default 3).
+        """
+        if self.__existing_tags_cache is not None:
+            return self.__existing_tags_cache
+
+        logger.debug("Building tags cache (fetching all tags)")
+        cache: Dict[str, str] = {}
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retries):
+            try:
+                _metrics.api_calls += 1
+                # Fetch only tag refs using server-side filtering (much faster)
+                refs = self._repo.get_git_matching_refs("tags/")
+                for ref in refs:
+                    tags_prefix_len = len("refs/tags/")
+                    tag_name = ref.ref[tags_prefix_len:]
+                    ref_type = getattr(ref.object, "type", None)
+                    if ref_type == "commit":
+                        cache[tag_name] = ref.object.sha
+                    elif ref_type == "tag":
+                        # Annotated tag - need to resolve to commit
+                        # We'll resolve these lazily if needed
+                        cache[tag_name] = f"annotated:{ref.object.sha}"
+                # Success - break out of retry loop
+                last_error = None
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(
+                        f"Failed to fetch tags (attempt {attempt + 1}/{retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+
+        if last_error is not None:
+            logger.error(
+                f"Could not build tags cache after {retries} attempts: {last_error}. "
+                "All versions will be treated as new."
+            )
+
+        logger.debug(f"Tags cache built with {len(cache)} tags")
+        self.__existing_tags_cache = cache
+        return cache
+
     def _commit_sha_of_tag(self, version_tag: str) -> Optional[str]:
         """Look up the commit SHA of a given tag."""
-        try:
-            ref = self._repo.get_git_ref(f"tags/{version_tag}")
-        except UnknownObjectExceptions:
+        # Use cached tags to avoid per-version API calls
+        tags_cache = self._build_tags_cache()
+        if version_tag not in tags_cache:
             return None
-        ref_type = getattr(ref.object, "type", None)
-        if ref_type == "commit":
-            return cast(str, ref.object.sha)
-        elif ref_type == "tag":
-            tag = self._repo.get_git_tag(ref.object.sha)
-            return cast(str, tag.object.sha)
-        else:
-            return None
+
+        sha = tags_cache[version_tag]
+        if sha.startswith("annotated:"):
+            # Resolve annotated tag to commit SHA
+            _metrics.api_calls += 1
+            annotated_prefix_len = len("annotated:")
+            tag = self._repo.get_git_tag(sha[annotated_prefix_len:])
+            resolved_sha = cast(str, tag.object.sha)
+            # Update cache with resolved value
+            tags_cache[version_tag] = resolved_sha
+            return resolved_sha
+        return sha
 
     def _commit_sha_of_release_branch(self) -> str:
         """Get the latest commit SHA of the release branch."""
         branch = self._repo.get_branch(self._release_branch)
         return cast(str, branch.commit.sha)
+
+    def _highest_existing_version(self) -> Optional[VersionInfo]:
+        """Get the highest existing version tag by semver.
+
+        Uses the tags cache to find existing version tags and returns the
+        highest version number among them.
+        """
+        tags_cache = self._build_tags_cache()
+        prefix = self._tag_prefix()
+
+        highest: Optional[VersionInfo] = None
+        for tag_name in tags_cache:
+            # Only consider version tags with our prefix
+            if not tag_name.startswith(prefix):
+                continue
+            prefix_len = len(prefix)
+            version_str = tag_name[prefix_len:]
+            try:
+                version = VersionInfo.parse(version_str)
+                if highest is None or version > highest:
+                    highest = version
+            except ValueError:
+                # Not a valid semver tag, skip
+                continue
+
+        return highest
 
     def version_with_latest_commit(self, versions: Dict[str, str]) -> Optional[str]:
         """Find the version with the most recent commit datetime.
@@ -601,23 +699,54 @@ class Repo:
         commit should be marked as latest, preventing backfilled old releases
         from being incorrectly marked as the latest release.
 
+        Also considers existing tags - if any existing tag has a higher semver
+        than all new versions, no new version will be marked as latest.
+
         Uses cached commit datetimes when available to avoid redundant API calls.
 
         Args:
             versions: Dict mapping version strings to commit SHAs
 
         Returns:
-            The version string with the most recent commit, or None if empty.
+            The version string with the most recent commit, or None if empty
+            or if an existing tag has a higher version.
         """
         if not versions:
             return None
+
+        # Check if any existing tag has a higher version than all new versions
+        highest_existing = self._highest_existing_version()
+        if highest_existing:
+            # Find highest new version (versions dict has "v1.2.3" format)
+            highest_new: Optional[VersionInfo] = None
+            for version in versions:
+                v_str = version[1:] if version.startswith("v") else version
+                try:
+                    v = VersionInfo.parse(v_str)
+                    if highest_new is None or v > highest_new:
+                        highest_new = v
+                except ValueError:
+                    continue
+
+            if highest_new and highest_existing > highest_new:
+                logger.info(
+                    f"Existing tag v{highest_existing} is newer than all new versions; "
+                    "no new release will be marked as latest"
+                )
+                return None
+
+        # Pre-populate commit datetime cache using git log (single command)
+        # This avoids N API calls when checking N versions
+        self._build_commit_datetime_cache(list(versions.values()))
+
         latest_version: Optional[str] = None
         latest_datetime: Optional[datetime] = None
         for version, sha in versions.items():
-            # Check cache first
+            # Check cache first (should be populated by _build_commit_datetime_cache)
             if sha in self.__commit_datetimes:
                 commit_dt = self.__commit_datetimes[sha]
             else:
+                # Fallback to API if not in cache (shouldn't happen normally)
                 try:
                     _metrics.api_calls += 1
                     commit = self._repo.get_commit(sha)
@@ -633,29 +762,87 @@ class Repo:
                 latest_version = version
         return latest_version
 
+    def _build_commit_datetime_cache(self, shas: List[str]) -> None:
+        """Pre-populate commit datetime cache using git log.
+
+        This fetches commit datetimes in a single git command instead of
+        making individual API calls for each commit.
+
+        Args:
+            shas: List of commit SHAs to fetch datetimes for
+        """
+        if not shas:
+            return
+
+        # Check which SHAs are not already cached
+        uncached = [sha for sha in shas if sha not in self.__commit_datetimes]
+        if not uncached:
+            return
+
+        logger.debug(f"Building commit datetime cache for {len(uncached)} commits")
+        try:
+            # Get all commit datetimes in one git command
+            # Format: %H = commit hash, %aI = author date (ISO 8601 strict)
+            output = self._git.command("log", "--all", "--format=%H %aI")
+            sha_set = set(uncached)
+            found = 0
+            for line in output.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2:
+                    commit_sha, iso_date = parts
+                    if commit_sha in sha_set:
+                        # Parse ISO 8601 date and convert to UTC without timezone
+                        dt = datetime.fromisoformat(iso_date)
+                        offset = dt.utcoffset()
+                        if offset:
+                            dt = dt - offset
+                        dt = dt.replace(tzinfo=None)
+                        self.__commit_datetimes[commit_sha] = dt
+                        found += 1
+                        if found >= len(uncached):
+                            break  # Found all we need
+            logger.debug(f"Cached {found} commit datetimes from git log")
+        except Exception as e:
+            logger.warning(f"Failed to build commit datetime cache: {e}")
+
     def _filter_map_versions(self, versions: Dict[str, str]) -> Dict[str, str]:
         """Filter out versions and convert tree SHA to commit SHA."""
+        # Pre-build tags cache to check existing tags quickly
+        self._build_tags_cache()
+        # Note: PR cache is built lazily only when needed (first registry PR lookup)
+
         valid = {}
+        skipped_existing = 0
         for version, tree in versions.items():
             version = f"v{version}"
-            expected = self._commit_sha_from_registry_pr(version, tree)
+            version_tag = self._get_version_tag(version)
+
+            # Fast path: check if tag already exists using cached tags
+            # Just check existence, don't resolve annotated tags (saves API calls)
+            tags_cache = self._build_tags_cache()
+            if version_tag in tags_cache:
+                # Tag exists - we skip without full validation for performance.
+                skipped_existing += 1
+                continue
+
+            # Tag doesn't exist - need to find expected commit SHA
+            # Try git log first (fast - O(1) cache lookup)
+            expected = self._commit_sha_of_tree(tree)
             if not expected:
-                expected = self._commit_sha_of_tree(tree)
+                # Fall back to registry PR lookup (slower - requires API calls)
+                logger.debug(
+                    f"No matching tree for {version}, falling back to registry PR"
+                )
+                expected = self._commit_sha_from_registry_pr(version, tree)
             if not expected:
-                logger.warning(
-                    f"No matching commit was found for version {version} ({tree})"
+                logger.debug(
+                    f"Skipping {version}: no matching tree or registry PR found"
                 )
                 continue
-            version_tag = self._get_version_tag(version)
-            sha = self._commit_sha_of_tag(version_tag)
-            if sha:
-                if sha != expected:
-                    msg = f"Existing tag {version_tag} points at the wrong commit (expected {expected})"  # noqa: E501
-                    logger.error(msg)
-                else:
-                    logger.info(f"Tag {version_tag} already exists")
-                continue
             valid[version] = expected
+
+        if skipped_existing > 0:
+            logger.debug(f"Skipped {skipped_existing} versions with existing tags")
         return valid
 
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
@@ -860,6 +1047,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 labels=["tagbot-manual"] if label_available else [],
             )
             logger.info(f"Created issue for manual intervention: {issue.html_url}")
+            self._manual_intervention_issue_url = issue.html_url
         except GithubException as e:
             logger.warning(
                 f"Could not create issue for manual intervention: {e}\n"
@@ -884,12 +1072,15 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             logger.debug("Not reporting")
             return
         logger.debug("Reporting error")
-        data = {
+        data: Dict[str, Any] = {
             "image": self._image_id(),
             "repo": self._repo.full_name,
             "run": self._run_url(),
             "stacktrace": trace,
+            "version": _get_tagbot_version(),
         }
+        if self._manual_intervention_issue_url:
+            data["manual_intervention_url"] = self._manual_intervention_issue_url
         resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
         output = json.dumps(resp.json(), indent=2)
         logger.info(f"Response ({resp.status_code}): {output}")
@@ -1038,7 +1229,15 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             self._create_release_branch_pr(version_tag, branch)
 
     def create_release(self, version: str, sha: str, is_latest: bool = True) -> None:
-        """Create a GitHub release, skipping if a release for the tag already exists."""
+        """Create a GitHub release.
+
+        Args:
+            version: The version string (e.g., "v1.2.3")
+            sha: The commit SHA to tag
+            is_latest: Whether this release should be marked as the latest release.
+                       Set to False when backfilling old releases to avoid marking
+                       them as latest.
+        """
         target = sha
         if self._commit_sha_of_release_branch() == sha:
             target = self._release_branch
@@ -1057,6 +1256,8 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         if not self._draft:
             self._git.create_tag(version_tag, sha, log)
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
+        # Use make_latest=False for backfilled old releases to avoid marking them
+        # as the "Latest" release on GitHub
         make_latest_str = "true" if is_latest else "false"
         self._repo.create_git_release(
             version_tag,

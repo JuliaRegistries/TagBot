@@ -82,7 +82,14 @@ def test_issues_and_pulls():
     now = datetime.now(timezone.utc)
     start = now - timedelta(days=10)
     end = now
+    # Mock _repo._repo.full_name for search query construction
+    c._repo._repo = Mock()
+    c._repo._repo.full_name = "owner/repo"
     c._repo._repo.get_issues = Mock(return_value=[])
+    # Mock search_issues to raise an exception so we fall back to get_issues
+    mock_gh = Mock()
+    mock_gh.search_issues.side_effect = Exception("search failed")
+    c._repo._gh = mock_gh
     assert c._issues_and_pulls(end, end) == []
     assert c._issues_and_pulls(end, end) == []
     c._repo._repo.get_issues.assert_called_once_with(state="closed", since=end)

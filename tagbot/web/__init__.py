@@ -82,6 +82,11 @@ def report() -> JSON:
             "run": request.json["run"],
             "stacktrace": request.json["stacktrace"],
         }
+        # Optional fields
+        if "version" in request.json:
+            payload["version"] = request.json["version"]
+        if "manual_intervention_url" in request.json:
+            payload["manual_intervention_url"] = request.json["manual_intervention_url"]
     else:
         payload = {}
     LAMBDA.invoke(FunctionName=REPORTS_FUNCTION_NAME, Payload=json.dumps(payload))

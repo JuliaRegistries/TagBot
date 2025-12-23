@@ -430,34 +430,28 @@ def test_registry_pr():
     r._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
     r._registry = Mock(owner=Mock(login="Owner"))
     now = datetime.now(timezone.utc)
-    owner_pr = Mock(merged_at=now)
-    r._registry.get_pulls.return_value = [owner_pr]
+    # Test finding PR in cache (now the only lookup path)
+    good_pr = Mock(
+        closed_at=now,
+        merged=True,
+        head=Mock(ref="registrator-pkgname-abcdef01-v1.2.3-d745cc13b3"),
+    )
+    r._registry.get_pulls.return_value = [good_pr]
     r._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
-    assert r._registry_pr("v1.2.3") is owner_pr
+    assert r._registry_pr("v1.2.3") is good_pr
+    # Cache is built with get_pulls(state="closed", sort="updated", direction="desc")
     r._registry.get_pulls.assert_called_once_with(
-        head="Owner:registrator-pkgname-abcdef01-v1.2.3-d745cc13b3", state="closed"
+        state="closed", sort="updated", direction="desc"
     )
     # Reset for next test - need fresh repo to avoid cache
     r2 = _repo()
     r2._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
     r2._registry = Mock(owner=Mock(login="Owner"))
     r2._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
-    r2._registry.get_pulls.side_effect = [[], []]
+    r2._registry.get_pulls.return_value = []
     assert r2._registry_pr("v2.3.4") is None
-    # First call is owner lookup, second builds the cache
-    assert r2._registry.get_pulls.call_count == 2
-    # Test finding PR in cache
-    r3 = _repo()
-    r3._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
-    r3._registry = Mock(owner=Mock(login="Owner"))
-    r3._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
-    good_pr = Mock(
-        closed_at=now - timedelta(days=2),
-        merged=True,
-        head=Mock(ref="registrator-pkgname-abcdef01-v3.4.5-d745cc13b3"),
-    )
-    r3._registry.get_pulls.side_effect = [[], [good_pr]]
-    assert r3._registry_pr("v3.4.5") is good_pr
+    # Only one call to build the cache
+    assert r2._registry.get_pulls.call_count == 1
 
 
 @patch("tagbot.action.repo.logger")
@@ -481,122 +475,197 @@ def test_commit_sha_from_registry_pr(logger):
     assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
 
 
-def test_commit_sha_of_tree_from_branch():
-    r = _repo()
-    r._repo.get_commits = Mock(return_value=[Mock(sha="abc"), Mock(sha="sha")])
-    r._repo.get_commits.return_value[1].commit.tree.sha = "tree"
-    assert r._commit_sha_of_tree_from_branch("master", "tree") == "sha"
-    r._repo.get_commits.assert_called_with(sha="master")
-    r._repo.get_commits.return_value.pop()
-    assert r._commit_sha_of_tree_from_branch("master", "tree") is None
-
-
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_from_branch_subdir(logger):
-    r = _repo(subdir="path/to/package")
-    commits = [Mock(sha="abc"), Mock(sha="sha")]
-    r._repo.get_commits = Mock(return_value=commits)
-    r._git.command = Mock(side_effect=["other", "tree_hash"])
-
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
-
-    r._repo.get_commits.assert_called_with(sha="master")
-    r._git.command.assert_has_calls(
-        [
-            call("rev-parse", "abc:path/to/package"),
-            call("rev-parse", "sha:path/to/package"),
-        ]
-    )
-    logger.debug.assert_not_called()
-
-
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_of_tree_from_branch_subdir_rev_parse_failure(logger):
-    r = _repo(subdir="path/to/package")
-    commits = [Mock(sha="abc"), Mock(sha="sha")]
-    r._repo.get_commits = Mock(return_value=commits)
-    r._git.command = Mock(side_effect=[Abort("missing"), "tree_hash"])
-
-    assert r._commit_sha_of_tree_from_branch("master", "tree_hash") == "sha"
-
-    r._repo.get_commits.assert_called_with(sha="master")
-    logger.debug.assert_called_with(
-        "rev-parse failed while inspecting %s", "abc:path/to/package"
-    )
-    r._git.command.assert_has_calls(
-        [
-            call("rev-parse", "abc:path/to/package"),
-            call("rev-parse", "sha:path/to/package"),
-        ]
-    )
-
-
 def test_commit_sha_of_tree():
+    """Test tree→commit lookup using git log cache."""
     r = _repo()
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock(), Mock()]
-    branches[0].name = "foo"
-    branches[1].name = "master"
-    r._commit_sha_of_tree_from_branch = Mock(side_effect=["sha1", None, "sha2"])
-    assert r._commit_sha_of_tree("tree") == "sha1"
-    r._repo.get_branches.assert_not_called()
-    r._commit_sha_of_tree_from_branch.assert_called_once_with("master", "tree")
-    assert r._commit_sha_of_tree("tree") == "sha2"
-    r._commit_sha_of_tree_from_branch.assert_called_with("foo", "tree")
-    r._commit_sha_of_tree_from_branch.side_effect = None
-    r._commit_sha_of_tree_from_branch.return_value = None
-    r._git.commit_sha_of_tree = Mock(side_effect=["sha", None])
-    assert r._commit_sha_of_tree("tree") == "sha"
-    assert r._commit_sha_of_tree("tree") is None
+    # Mock git command to return commit:tree pairs
+    r._git.command = Mock(return_value="sha1 tree1\nsha2 tree2\nsha3 tree3")
+    # First lookup builds cache and finds match
+    assert r._commit_sha_of_tree("tree1") == "sha1"
+    r._git.command.assert_called_once_with("log", "--all", "--format=%H %T")
+    # Second lookup uses cache (no additional git command)
+    assert r._commit_sha_of_tree("tree2") == "sha2"
+    assert r._git.command.call_count == 1  # Still just one call
+    # Non-existent tree returns None
+    assert r._commit_sha_of_tree("nonexistent") is None
 
 
 def test_commit_sha_of_tree_subdir_fallback():
-    """Test subdirectory fallback when branch lookups fail."""
+    """Test subdirectory tree→commit cache."""
     r = _repo(subdir="path/to/package")
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock()]
-    branches[0].name = "master"
-    # Branch lookups return None (fail)
-    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     # git log returns commit SHAs
     r._git.command = Mock(return_value="abc123\ndef456\nghi789")
-    # _subdir_tree_hash called via helper, simulate finding match on second commit
-    with patch.object(r, "_subdir_tree_hash", side_effect=[None, "tree_hash", "other"]):
+    # _subdir_tree_hash called for each commit, match on second
+    with patch.object(
+        r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]
+    ):
         assert r._commit_sha_of_tree("tree_hash") == "def456"
-        # Verify it iterated through commits
-        assert r._subdir_tree_hash.call_count == 2
+        r._git.command.assert_called_once_with("log", "--all", "--format=%H")
+        # Cache is built, so subsequent lookups don't call git again
+        assert r._commit_sha_of_tree("other") == "abc123"
+        assert r._git.command.call_count == 1
 
 
 def test_commit_sha_of_tree_subdir_fallback_no_match():
-    """Test subdirectory fallback returns None when no match found."""
+    """Test subdirectory cache returns None when no match found."""
     r = _repo(subdir="path/to/package")
-    r._repo = Mock(default_branch="master")
-    branches = r._repo.get_branches.return_value = [Mock()]
-    branches[0].name = "master"
-    r._commit_sha_of_tree_from_branch = Mock(return_value=None)
     r._git.command = Mock(return_value="abc123\ndef456")
-    # No matches found
-    with patch.object(r, "_subdir_tree_hash", return_value=None):
+    # No matching subdir tree hash
+    with patch.object(r, "_subdir_tree_hash", return_value="other_tree"):
         assert r._commit_sha_of_tree("tree_hash") is None
         assert r._subdir_tree_hash.call_count == 2
 
 
 def test_commit_sha_of_tag():
     r = _repo()
-    r._repo.get_git_ref = Mock()
-    r._repo.get_git_ref.return_value.object.type = "commit"
-    r._repo.get_git_ref.return_value.object.sha = "c"
-    assert r._commit_sha_of_tag("v1.2.3") == "c"
-    r._repo.get_git_ref.assert_called_with("tags/v1.2.3")
-    r._repo.get_git_ref.return_value.object.type = "tag"
+    # Mock get_git_matching_refs to return tags (used by _build_tags_cache)
+    mock_ref1 = Mock(ref="refs/tags/v1.2.3")
+    mock_ref1.object.type = "commit"
+    mock_ref1.object.sha = "c"
+    mock_ref2 = Mock(ref="refs/tags/v2.3.4")
+    mock_ref2.object.type = "tag"
+    mock_ref2.object.sha = "tag_sha"
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
     r._repo.get_git_tag = Mock()
     r._repo.get_git_tag.return_value.object.sha = "t"
+
+    # Test commit tag
+    assert r._commit_sha_of_tag("v1.2.3") == "c"
+    # Test annotated tag (needs resolution)
     assert r._commit_sha_of_tag("v2.3.4") == "t"
-    r._repo.get_git_tag.assert_called_with("c")
-    r._repo.get_git_ref.return_value.object = None
+    r._repo.get_git_tag.assert_called_with("tag_sha")
+    # Test non-existent tag
     assert r._commit_sha_of_tag("v3.4.5") is None
-    r._repo.get_git_ref.side_effect = UnknownObjectException(404, "???", {})
-    assert r._commit_sha_of_tag("v4.5.6") is None
+
+
+def test_build_tags_cache():
+    """Test _build_tags_cache builds cache from git matching refs."""
+    r = _repo()
+    mock_ref1 = Mock(ref="refs/tags/v1.0.0")
+    mock_ref1.object.type = "commit"
+    mock_ref1.object.sha = "abc123"
+    mock_ref2 = Mock(ref="refs/tags/v2.0.0")
+    mock_ref2.object.type = "tag"
+    mock_ref2.object.sha = "def456"
+    # get_git_matching_refs("tags/") only returns tag refs
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
+
+    cache = r._build_tags_cache()
+    assert cache == {"v1.0.0": "abc123", "v2.0.0": "annotated:def456"}
+    # Cache should be reused on second call
+    r._repo.get_git_matching_refs.reset_mock()
+    cache2 = r._build_tags_cache()
+    assert cache2 == cache
+    r._repo.get_git_matching_refs.assert_not_called()
+
+
+@patch("tagbot.action.repo.logger")
+@patch("tagbot.action.repo.time.sleep")
+def test_build_tags_cache_retry(mock_sleep, logger):
+    """Test _build_tags_cache retries on failure."""
+    r = _repo()
+    logger.reset_mock()  # Clear any warnings from _repo() initialization
+    mock_ref = Mock(ref="refs/tags/v1.0.0")
+    mock_ref.object.type = "commit"
+    mock_ref.object.sha = "abc123"
+    # Fail twice, succeed on third attempt
+    r._repo.get_git_matching_refs = Mock(
+        side_effect=[Exception("API error"), Exception("API error"), [mock_ref]]
+    )
+
+    cache = r._build_tags_cache(retries=3)
+    assert cache == {"v1.0.0": "abc123"}
+    assert r._repo.get_git_matching_refs.call_count == 3
+    assert mock_sleep.call_count == 2  # Sleep between retries
+    assert logger.warning.call_count == 2
+
+
+@patch("tagbot.action.repo.logger")
+@patch("tagbot.action.repo.time.sleep")
+def test_build_tags_cache_all_retries_fail(mock_sleep, logger):
+    """Test _build_tags_cache returns empty cache after all retries fail."""
+    r = _repo()
+    r._repo.get_git_matching_refs = Mock(side_effect=Exception("API error"))
+
+    cache = r._build_tags_cache(retries=3)
+    assert cache == {}
+    assert r._repo.get_git_matching_refs.call_count == 3
+    logger.error.assert_called_once()
+    assert "after 3 attempts" in logger.error.call_args[0][0]
+
+
+def test_highest_existing_version():
+    """Test _highest_existing_version finds highest semver tag."""
+    r = _repo()
+    r._build_tags_cache = Mock(
+        return_value={
+            "v1.0.0": "abc",
+            "v2.5.0": "def",
+            "v2.4.9": "ghi",
+            "v3.0.0-rc1": "jkl",  # Pre-release, lower than 3.0.0
+            "not-a-version": "mno",  # Invalid semver, should be skipped
+        }
+    )
+    from semver import VersionInfo
+
+    result = r._highest_existing_version()
+    assert result == VersionInfo.parse("3.0.0-rc1")
+
+
+def test_highest_existing_version_empty():
+    """Test _highest_existing_version with no tags."""
+    r = _repo()
+    r._build_tags_cache = Mock(return_value={})
+    assert r._highest_existing_version() is None
+
+
+def test_highest_existing_version_with_prefix():
+    """Test _highest_existing_version respects tag prefix."""
+    r = _repo(subdir="path/to/pkg")
+    r._Repo__project = {"name": "MyPkg"}
+    r._build_tags_cache = Mock(
+        return_value={
+            "v1.0.0": "abc",  # Wrong prefix
+            "MyPkg-v2.0.0": "def",  # Correct prefix
+            "MyPkg-v1.5.0": "ghi",  # Correct prefix
+        }
+    )
+    from semver import VersionInfo
+
+    result = r._highest_existing_version()
+    assert result == VersionInfo.parse("2.0.0")
+
+
+@patch("tagbot.action.repo.logger")
+def test_version_with_latest_commit_respects_existing_tags(logger):
+    """Test that backfilled releases aren't marked latest when newer tags exist."""
+    r = _repo()
+    from semver import VersionInfo
+
+    # Existing tag v2.0.0 is higher than new version v1.5.0
+    r._highest_existing_version = Mock(return_value=VersionInfo.parse("2.0.0"))
+    r._Repo__commit_datetimes = {}
+
+    result = r.version_with_latest_commit({"v1.5.0": "abc123"})
+    assert result is None
+    logger.info.assert_called()
+    assert "v2.0.0 is newer" in logger.info.call_args[0][0]
+
+
+@patch("tagbot.action.repo.logger")
+def test_version_with_latest_commit_marks_latest_when_newer(logger):
+    """Test that new version is marked latest when it's higher than existing."""
+    r = _repo()
+    from semver import VersionInfo
+
+    # Existing tag v1.0.0 is lower than new version v2.0.0
+    r._highest_existing_version = Mock(return_value=VersionInfo.parse("1.0.0"))
+    r._Repo__commit_datetimes = {}
+    r._repo.get_commit = Mock()
+    r._repo.get_commit.return_value.commit.author.date = datetime.now(timezone.utc)
+
+    result = r.version_with_latest_commit({"v2.0.0": "abc123"})
+    assert result == "v2.0.0"
 
 
 def test_commit_sha_of_release_branch():
@@ -610,23 +679,32 @@ def test_commit_sha_of_release_branch():
 @patch("tagbot.action.repo.logger")
 def test_filter_map_versions(logger):
     r = _repo()
+    # Mock the caches to avoid real API calls
+    r._build_tags_cache = Mock(return_value={})
     r._commit_sha_from_registry_pr = Mock(return_value=None)
     r._commit_sha_of_tree = Mock(return_value=None)
+    # No tree or registry PR found - should skip
     assert not r._filter_map_versions({"1.2.3": "tree1"})
-    logger.warning.assert_called_with(
-        "No matching commit was found for version v1.2.3 (tree1)"
+    logger.debug.assert_called_with(
+        "Skipping v1.2.3: no matching tree or registry PR found"
     )
+    # Tree lookup (primary) should be called first
+    r._commit_sha_of_tree.assert_called_with("tree1")
+    # Registry PR fallback should be called when tree not found
+    r._commit_sha_from_registry_pr.assert_called_with("v1.2.3", "tree1")
+    # Tree found - should include (no registry PR lookup needed)
     r._commit_sha_of_tree.return_value = "sha"
-    r._commit_sha_of_tag = Mock(return_value="sha")
-    assert not r._filter_map_versions({"2.3.4": "tree2"})
-    logger.info.assert_called_with("Tag v2.3.4 already exists")
-    r._commit_sha_of_tag.return_value = "abc"
-    assert not r._filter_map_versions({"3.4.5": "tree3"})
-    logger.error.assert_called_with(
-        "Existing tag v3.4.5 points at the wrong commit (expected sha)"
-    )
-    r._commit_sha_of_tag.return_value = None
+    r._commit_sha_from_registry_pr.reset_mock()
     assert r._filter_map_versions({"4.5.6": "tree4"}) == {"v4.5.6": "sha"}
+    r._commit_sha_from_registry_pr.assert_not_called()
+    # Tag exists - skip it silently (no per-version logging for performance)
+    r._build_tags_cache.return_value = {"v2.3.4": "existing_sha"}
+    assert not r._filter_map_versions({"2.3.4": "tree2"})
+    # Registry PR fallback works when tree not found
+    r._build_tags_cache.return_value = {}
+    r._commit_sha_of_tree.return_value = None
+    r._commit_sha_from_registry_pr.return_value = "pr_sha"
+    assert r._filter_map_versions({"5.6.7": "tree5"}) == {"v5.6.7": "pr_sha"}
 
 
 @patch("tagbot.action.repo.logger")
@@ -705,10 +783,41 @@ def test_report_error(post):
         r._report_error("ahh")
     post.assert_not_called()
     with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
-        r._report_error("ahh")
+        with patch("tagbot.action.repo._get_tagbot_version", return_value="1.2.3"):
+            r._report_error("ahh")
     post.assert_called_with(
         f"{TAGBOT_WEB}/report",
-        json={"image": "id", "repo": "Foo/Bar", "run": "url", "stacktrace": "ahh"},
+        json={
+            "image": "id",
+            "repo": "Foo/Bar",
+            "run": "url",
+            "stacktrace": "ahh",
+            "version": "1.2.3",
+        },
+    )
+
+
+@patch("requests.post")
+def test_report_error_with_manual_intervention(post):
+    post.return_value.json.return_value = {"status": "ok"}
+    r = _repo(token="x")
+    r._repo = Mock(full_name="Foo/Bar", private=False)
+    r._image_id = Mock(return_value="id")
+    r._run_url = Mock(return_value="url")
+    r._manual_intervention_issue_url = "https://github.com/Foo/Bar/issues/42"
+    with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        with patch("tagbot.action.repo._get_tagbot_version", return_value="1.2.3"):
+            r._report_error("ahh")
+    post.assert_called_with(
+        f"{TAGBOT_WEB}/report",
+        json={
+            "image": "id",
+            "repo": "Foo/Bar",
+            "run": "url",
+            "stacktrace": "ahh",
+            "version": "1.2.3",
+            "manual_intervention_url": "https://github.com/Foo/Bar/issues/42",
+        },
     )
 
 

@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      COLUMNS: 200
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -17,6 +19,25 @@ jobs:
       - run: poetry run make test
   docker:
     runs-on: ubuntu-latest
+    env:
+      COLUMNS: 200
     steps:
       - uses: actions/checkout@v6
-      - run: make test-docker
+      - name: Build Docker image
+        run: docker build -t tagbot:test .
+      - name: Install dependencies
+        run: |
+          docker run --name tagbot-deps --mount type=bind,source=$(pwd),target=/repo tagbot:test sh -c '
+            pip install poetry && cd /repo && poetry install'
+          docker commit tagbot-deps tagbot:ready
+          docker rm tagbot-deps
+      - name: Run pytest
+        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make pytest'
+      - name: Run black
+        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make black'
+      - name: Run flake8
+        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make flake8'
+      - name: Run mypy
+        run: docker run --rm --mount type=bind,source=$(pwd),target=/repo tagbot:ready sh -c 'cd /repo && poetry run make mypy'
+
+
