@@ -1249,7 +1249,9 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             releases = list(self._repo.get_releases())
             for release in releases:
                 if release.tag_name == version_tag:
-                    logger.info(f"Release for tag {version_tag} already exists, skipping creation.")
+                    logger.info(
+                        f"Release for tag {version_tag} already exists, skipping creation."
+                    )
                     return
         except Exception as e:
             logger.warning(f"Could not check for existing releases: {e}")
