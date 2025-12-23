@@ -1268,7 +1268,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             target_commitish=target,
             draft=self._draft,
             make_latest=make_latest_str,
-        )  # noqa: E501
+        )
         logger.info(f"GitHub release {version_tag} created successfully")
 
     def _check_rate_limit(self) -> None:
