@@ -241,6 +241,7 @@ def test_collect_data():
         "sha": "abcdef",
         "version": "v1.2.3",
         "version_url": "https://github.com/A/B.jl/tree/v1.2.3",
+        "yanked": False,
     }
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
