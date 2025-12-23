@@ -1250,7 +1250,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             for release in releases:
                 if release.tag_name == version_tag:
                     logger.info(
-                        f"Release for tag {version_tag} already exists, skipping creation."
+                        f"Release for tag {version_tag} exists, skipping."
                     )
                     return
         except Exception as e:
