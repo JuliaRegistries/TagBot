@@ -268,7 +268,6 @@ def test_render():
     expected = """
     ## PkgName v1.2.3
 
-    
     [Diff since v1.2.2](https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3)
 
     Custom release notes
@@ -315,7 +314,6 @@ def test_render_backport():
     expected = """
     ## PkgName v1.2.3
 
-    
     [Diff since v1.2.2](https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3)
 
     Custom release notes
