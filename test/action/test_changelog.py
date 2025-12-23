@@ -241,6 +241,7 @@ def test_collect_data():
         "sha": "abcdef",
         "version": "v1.2.3",
         "version_url": "https://github.com/A/B.jl/tree/v1.2.3",
+        "yanked": False,
     }
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
@@ -265,7 +266,9 @@ def test_render():
     default = action["inputs"]["changelog"]["default"]
     c = _changelog(template=default)
     expected = """
+
     ## PkgName v1.2.3
+
 
     [Diff since v1.2.2](https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3)
 
@@ -311,7 +314,9 @@ def test_render_backport():
     default = action["inputs"]["changelog"]["default"]
     c = _changelog(template=default)
     expected = """
+
     ## PkgName v1.2.3
+
 
     [Diff since v1.2.2](https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3)
 
