@@ -894,15 +894,17 @@ class Repo:
             logger.debug("Package is not registered")
             return {}
         # Get the most recent commit from before min_age.
-        until = datetime.now() - min_age
-        commits = self._registry.get_commits(until=until)
-        # Get the first value like this because the iterator has no `next` method.
-        for commit in commits:
-            kwargs = {"ref": commit.commit.sha}
-            break
-        else:
-            logger.debug("No registry commits were found")
-            return {}
+        kwargs: Dict[str, str] = {}
+        if min_age is not None:
+            until = datetime.now() - min_age
+            commits = self._registry.get_commits(until=until)
+            # Get the first value like this because the iterator has no `next` method.
+            for commit in commits:
+                kwargs = {"ref": commit.commit.sha}
+                break
+            else:
+                logger.debug("No registry commits were found")
+                return {}
         try:
             contents = self._only(
                 self._registry.get_contents(f"{root}/Versions.toml", **kwargs)
