@@ -1285,6 +1285,16 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             target = self._release_branch
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
+        # Check if a release for this tag already exists before doing work
+        try:
+            for release in self._repo.get_releases():
+                if release.tag_name == version_tag:
+                    logger.info(
+                        f"Release for tag {version_tag} already exists, skipping"
+                    )
+                    return
+        except GithubException as e:
+            logger.warning(f"Could not check for existing releases: {e}")
         log = self._changelog.get(version_tag, sha)
         if not self._draft:
             # Always create tags via the CLI as the GitHub API has a bug which
