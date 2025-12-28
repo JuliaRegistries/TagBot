@@ -241,6 +241,7 @@ def test_collect_data():
         "sha": "abcdef",
         "version": "v1.2.3",
         "version_url": "https://github.com/A/B.jl/tree/v1.2.3",
+        "yanked": False,
     }
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
@@ -294,6 +295,7 @@ def test_render():
         ],
         "version": "v1.2.3",
         "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+        "yanked": False,
     }
     assert c._render(data) == textwrap.dedent(expected).strip()
     del data["pulls"]
@@ -346,6 +348,7 @@ def test_render_backport():
         ],
         "version": "v1.2.3",
         "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+        "yanked": False,
     }
     assert c._render(data) == textwrap.dedent(expected).strip()
     del data["pulls"]
@@ -354,6 +357,35 @@ def test_render_backport():
     assert "**Closed issues:**" not in c._render(data)
     data["previous_release"] = None
     assert "Diff since" not in c._render(data)
+
+
+def test_render_yanked():
+    """Test that yanked releases show a warning."""
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "action.yml")
+    with open(path) as f:
+        action = yaml.safe_load(f)
+    default = action["inputs"]["changelog"]["default"]
+    c = _changelog(template=default)
+
+    data = {
+        "compare_url": "https://github.com/Me/PkgName.jl/compare/v1.2.2...v1.2.3",
+        "custom": None,
+        "backport": False,
+        "issues": [],
+        "package": "PkgName",
+        "previous_release": "v1.2.2",
+        "pulls": [],
+        "version": "v1.2.3",
+        "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+        "yanked": True,
+    }
+    rendered = c._render(data)
+    assert ":warning: **This release has been yanked from the registry.**" in rendered
+
+    # Non-yanked should not have warning
+    data["yanked"] = False
+    rendered = c._render(data)
+    assert "yanked" not in rendered.lower()
 
 
 def test_get():

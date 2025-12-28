@@ -1211,3 +1211,36 @@ def test_tag_prefix_and_get_version_tag():
     assert r_subdir._tag_prefix() == "MyFooBar-v"
     assert r_subdir._get_version_tag("v0.1.3") == "MyFooBar-v0.1.3"
     assert r_subdir._get_version_tag("0.1.3") == "MyFooBar-v0.1.3"
+
+
+@patch("tagbot.action.repo.Github")
+def test_is_version_yanked(mock_github):
+    """Test checking if a version is yanked in the registry."""
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+    mock_gh_instance.get_repo.return_value = Mock()
+
+    r = _repo(registry="test/registry")
+    r._Repo__versions_toml_cache = {
+        "1.0.0": {"git-tree-sha1": "abc123"},
+        "1.1.0": {"git-tree-sha1": "def456", "yanked": False},
+        "1.2.0": {"git-tree-sha1": "ghi789", "yanked": True},
+    }
+
+    # Non-yanked version (no yanked key)
+    assert r.is_version_yanked("v1.0.0") is False
+    assert r.is_version_yanked("1.0.0") is False
+
+    # Non-yanked version (yanked=False)
+    assert r.is_version_yanked("v1.1.0") is False
+
+    # Yanked version
+    assert r.is_version_yanked("v1.2.0") is True
+    assert r.is_version_yanked("1.2.0") is True
+
+    # Version not in registry
+    assert r.is_version_yanked("v9.9.9") is False
+
+    # Empty cache (package not registered)
+    r._Repo__versions_toml_cache = {}
+    assert r.is_version_yanked("v1.0.0") is False

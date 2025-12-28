@@ -189,6 +189,7 @@ class Repo:
         else:
             self._clone_registry = False
         self._token = token
+        self.__versions_toml_cache: Optional[Dict[str, Any]] = None
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
@@ -845,6 +846,45 @@ class Repo:
             logger.debug(f"Skipped {skipped_existing} versions with existing tags")
         return valid
 
+    def _get_versions_toml(self) -> Dict[str, Any]:
+        """Get and cache the raw Versions.toml data from the registry."""
+        if self.__versions_toml_cache is not None:
+            return self.__versions_toml_cache
+        root = self._registry_path
+        if not root:
+            logger.debug("Package is not registered")
+            return {}
+        try:
+            if self._clone_registry:
+                path = os.path.join(self._registry_clone_dir, root, "Versions.toml")
+                if not os.path.isfile(path):
+                    logger.debug("Versions.toml was not found")
+                    return {}
+                with open(path) as f:
+                    versions = toml.load(f)
+            else:
+                contents = self._only(
+                    self._registry.get_contents(f"{root}/Versions.toml")
+                )
+                versions = toml.loads(contents.decoded_content.decode())
+            self.__versions_toml_cache = versions
+            return versions
+        except UnknownObjectExceptions:
+            logger.debug("Versions.toml was not found")
+            return {}
+
+    def is_version_yanked(self, version: str) -> bool:
+        """Check if a version is yanked in the registry."""
+        if version.startswith("v"):
+            version = version[1:]
+        versions = self._get_versions_toml()
+        if not versions:
+            return False
+        if version not in versions:
+            logger.debug(f"Version {version} not found in Versions.toml")
+            return False
+        return bool(versions[version].get("yanked", False))
+
     def _versions(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Get all package versions from the registry."""
         if self._clone_registry:
@@ -853,14 +893,14 @@ class Repo:
         if not root:
             logger.debug("Package is not registered")
             return {}
-        kwargs = {}
-        if min_age:
-            # Get the most recent commit from before min_age.
+        # Get the most recent commit from before min_age.
+        kwargs: Dict[str, str] = {}
+        if min_age is not None:
             until = datetime.now() - min_age
             commits = self._registry.get_commits(until=until)
             # Get the first value like this because the iterator has no `next` method.
             for commit in commits:
-                kwargs["ref"] = commit.commit.sha
+                kwargs = {"ref": commit.commit.sha}
                 break
             else:
                 logger.debug("No registry commits were found")

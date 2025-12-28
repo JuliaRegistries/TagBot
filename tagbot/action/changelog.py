@@ -278,6 +278,7 @@ class Changelog:
         logger.debug(f"End date: {end}")
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
+        is_yanked = self._repo.is_version_yanked(version_tag)
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
@@ -289,6 +290,7 @@ class Changelog:
             "sha": sha,
             "version": version_tag,
             "version_url": f"{self._repo._repo.html_url}/tree/{version_tag}",
+            "yanked": is_yanked,
         }
 
     def _render(self, data: Dict[str, object]) -> str:
