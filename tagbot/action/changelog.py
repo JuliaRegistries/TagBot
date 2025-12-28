@@ -278,12 +278,7 @@ class Changelog:
         logger.debug(f"End date: {end}")
         issues = self._issues(start, end)
         pulls = self._pulls(start, end)
-        # Check if the version is yanked
-        is_yanked = False
-        try:
-            is_yanked = self._repo.is_version_yanked(version_tag)
-        except Exception as e:
-            logger.error(f"Error checking if version is yanked: {e}")
+        is_yanked = self._repo.is_version_yanked(version_tag)
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
