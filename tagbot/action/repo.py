@@ -189,7 +189,7 @@ class Repo:
         else:
             self._clone_registry = False
         self._token = token
-        self.__versions_toml_cache: Optional[Dict[str, Dict[str, object]]] = None
+        self.__versions_toml_cache: Optional[Dict[str, Any]] = None
         self._changelog = Changelog(self, changelog, changelog_ignore)
         self._ssh = ssh
         self._gpg = gpg
@@ -846,7 +846,7 @@ class Repo:
             logger.debug(f"Skipped {skipped_existing} versions with existing tags")
         return valid
 
-    def _get_versions_toml(self) -> Dict[str, Dict[str, object]]:
+    def _get_versions_toml(self) -> Dict[str, Any]:
         """Get and cache the raw Versions.toml data from the registry."""
         if self.__versions_toml_cache is not None:
             return self.__versions_toml_cache
@@ -889,10 +889,6 @@ class Repo:
         """Get all package versions from the registry."""
         if self._clone_registry:
             return self._versions_clone(min_age=min_age)
-        # When no min_age, use the cached versions data
-        if min_age is None:
-            versions = self._get_versions_toml()
-            return {v: versions[v]["git-tree-sha1"] for v in versions}
         root = self._registry_path
         if not root:
             logger.debug("Package is not registered")
@@ -919,23 +915,20 @@ class Repo:
 
     def _versions_clone(self, min_age: Optional[timedelta] = None) -> Dict[str, str]:
         """Same as _versions, but uses a Git clone to access the registry."""
-        # When no min_age, use the cached versions data
-        if min_age is None:
-            versions = self._get_versions_toml()
-            return {v: versions[v]["git-tree-sha1"] for v in versions}
         registry = self._registry_clone_dir
-        # TODO: Time zone stuff?
-        default_sha = self._git.command("rev-parse", "HEAD", repo=registry)
-        earliest = datetime.now() - min_age
-        shas = self._git.command("log", "--format=%H", repo=registry).split("\n")
-        for sha in shas:
-            dt = self._git.time_of_commit(sha, repo=registry)
-            if dt < earliest:
-                self._git.command("checkout", sha, repo=registry)
-                break
-        else:
-            logger.debug("No registry commits were found")
-            return {}
+        if min_age:
+            # TODO: Time zone stuff?
+            default_sha = self._git.command("rev-parse", "HEAD", repo=registry)
+            earliest = datetime.now() - min_age
+            shas = self._git.command("log", "--format=%H", repo=registry).split("\n")
+            for sha in shas:
+                dt = self._git.time_of_commit(sha, repo=registry)
+                if dt < earliest:
+                    self._git.command("checkout", sha, repo=registry)
+                    break
+            else:
+                logger.debug("No registry commits were found")
+                return {}
         try:
             root = self._registry_path
             if not root:
@@ -949,7 +942,8 @@ class Repo:
                 versions = toml.load(f)
             return {v: versions[v]["git-tree-sha1"] for v in versions}
         finally:
-            self._git.command("checkout", default_sha, repo=registry)
+            if min_age:
+                self._git.command("checkout", default_sha, repo=registry)
 
     def _pr_exists(self, branch: str) -> bool:
         """Check whether a PR exists for a given branch."""

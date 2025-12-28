@@ -295,6 +295,7 @@ def test_render():
         ],
         "version": "v1.2.3",
         "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+        "yanked": False,
     }
     assert c._render(data) == textwrap.dedent(expected).strip()
     del data["pulls"]
@@ -347,6 +348,7 @@ def test_render_backport():
         ],
         "version": "v1.2.3",
         "version_url": "https://github.com/Me/PkgName.jl/tree/v1.2.3",
+        "yanked": False,
     }
     assert c._render(data) == textwrap.dedent(expected).strip()
     del data["pulls"]
