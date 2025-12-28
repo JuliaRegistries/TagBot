@@ -77,8 +77,9 @@ inputs:
       {% if yanked %}
 
       :warning: **This release has been yanked from the registry.**
-      {% endif %}
+      {% endif -%}
       {% if previous_release %}
+
       [Diff since {{ previous_release }}]({{ compare_url }})
       {% endif %}
 
