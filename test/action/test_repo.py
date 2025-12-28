@@ -1021,6 +1021,7 @@ def test_create_release():
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
     r._repo.create_git_tag.return_value.sha = "t"
+    r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("v1", "a", "l")
@@ -1048,6 +1049,29 @@ def test_create_release():
     )
 
 
+def test_create_release_skips_existing():
+    """Test that create_release skips if release already exists."""
+    r = _repo(user="user", email="email")
+    r._commit_sha_of_release_branch = Mock(return_value=None)
+    r._git.create_tag = Mock()
+    r._repo = Mock(default_branch="default")
+    r._changelog.get = Mock(return_value="l")
+    # Simulate existing release with same tag
+    existing_release = Mock(tag_name="v1.0.0")
+    r._repo.get_releases = Mock(return_value=[existing_release])
+    r.create_release("v1.0.0", "abc123")
+    # Should not create tag or release
+    r._git.create_tag.assert_not_called()
+    r._repo.create_git_release.assert_not_called()
+    r._changelog.get.assert_not_called()
+
+    # Different tag should proceed
+    r._repo.get_releases = Mock(return_value=[existing_release])
+    r.create_release("v2.0.0", "def456")
+    r._git.create_tag.assert_called_with("v2.0.0", "def456", "l")
+    r._repo.create_git_release.assert_called()
+
+
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
     r._commit_sha_of_release_branch = Mock(return_value="a")
@@ -1058,6 +1082,7 @@ def test_create_release_subdir():
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
     r._repo.create_git_tag.return_value.sha = "t"
+    r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("Foo-v1", "a", "l")

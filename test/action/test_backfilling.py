@@ -309,6 +309,7 @@ def test_create_release_with_is_latest(logger):
 
     r._repo = Mock()
     r._repo.default_branch = "main"
+    r._repo.get_releases = Mock(return_value=[])
     r._changelog = Mock()
     r._changelog.get = Mock(return_value="Changelog content")
     r._git = Mock()
