@@ -1088,14 +1088,14 @@ class Repo:
             if commits:
                 changelog += f"### {title}\n\n"
                 for message, commit_hash, author in commits:
-                    changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - @{author}\n"
+                    changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - {author}\n"
                 changelog += "\n"
 
         # Add other commits if any
         if categories["other"]:
             changelog += "### Other Changes\n\n"
             for message, commit_hash, author in categories["other"]:
-                changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - @{author}\n"
+                changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - {author}\n"
             changelog += "\n"
 
         # Add compare link if we have a previous tag
