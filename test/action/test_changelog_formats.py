@@ -182,18 +182,25 @@ def test_create_release_with_conventional_format(mock_github, mock_logger):
 
 @patch("tagbot.action.repo.Github")
 def test_conventional_changelog_parsing(mock_github):
-    """Test that conventional commits are parsed correctly."""
+    """Test that conventional commits are parsed correctly through create_release.
+
+    This tests the internal conventional changelog generation by calling through
+    the public create_release method, making it more robust to internal refactoring.
+    """
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
 
     mock_repo = Mock()
     mock_gh_instance.get_repo.return_value = mock_repo
     mock_repo.full_name = "test/repo"
+    mock_repo.get_releases.return_value = []
+    mock_repo.create_git_release = Mock()
 
     r = _repo(
         repo="test/repo", registry="test/registry", changelog_format="conventional"
     )
     r._git = Mock()
+    r._git.create_tag = Mock()
 
     # Test various conventional commit formats
     r._git.command = Mock(
@@ -206,7 +213,14 @@ def test_conventional_changelog_parsing(mock_github):
         )
     )
 
-    changelog = r._generate_conventional_changelog("v1.0.0", "abc123", "v0.9.0")
+    r.create_release("v1.0.0", "abc123")
+
+    # Verify create_git_release was called
+    mock_repo.create_git_release.assert_called_once()
+
+    # Check the generated changelog body
+    call_args = mock_repo.create_git_release.call_args
+    changelog = call_args.args[2]
 
     # Check structure
     assert "## v1.0.0" in changelog
