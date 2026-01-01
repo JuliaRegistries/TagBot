@@ -281,3 +281,74 @@ def test_conventional_format_logging(mock_github, caplog):
 
     # Check that the log message about conventional commits was logged
     assert "Generating conventional commits changelog" in caplog.text
+
+
+@patch("tagbot.action.repo.Github")
+def test_conventional_changelog_no_commits_first_release(mock_github):
+    """Test conventional changelog with no commits (initial release)."""
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+
+    mock_repo = Mock()
+    mock_gh_instance.get_repo.return_value = mock_repo
+    mock_repo.get_releases.return_value = []
+    mock_repo.create_git_release = Mock()
+
+    r = _repo(
+        repo="test/repo", registry="test/registry", changelog_format="conventional"
+    )
+    r._git = Mock()
+    r._git.create_tag = Mock()
+    # Simulate no commits found
+    r._git.command = Mock(return_value="")
+
+    r.create_release("v1.0.0", "abc123")
+
+    # Verify create_git_release was called
+    mock_repo.create_git_release.assert_called_once()
+
+    # Check the generated changelog body
+    call_args = mock_repo.create_git_release.call_args
+    changelog = call_args.args[2]
+
+    # Should have version header and initial release message
+    assert "## v1.0.0" in changelog
+    assert "Initial release" in changelog
+
+
+@patch("tagbot.action.repo.Github")
+def test_conventional_changelog_no_commits_since_previous(mock_github):
+    """Test conventional changelog with no new commits since previous release."""
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+
+    mock_repo = Mock()
+    mock_gh_instance.get_repo.return_value = mock_repo
+    mock_repo.create_git_release = Mock()
+    mock_repo.full_name = "test/repo"
+
+    # Mock a previous release
+    mock_previous_release = Mock()
+    mock_previous_release.tag_name = "v1.0.0"
+    mock_repo.get_releases.return_value = [mock_previous_release]
+
+    r = _repo(
+        repo="test/repo", registry="test/registry", changelog_format="conventional"
+    )
+    r._git = Mock()
+    r._git.create_tag = Mock()
+    # Simulate no commits found between v1.0.0 and v1.1.0
+    r._git.command = Mock(return_value="")
+
+    r.create_release("v1.1.0", "abc123")
+
+    # Verify create_git_release was called
+    mock_repo.create_git_release.assert_called_once()
+
+    # Check the generated changelog body
+    call_args = mock_repo.create_git_release.call_args
+    changelog = call_args.args[2]
+
+    # Should have version header and no new commits message
+    assert "## v1.1.0" in changelog
+    assert "No new commits since the previous release" in changelog

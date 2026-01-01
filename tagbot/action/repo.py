@@ -1024,7 +1024,7 @@ class Repo:
 
         # Parse commits into categories based on conventional commit format
         # Format: type(scope): description
-        categories = {
+        categories: Dict[str, list[tuple[str, str, str]]] = {
             "breaking": [],  # BREAKING CHANGE or !
             "feat": [],  # Features
             "fix": [],  # Bug fixes
@@ -1084,20 +1084,37 @@ class Repo:
             ("revert", "Reverts"),
         ]
 
+        has_any_commits = (
+            any(categories[cat_key] for cat_key, _ in sections) or categories["other"]
+        )
+
         for cat_key, title in sections:
             commits = categories[cat_key]
             if commits:
                 changelog += f"### {title}\n\n"
                 for message, commit_hash, author in commits:
-                    changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - {author}\n"
+                    changelog += (
+                        f"- {message} ([`{commit_hash}`]"
+                        f"(../../commit/{commit_hash})) - {author}\n"
+                    )
                 changelog += "\n"
 
         # Add other commits if any
         if categories["other"]:
             changelog += "### Other Changes\n\n"
             for message, commit_hash, author in categories["other"]:
-                changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - {author}\n"
+                changelog += (
+                    f"- {message} ([`{commit_hash}`]"
+                    f"(../../commit/{commit_hash})) - {author}\n"
+                )
             changelog += "\n"
+
+        # If no commits were found, add an informative message
+        if not has_any_commits:
+            if previous_tag:
+                changelog += "No new commits since the previous release.\n"
+            else:
+                changelog += "Initial release.\n"
 
         # Add compare link if we have a previous tag
         if previous_tag:
@@ -1439,7 +1456,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             logger.info("Generating conventional commits changelog")
             log = self._generate_conventional_changelog(version_tag, sha, previous_tag)
         else:  # custom format
-            log = self._changelog.get(version_tag, sha)
+            log = self._changelog.get(version_tag, sha) if self._changelog else ""
 
         if not self._draft:
             # Always create tags via the CLI as the GitHub API has a bug which
