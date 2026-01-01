@@ -1028,11 +1028,23 @@ def test_create_release():
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="default", draft=False, make_latest="true"
+        "v1",
+        "v1",
+        "l",
+        target_commitish="default",
+        draft=False,
+        make_latest="true",
+        generate_release_notes=False,
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="b", draft=False, make_latest="true"
+        "v1",
+        "v1",
+        "l",
+        target_commitish="b",
+        draft=False,
+        make_latest="true",
+        generate_release_notes=False,
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("v1", "c", "l")
@@ -1041,13 +1053,25 @@ def test_create_release():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "v1", "v1", "l", target_commitish="d", draft=True, make_latest="true"
+        "v1",
+        "v1",
+        "l",
+        target_commitish="d",
+        draft=True,
+        make_latest="true",
+        generate_release_notes=False,
     )
     # Test is_latest=False
     r._draft = False
     r.create_release("v0.9", "e", is_latest=False)
     r._repo.create_git_release.assert_called_with(
-        "v0.9", "v0.9", "l", target_commitish="e", draft=False, make_latest="false"
+        "v0.9",
+        "v0.9",
+        "l",
+        target_commitish="e",
+        draft=False,
+        make_latest="false",
+        generate_release_notes=False,
     )
 
 
@@ -1095,10 +1119,17 @@ def test_create_release_subdir():
         target_commitish="default",
         draft=False,
         make_latest="true",
+        generate_release_notes=False,
     )
     r.create_release("v1", "b")
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="b", draft=False, make_latest="true"
+        "Foo-v1",
+        "Foo-v1",
+        "l",
+        target_commitish="b",
+        draft=False,
+        make_latest="true",
+        generate_release_notes=False,
     )
     r.create_release("v1", "c")
     r._git.create_tag.assert_called_with("Foo-v1", "c", "l")
@@ -1107,7 +1138,13 @@ def test_create_release_subdir():
     r.create_release("v1", "d")
     r._git.create_tag.assert_not_called()
     r._repo.create_git_release.assert_called_with(
-        "Foo-v1", "Foo-v1", "l", target_commitish="d", draft=True, make_latest="true"
+        "Foo-v1",
+        "Foo-v1",
+        "l",
+        target_commitish="d",
+        draft=True,
+        make_latest="true",
+        generate_release_notes=False,
     )
 
 

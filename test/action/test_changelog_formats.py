@@ -86,6 +86,7 @@ def test_changelog_format_conventional(mock_github):
     assert r._changelog is None
 
 
+@patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
 def test_create_release_with_github_format(mock_github, logger):
     """Test that create_release uses GitHub's auto-generated notes with github format."""
@@ -110,6 +111,7 @@ def test_create_release_with_github_format(mock_github, logger):
     assert call_args.args[2] == ""
 
 
+@patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
 def test_create_release_with_custom_format(mock_github, logger):
     """Test that create_release uses custom changelog with custom format."""
@@ -141,6 +143,7 @@ def test_create_release_with_custom_format(mock_github, logger):
     assert call_args.args[2] == "Custom changelog content"
 
 
+@patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
 def test_create_release_with_conventional_format(mock_github, logger):
     """Test that create_release generates conventional commits changelog."""
@@ -217,8 +220,12 @@ def test_conventional_changelog_parsing(mock_github):
 
 
 @patch("tagbot.action.repo.Github")
-def test_github_format_logging(mock_github, logger, caplog):
+def test_github_format_logging(mock_github, caplog):
     """Test that github format logs appropriate message."""
+    import logging
+
+    caplog.set_level(logging.INFO)
+
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
 
@@ -237,8 +244,12 @@ def test_github_format_logging(mock_github, logger, caplog):
 
 
 @patch("tagbot.action.repo.Github")
-def test_conventional_format_logging(mock_github, logger, caplog):
+def test_conventional_format_logging(mock_github, caplog):
     """Test that conventional format logs appropriate message."""
+    import logging
+
+    caplog.set_level(logging.INFO)
+
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
 
