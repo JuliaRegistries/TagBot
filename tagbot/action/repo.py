@@ -1048,16 +1048,15 @@ class Repo:
                 continue
             message, commit_hash, author = parts
 
-            # Check for breaking change
+            # Check for breaking change (keep commit in both breaking and its type category)
             if "BREAKING CHANGE" in message or "!:" in message:
                 categories["breaking"].append((message, commit_hash, author))
-                continue
 
-            # Parse conventional commit format
-            match = re.match(r"^(\w+)(\(.+\))?: (.+)$", message)
+            # Parse conventional commit format (supports optional "!" for breaking changes)
+            match = re.match(r"^(\w+)(\(.+\))?(!)?: (.+)$", message)
             if match:
                 commit_type = match.group(1).lower()
-                description = match.group(3)
+                description = match.group(4)
                 if commit_type in categories:
                     categories[commit_type].append((message, commit_hash, author))
                 else:
