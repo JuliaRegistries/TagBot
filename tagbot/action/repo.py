@@ -122,7 +122,7 @@ class Repo:
         token: str,
         changelog: str,
         changelog_ignore: List[str],
-        auto_changelog: bool,
+        changelog_format: str,
         ssh: bool,
         gpg: bool,
         draft: bool,
@@ -191,10 +191,12 @@ class Repo:
             self._clone_registry = False
         self._token = token
         self.__versions_toml_cache: Optional[Dict[str, Any]] = None
-        self._auto_changelog = auto_changelog
-        # Only initialize Changelog if not using auto-generated release notes
+        self._changelog_format = changelog_format
+        # Only initialize Changelog if using custom format
         self._changelog = (
-            None if auto_changelog else Changelog(self, changelog, changelog_ignore)
+            None
+            if changelog_format in ["github", "conventional"]
+            else Changelog(self, changelog, changelog_ignore)
         )
         self._ssh = ssh
         self._gpg = gpg
@@ -988,6 +990,122 @@ class Repo:
             # If we can't check, assume it doesn't exist
             return False
 
+    def _generate_conventional_changelog(
+        self, version_tag: str, sha: str, previous_tag: Optional[str] = None
+    ) -> str:
+        """Generate changelog from conventional commits.
+
+        Args:
+            version_tag: The version tag being released
+            sha: Commit SHA for the release
+            previous_tag: Previous release tag to generate changelog from
+
+        Returns:
+            Formatted changelog based on conventional commits
+        """
+        # Determine commit range
+        if previous_tag:
+            commit_range = f"{previous_tag}..{sha}"
+        else:
+            # For first release, get all commits up to this one
+            commit_range = sha
+
+        # Get commit messages
+        try:
+            log_output = self._git.command(
+                "log",
+                commit_range,
+                "--format=%s|%h|%an",
+                "--no-merges",
+            )
+        except Exception as e:
+            logger.warning(f"Could not get commits for conventional changelog: {e}")
+            return f"## {version_tag}\n\nRelease created.\n"
+
+        # Parse commits into categories based on conventional commit format
+        # Format: type(scope): description
+        categories = {
+            "breaking": [],  # BREAKING CHANGE or !
+            "feat": [],  # Features
+            "fix": [],  # Bug fixes
+            "perf": [],  # Performance improvements
+            "refactor": [],  # Refactoring
+            "docs": [],  # Documentation
+            "test": [],  # Tests
+            "build": [],  # Build system
+            "ci": [],  # CI/CD
+            "chore": [],  # Chores
+            "style": [],  # Code style
+            "revert": [],  # Reverts
+            "other": [],  # Non-conventional commits
+        }
+
+        for line in log_output.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) != 3:
+                continue
+            message, commit_hash, author = parts
+
+            # Check for breaking change
+            if "BREAKING CHANGE" in message or "!:" in message:
+                categories["breaking"].append((message, commit_hash, author))
+                continue
+
+            # Parse conventional commit format
+            match = re.match(r"^(\w+)(\(.+\))?: (.+)$", message)
+            if match:
+                commit_type = match.group(1).lower()
+                description = match.group(3)
+                if commit_type in categories:
+                    categories[commit_type].append((message, commit_hash, author))
+                else:
+                    categories["other"].append((message, commit_hash, author))
+            else:
+                categories["other"].append((message, commit_hash, author))
+
+        # Build changelog
+        changelog = f"## {version_tag}\n\n"
+
+        # Section configurations (type: title)
+        sections = [
+            ("breaking", "Breaking Changes"),
+            ("feat", "Features"),
+            ("fix", "Bug Fixes"),
+            ("perf", "Performance Improvements"),
+            ("refactor", "Code Refactoring"),
+            ("docs", "Documentation"),
+            ("test", "Tests"),
+            ("build", "Build System"),
+            ("ci", "CI/CD"),
+            ("style", "Code Style"),
+            ("chore", "Chores"),
+            ("revert", "Reverts"),
+        ]
+
+        for cat_key, title in sections:
+            commits = categories[cat_key]
+            if commits:
+                changelog += f"### {title}\n\n"
+                for message, commit_hash, author in commits:
+                    changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - @{author}\n"
+                changelog += "\n"
+
+        # Add other commits if any
+        if categories["other"]:
+            changelog += "### Other Changes\n\n"
+            for message, commit_hash, author in categories["other"]:
+                changelog += f"- {message} ([`{commit_hash}`](../../commit/{commit_hash})) - @{author}\n"
+            changelog += "\n"
+
+        # Add compare link if we have a previous tag
+        if previous_tag:
+            repo_url = f"{self._gh_url}/{self._repo.full_name}"
+            changelog += f"**Full Changelog**: {repo_url}/compare/{previous_tag}...{version_tag}\n"
+
+        return changelog
+
     def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
         """Create an issue requesting manual intervention for failed releases.
 
@@ -1301,11 +1419,27 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         except GithubException as e:
             logger.warning(f"Could not check for existing releases: {e}")
 
-        # Generate or use auto-generated release notes
-        if self._auto_changelog:
+        # Generate release notes based on format
+        if self._changelog_format == "github":
             log = ""  # Empty body triggers GitHub to auto-generate notes
             logger.info("Using GitHub auto-generated release notes")
-        else:
+        elif self._changelog_format == "conventional":
+            # Find previous release for conventional changelog
+            previous_tag = None
+            try:
+                releases = list(self._repo.get_releases())
+                if releases:
+                    # Find the most recent release before this one
+                    for release in releases:
+                        if release.tag_name != version_tag:
+                            previous_tag = release.tag_name
+                            break
+            except Exception as e:
+                logger.debug(f"Could not fetch previous releases: {e}")
+
+            logger.info("Generating conventional commits changelog")
+            log = self._generate_conventional_changelog(version_tag, sha, previous_tag)
+        else:  # custom format
             log = self._changelog.get(version_tag, sha)
 
         if not self._draft:
@@ -1325,7 +1459,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             target_commitish=target,
             draft=self._draft,
             make_latest=make_latest_str,
-            generate_release_notes=self._auto_changelog,
+            generate_release_notes=(self._changelog_format == "github"),
         )
         logger.info(f"GitHub release {version_tag} created successfully")
 
