@@ -49,6 +49,8 @@ try:
     else:
         ignore = Changelog.DEFAULT_IGNORE
 
+    auto_changelog = get_input("auto_changelog", "false").lower() == "true"
+
     repo = Repo(
         repo=os.getenv("GITHUB_REPOSITORY", ""),
         registry=get_input("registry"),
@@ -57,6 +59,7 @@ try:
         token=token,
         changelog=get_input("changelog"),
         changelog_ignore=ignore,
+        auto_changelog=auto_changelog,
         ssh=bool(ssh),
         gpg=bool(gpg),
         draft=get_input("draft").lower() in ["true", "yes"],

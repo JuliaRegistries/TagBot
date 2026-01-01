@@ -122,6 +122,7 @@ class Repo:
         token: str,
         changelog: str,
         changelog_ignore: List[str],
+        auto_changelog: bool,
         ssh: bool,
         gpg: bool,
         draft: bool,
@@ -190,7 +191,11 @@ class Repo:
             self._clone_registry = False
         self._token = token
         self.__versions_toml_cache: Optional[Dict[str, Any]] = None
-        self._changelog = Changelog(self, changelog, changelog_ignore)
+        self._auto_changelog = auto_changelog
+        # Only initialize Changelog if not using auto-generated release notes
+        self._changelog = (
+            None if auto_changelog else Changelog(self, changelog, changelog_ignore)
+        )
         self._ssh = ssh
         self._gpg = gpg
         self._draft = draft
@@ -1295,7 +1300,14 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                     return
         except GithubException as e:
             logger.warning(f"Could not check for existing releases: {e}")
-        log = self._changelog.get(version_tag, sha)
+
+        # Generate or use auto-generated release notes
+        if self._auto_changelog:
+            log = ""  # Empty body triggers GitHub to auto-generate notes
+            logger.info("Using GitHub auto-generated release notes")
+        else:
+            log = self._changelog.get(version_tag, sha)
+
         if not self._draft:
             # Always create tags via the CLI as the GitHub API has a bug which
             # only allows tags to be created for SHAs which are the the HEAD
@@ -1313,6 +1325,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             target_commitish=target,
             draft=self._draft,
             make_latest=make_latest_str,
+            generate_release_notes=self._auto_changelog,
         )
         logger.info(f"GitHub release {version_tag} created successfully")
 
