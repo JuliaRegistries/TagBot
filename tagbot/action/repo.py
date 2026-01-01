@@ -1043,13 +1043,14 @@ class Repo:
         for line in log_output.strip().split("\n"):
             if not line:
                 continue
-            parts = line.split("|")
-            if len(parts) != 3:
+            # Split into at most 3 parts so that any additional "|" remain in the message
+            parts = line.split("|", 2)
+            if len(parts) < 3:
                 continue
             message, commit_hash, author = parts
 
             # Check for breaking change (keep commit in both breaking and its type category)
-            if "BREAKING CHANGE" in message or "!:" in message:
+            if "BREAKING CHANGE" in message or re.match(r"^\w+!:", message):
                 categories["breaking"].append((message, commit_hash, author))
 
             # Parse conventional commit format (supports optional "!" for breaking changes)
