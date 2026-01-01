@@ -86,7 +86,7 @@ def test_changelog_format_conventional(mock_github):
 
 @patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
-def test_create_release_with_github_format(mock_github, logger):
+def test_create_release_with_github_format(mock_github, mock_logger):
     """Test that create_release uses GitHub's auto-generated notes with github format."""
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
@@ -111,7 +111,7 @@ def test_create_release_with_github_format(mock_github, logger):
 
 @patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
-def test_create_release_with_custom_format(mock_github, logger):
+def test_create_release_with_custom_format(mock_github, mock_logger):
     """Test that create_release uses custom changelog with custom format."""
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
@@ -143,7 +143,7 @@ def test_create_release_with_custom_format(mock_github, logger):
 
 @patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
-def test_create_release_with_conventional_format(mock_github, logger):
+def test_create_release_with_conventional_format(mock_github, mock_logger):
     """Test that create_release generates conventional commits changelog."""
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance

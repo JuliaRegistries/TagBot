@@ -1179,7 +1179,7 @@ def test_check_rate_limit_error(logger):
 
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
-def test_handle_error(logger, format_exc):
+def test_handle_error(mock_logger, format_exc):
     r = _repo()
     r._report_error = Mock(side_effect=[None, RuntimeError("!")])
     r._check_rate_limit = Mock()
@@ -1201,12 +1201,12 @@ def test_handle_error(logger, format_exc):
     else:
         assert False
     r._report_error.assert_called_with("ahh")
-    logger.error.assert_called_with("Issue reporting failed")
+    mock_logger.error.assert_called_with("Issue reporting failed")
 
 
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
-def test_handle_error_403_checks_rate_limit(logger, format_exc):
+def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
     r = _repo()
     r._report_error = Mock()
     r._check_rate_limit = Mock()
@@ -1215,7 +1215,7 @@ def test_handle_error_403_checks_rate_limit(logger, format_exc):
     except Abort:
         pass
     r._check_rate_limit.assert_called_once()
-    assert any("403" in str(call) for call in logger.error.call_args_list)
+    assert any("403" in str(call) for call in mock_logger.error.call_args_list)
 
 
 def test_commit_sha_of_version():

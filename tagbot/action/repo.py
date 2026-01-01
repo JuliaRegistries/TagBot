@@ -1408,8 +1408,11 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work
+        # Also fetch releases list for later use in changelog generation
+        releases = []
         try:
-            for release in self._repo.get_releases():
+            releases = list(self._repo.get_releases())
+            for release in releases:
                 if release.tag_name == version_tag:
                     logger.info(
                         f"Release for tag {version_tag} already exists, skipping"
@@ -1425,16 +1428,12 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         elif self._changelog_format == "conventional":
             # Find previous release for conventional changelog
             previous_tag = None
-            try:
-                releases = list(self._repo.get_releases())
-                if releases:
-                    # Find the most recent release before this one
-                    for release in releases:
-                        if release.tag_name != version_tag:
-                            previous_tag = release.tag_name
-                            break
-            except Exception as e:
-                logger.debug(f"Could not fetch previous releases: {e}")
+            if releases:
+                # Find the most recent release before this one
+                for release in releases:
+                    if release.tag_name != version_tag:
+                        previous_tag = release.tag_name
+                        break
 
             logger.info("Generating conventional commits changelog")
             log = self._generate_conventional_changelog(version_tag, sha, previous_tag)
