@@ -87,7 +87,7 @@ def test_changelog_format_conventional(mock_github):
 @patch("tagbot.action.repo.logger")
 @patch("tagbot.action.repo.Github")
 def test_create_release_with_github_format(mock_github, mock_logger):
-    """Test that create_release uses GitHub's auto-generated notes with github format."""
+    """Test uses GitHub's auto-generated notes with github format."""
     mock_gh_instance = Mock()
     mock_github.return_value = mock_gh_instance
 
@@ -160,7 +160,11 @@ def test_create_release_with_conventional_format(mock_github, mock_logger):
     r._git.create_tag = Mock()
     # Mock git log output with conventional commits
     r._git.command = Mock(
-        return_value="feat: add new feature|abc123|johndoe\nfix: fix bug|def456|janedoe\nchore: update deps|ghi789|bob"
+        return_value=(
+            "feat: add new feature|abc123|johndoe\n"
+            "fix: fix bug|def456|janedoe\n"
+            "chore: update deps|ghi789|bob"
+        )
     )
 
     r.create_release("v1.0.0", "abc123")

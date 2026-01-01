@@ -1043,17 +1043,16 @@ class Repo:
         for line in log_output.strip().split("\n"):
             if not line:
                 continue
-            # Split into at most 3 parts so that any additional "|" remain in the message
             parts = line.split("|", 2)
             if len(parts) < 3:
                 continue
             message, commit_hash, author = parts
 
-            # Check for breaking change (keep commit in both breaking and its type category)
+            # Check for breaking (keep commit in both breaking and its type category)
             if "BREAKING CHANGE" in message or re.match(r"^\w+!:", message):
                 categories["breaking"].append((message, commit_hash, author))
 
-            # Parse conventional commit format (supports optional "!" for breaking changes)
+            # Parse conventional commit format (supports optional "!" for breaking)
             match = re.match(r"^(\w+)(\(.+\))?(!)?: (.+)$", message)
             if match:
                 commit_type = match.group(1).lower()
@@ -1119,7 +1118,10 @@ class Repo:
         # Add compare link if we have a previous tag
         if previous_tag:
             repo_url = f"{self._gh_url}/{self._repo.full_name}"
-            changelog += f"**Full Changelog**: {repo_url}/compare/{previous_tag}...{version_tag}\n"
+            changelog += (
+                f"**Full Changelog**: {repo_url}/compare/"
+                f"{previous_tag}...{version_tag}\n"
+            )
 
         return changelog
 
