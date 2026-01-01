@@ -1056,7 +1056,6 @@ class Repo:
             match = re.match(r"^(\w+)(\(.+\))?(!)?: (.+)$", message)
             if match:
                 commit_type = match.group(1).lower()
-                description = match.group(4)
                 if commit_type in categories:
                     categories[commit_type].append((message, commit_hash, author))
                 else:
