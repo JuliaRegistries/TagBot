@@ -72,8 +72,9 @@ class Git:
         if proc.returncode:
             error_msg = f"Git command '{self._sanitize_command(cmd)}' failed"
             if out:
-                logger.error(f"stdout: {self._sanitize_command(out)}")
-                error_msg += f"\nstdout: {self._sanitize_command(out)}"
+                stdout = self._sanitize_command(out)
+                logger.error(f"stdout: {stdout}")
+                error_msg += f"\nstdout: {stdout}"
             if proc.stderr:
                 stderr = self._sanitize_command(proc.stderr.strip())
                 logger.error(f"stderr: {stderr}")

@@ -41,8 +41,9 @@ def test_command(run):
     ]
     run.assert_has_calls(calls)
     run.return_value.configure_mock(stderr="err\n", returncode=1)
-    with pytest.raises(Abort):
+    with pytest.raises(Abort) as exc_info:
         g.command("d")
+    assert "stderr: err" in str(exc_info.value)
 
 
 def test_check():
