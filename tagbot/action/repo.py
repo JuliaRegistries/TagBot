@@ -26,6 +26,7 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    Tuple,
     TypeVar,
     Union,
     cast,
@@ -1024,7 +1025,7 @@ class Repo:
 
         # Parse commits into categories based on conventional commit format
         # Format: type(scope): description
-        categories: Dict[str, list[tuple[str, str, str]]] = {
+        categories: Dict[str, List[Tuple[str, str, str]]] = {
             "breaking": [],  # BREAKING CHANGE or !
             "feat": [],  # Features
             "fix": [],  # Bug fixes
@@ -1086,6 +1087,8 @@ class Repo:
             any(categories[cat_key] for cat_key, _ in sections) or categories["other"]
         )
 
+        repo_url = f"{self._gh_url}/{self._repo.full_name}"
+
         for cat_key, title in sections:
             commits = categories[cat_key]
             if commits:
@@ -1093,7 +1096,7 @@ class Repo:
                 for message, commit_hash, author in commits:
                     changelog += (
                         f"- {message} ([`{commit_hash}`]"
-                        f"(../../commit/{commit_hash})) - {author}\n"
+                        f"({repo_url}/commit/{commit_hash})) - {author}\n"
                     )
                 changelog += "\n"
 
@@ -1103,7 +1106,7 @@ class Repo:
             for message, commit_hash, author in categories["other"]:
                 changelog += (
                     f"- {message} ([`{commit_hash}`]"
-                    f"(../../commit/{commit_hash})) - {author}\n"
+                    f"({repo_url}/commit/{commit_hash})) - {author}\n"
                 )
             changelog += "\n"
 
@@ -1116,7 +1119,6 @@ class Repo:
 
         # Add compare link if we have a previous tag
         if previous_tag:
-            repo_url = f"{self._gh_url}/{self._repo.full_name}"
             changelog += (
                 f"**Full Changelog**: {repo_url}/compare/"
                 f"{previous_tag}...{version_tag}\n"
