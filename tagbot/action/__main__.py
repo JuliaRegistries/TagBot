@@ -49,6 +49,16 @@ try:
     else:
         ignore = Changelog.DEFAULT_IGNORE
 
+    changelog_format = get_input("changelog_format", "custom").lower()
+    # Validate changelog_format
+    valid_formats = ["custom", "github", "conventional"]
+    if changelog_format not in valid_formats:
+        logger.warning(
+            f"Invalid changelog_format '{changelog_format}', using 'custom'. "
+            f"Valid formats: {', '.join(valid_formats)}"
+        )
+        changelog_format = "custom"
+
     repo = Repo(
         repo=os.getenv("GITHUB_REPOSITORY", ""),
         registry=get_input("registry"),
@@ -57,6 +67,7 @@ try:
         token=token,
         changelog=get_input("changelog"),
         changelog_ignore=ignore,
+        changelog_format=changelog_format,
         ssh=bool(ssh),
         gpg=bool(gpg),
         draft=get_input("draft").lower() in ["true", "yes"],

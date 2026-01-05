@@ -113,6 +113,10 @@ inputs:
   changelog_ignore:
     description: Labels for issues and pull requests to be ignored (comma-delimited)
     required: false
+  changelog_format:
+    description: "Changelog format: custom (default), github (auto-generated), or conventional (conventional commits)"
+    required: false
+    default: custom
 runs:
   using: docker
   image: docker://ghcr.io/juliaregistries/tagbot:1.23.5

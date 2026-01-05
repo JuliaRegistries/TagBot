@@ -47,6 +47,7 @@ def main(
         token=token,
         changelog=changelog,
         changelog_ignore=[],
+        changelog_format="custom",
         ssh=False,
         gpg=False,
         draft=draft,
