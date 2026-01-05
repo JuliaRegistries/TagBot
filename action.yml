@@ -119,7 +119,7 @@ inputs:
     default: custom
 runs:
   using: docker
-  image: docker://ghcr.io/juliaregistries/tagbot:1.23.5
+  image: docker://ghcr.io/juliaregistries/tagbot:1.24.0
 branding:
   icon: tag
   color: red
