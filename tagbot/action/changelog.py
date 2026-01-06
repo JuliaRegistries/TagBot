@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
+from github import UnknownObjectException
 from github.GitRelease import GitRelease
 from github.Issue import Issue
 from github.NamedUser import NamedUser
@@ -67,9 +68,13 @@ class Changelog:
                 # Get the GitHub release for this tag if it exists
                 try:
                     prev_rel = self._repo._repo.get_release(tag_name)
-                except Exception:
+                except UnknownObjectException:
+                    # Release doesn't exist - get commit datetime from the tag
+                    commit_time = self._repo._git.time_of_commit(tag_name)
                     prev_rel = type(
-                        "obj", (object,), {"tag_name": tag_name, "created_at": None}
+                        "obj",
+                        (object,),
+                        {"tag_name": tag_name, "created_at": commit_time},
                     )()
                 prev_ver = ver
         return prev_rel
@@ -273,7 +278,8 @@ class Changelog:
         prev_tag = None
         compare = None
         if previous:
-            start = previous.created_at
+            if previous.created_at:
+                start = previous.created_at
             prev_tag = previous.tag_name
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
