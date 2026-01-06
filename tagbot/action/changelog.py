@@ -49,12 +49,16 @@ class Changelog:
         cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_ver = VersionInfo(0)
         prev_rel = None
-        tag_prefix = self._repo._tag_prefix()
-        for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith(tag_prefix):
+        
+        # Use Git tags instead of GitHub releases for more reliability
+        # (not all tags have releases, and releases can be deleted)
+        tags = self._repo.get_all_tags()
+        
+        for tag_name in tags:
+            if not tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(r.tag_name[i_start:])
+                ver = VersionInfo.parse(tag_name[i_start:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -63,7 +67,16 @@ class Changelog:
             # That means if we're creating a backport v1.1, an already existing v2.0,
             # despite being newer than v1.0, will not be selected.
             if ver < cur_ver and ver > prev_ver:
-                prev_rel = r
+                # Get the GitHub release for this tag if it exists
+                try:
+                    prev_rel = self._repo._repo.get_release(tag_name)
+                except Exception:
+                    # No release for this tag, that's okay - we just use the tag
+                    # Create a minimal release-like object with the tag info
+                    prev_rel = type('obj', (object,), {
+                        'tag_name': tag_name,
+                        'created_at': None
+                    })()
                 prev_ver = ver
         return prev_rel
 
@@ -75,8 +88,8 @@ class Changelog:
             )
 
             if tags is None:
-                # Populate the tags list with tag names from the releases
-                tags = [r.tag_name for r in self._repo._repo.get_releases()]
+                # Use Git tags instead of GitHub releases
+                tags = self._repo.get_all_tags()
 
             # Extract any package name prefix and version number from the input
             match = version_pattern.match(version)

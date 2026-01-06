@@ -692,6 +692,15 @@ class Repo:
 
         return highest
 
+    def get_all_tags(self) -> List[str]:
+        """Get all Git tag names in the repository.
+        
+        Returns a list of tag names (without 'refs/tags/' prefix).
+        Uses the tags cache to avoid repeated API calls.
+        """
+        tags_cache = self._build_tags_cache()
+        return list(tags_cache.keys())
+
     def version_with_latest_commit(self, versions: Dict[str, str]) -> Optional[str]:
         """Find the version with the most recent commit datetime.
 
