@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
+from github import UnknownObjectException
 from github.GitRelease import GitRelease
 from github.Issue import Issue
 from github.NamedUser import NamedUser
@@ -49,12 +50,13 @@ class Changelog:
         cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_ver = VersionInfo(0)
         prev_rel = None
-        tag_prefix = self._repo._tag_prefix()
-        for r in self._repo._repo.get_releases():
-            if not r.tag_name.startswith(tag_prefix):
+        tags = self._repo.get_all_tags()
+
+        for tag_name in tags:
+            if not tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(r.tag_name[i_start:])
+                ver = VersionInfo.parse(tag_name[i_start:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -63,7 +65,17 @@ class Changelog:
             # That means if we're creating a backport v1.1, an already existing v2.0,
             # despite being newer than v1.0, will not be selected.
             if ver < cur_ver and ver > prev_ver:
-                prev_rel = r
+                # Get the GitHub release for this tag if it exists
+                try:
+                    prev_rel = self._repo._repo.get_release(tag_name)
+                except UnknownObjectException:
+                    # Release doesn't exist - get commit datetime from the tag
+                    commit_time = self._repo._git.time_of_commit(tag_name)
+                    prev_rel = type(
+                        "obj",
+                        (object,),
+                        {"tag_name": tag_name, "created_at": commit_time},
+                    )()
                 prev_ver = ver
         return prev_rel
 
@@ -75,8 +87,8 @@ class Changelog:
             )
 
             if tags is None:
-                # Populate the tags list with tag names from the releases
-                tags = [r.tag_name for r in self._repo._repo.get_releases()]
+                # Use Git tags instead of GitHub releases
+                tags = self._repo.get_all_tags()
 
             # Extract any package name prefix and version number from the input
             match = version_pattern.match(version)
@@ -266,7 +278,8 @@ class Changelog:
         prev_tag = None
         compare = None
         if previous:
-            start = previous.created_at
+            if previous.created_at:
+                start = previous.created_at
             prev_tag = previous.tag_name
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
