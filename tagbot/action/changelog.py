@@ -49,9 +49,6 @@ class Changelog:
         cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_ver = VersionInfo(0)
         prev_rel = None
-        
-        # Use Git tags instead of GitHub releases for more reliability
-        # (not all tags have releases, and releases can be deleted)
         tags = self._repo.get_all_tags()
         
         for tag_name in tags:
@@ -71,8 +68,6 @@ class Changelog:
                 try:
                     prev_rel = self._repo._repo.get_release(tag_name)
                 except Exception:
-                    # No release for this tag, that's okay - we just use the tag
-                    # Create a minimal release-like object with the tag info
                     prev_rel = type('obj', (object,), {
                         'tag_name': tag_name,
                         'created_at': None
