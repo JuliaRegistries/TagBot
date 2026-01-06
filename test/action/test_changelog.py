@@ -21,6 +21,7 @@ def _changelog(*, template="", ignore=set(), subdir=None):
         token="x",
         changelog=template,
         changelog_ignore=ignore,
+        changelog_format="custom",
         ssh=False,
         gpg=False,
         draft=False,
