@@ -70,15 +70,13 @@ class Git:
         proc = subprocess.run(args, text=True, capture_output=True)
         out = proc.stdout.strip()
         if proc.returncode:
-            error_msg = f"Git command '{self._sanitize_command(cmd)}' failed"
+            # Log detailed output for debugging, but keep exception message
+            # consistent for error report deduplication
             if out:
                 logger.error(f"stdout: {self._sanitize_command(out)}")
-                error_msg += f"\nstdout: {self._sanitize_command(out)}"
             if proc.stderr:
-                stderr = self._sanitize_command(proc.stderr.strip())
-                logger.error(f"stderr: {stderr}")
-                error_msg += f"\nstderr: {stderr}"
-            raise Abort(error_msg)
+                logger.error(f"stderr: {self._sanitize_command(proc.stderr.strip())}")
+            raise Abort(f"Git command '{self._sanitize_command(cmd)}' failed")
         return out
 
     def check(self, *argv: str, repo: Optional[str] = "") -> bool:
