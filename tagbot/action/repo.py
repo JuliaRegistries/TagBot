@@ -702,7 +702,7 @@ class Repo:
 
     def get_all_tags(self) -> List[str]:
         """Get all Git tag names in the repository.
-        
+
         Returns a list of tag names (without 'refs/tags/' prefix).
         Uses the tags cache to avoid repeated API calls.
         """

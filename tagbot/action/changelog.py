@@ -50,7 +50,7 @@ class Changelog:
         prev_ver = VersionInfo(0)
         prev_rel = None
         tags = self._repo.get_all_tags()
-        
+
         for tag_name in tags:
             if not tag_name.startswith(tag_prefix):
                 continue
@@ -68,10 +68,9 @@ class Changelog:
                 try:
                     prev_rel = self._repo._repo.get_release(tag_name)
                 except Exception:
-                    prev_rel = type('obj', (object,), {
-                        'tag_name': tag_name,
-                        'created_at': None
-                    })()
+                    prev_rel = type(
+                        "obj", (object,), {"tag_name": tag_name, "created_at": None}
+                    )()
                 prev_ver = ver
         return prev_rel
 
