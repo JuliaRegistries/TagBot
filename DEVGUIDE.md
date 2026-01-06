@@ -1023,6 +1023,20 @@ for commit in repo.get_commits():  # Paginated API calls!
 
 ### Testing Requirements
 
+**Local development setup**:
+
+```bash
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install package with dependencies
+pip install .
+
+# Install dev tools
+pip install pytest pytest-cov black flake8 mypy boto3
+```
+
 **Before submitting changes**:
 
 ```bash
