@@ -43,7 +43,9 @@ def test_command(run):
     run.return_value.configure_mock(stderr="err\n", returncode=1)
     with pytest.raises(Abort) as exc_info:
         g.command("d")
-    assert "stderr: err" in str(exc_info.value)
+    # Exception message should be consistent for error deduplication
+    # stderr is logged but not included in exception message
+    assert str(exc_info.value) == "Git command 'git -C dir d' failed"
 
 
 def test_check():
