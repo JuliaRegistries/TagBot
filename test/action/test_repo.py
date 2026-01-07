@@ -1166,6 +1166,62 @@ def test_create_release_subdir():
 
 
 @patch("tagbot.action.repo.logger")
+def test_create_release_handles_403_error(logger):
+    """Test that 403 permission error logs appropriate message and re-raises."""
+    r = _repo(user="user", email="email")
+    r._commit_sha_of_release_branch = Mock(return_value=None)
+    r._git.create_tag = Mock()
+    r._repo = Mock(default_branch="default")
+    r._repo.get_releases = Mock(return_value=[])
+    r._changelog.get = Mock(return_value="l")
+    r._repo.create_git_release.side_effect = GithubException(
+        403, {"message": "Resource not accessible by integration"}, {}
+    )
+
+    with pytest.raises(GithubException) as exc_info:
+        r.create_release("v1.0.0", "abc123")
+
+    # Verify exception is properly re-raised
+    assert exc_info.value.status == 403
+
+    # Verify error message was logged
+    logger.error.assert_called()
+    error_call = logger.error.call_args[0][0]
+    assert "Release creation blocked" in error_call
+    assert "token lacks required permissions" in error_call
+    assert "PAT" in error_call
+    assert "contents:write" in error_call
+
+
+@patch("tagbot.action.repo.logger")
+def test_create_release_handles_401_error(logger):
+    """Test that 401 authentication error logs appropriate message and re-raises."""
+    r = _repo(user="user", email="email")
+    r._commit_sha_of_release_branch = Mock(return_value=None)
+    r._git.create_tag = Mock()
+    r._repo = Mock(default_branch="default")
+    r._repo.get_releases = Mock(return_value=[])
+    r._changelog.get = Mock(return_value="l")
+    r._repo.create_git_release.side_effect = GithubException(
+        401, {"message": "Bad credentials"}, {}
+    )
+
+    with pytest.raises(GithubException) as exc_info:
+        r.create_release("v1.0.0", "abc123")
+
+    # Verify exception is properly re-raised
+    assert exc_info.value.status == 401
+
+    # Verify error message was logged
+    logger.error.assert_called()
+    error_call = logger.error.call_args[0][0]
+    assert "Release creation failed" in error_call
+    assert "bad credentials" in error_call
+    assert "Refresh the token" in error_call
+    assert "PAT" in error_call
+
+
+@patch("tagbot.action.repo.logger")
 def test_check_rate_limit(logger):
     r = _repo()
     mock_core = Mock()
