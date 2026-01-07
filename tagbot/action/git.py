@@ -22,7 +22,9 @@ def parse_git_datetime(
     def normalize_offset(s: str) -> str:
         match = re.search(r"([+-]\d{2})(:?)(\d{2})$", s)
         if match and not match.group(2):
-            return f"{s[:- len(match.group(0))]}{match.group(1)}:{match.group(3)}"
+            # Build prefix separately to avoid an overly long formatted line
+            prefix = s[: -len(match.group(0))]
+            return f"{prefix}{match.group(1)}:{match.group(3)}"
         return s
 
     cleaned = date_str.strip()
@@ -54,7 +56,11 @@ def parse_git_datetime(
         candidate = normalize_offset(match.group(1))
         # Prevent infinite recursion: only recurse if normalization changed
         # the matched string and we haven't exceeded a small depth cap.
-        if candidate != match.group(1) and candidate != date_str and _depth < _max_depth:
+        if (
+            candidate != match.group(1)
+            and candidate != date_str
+            and _depth < _max_depth
+        ):
             return parse_git_datetime(candidate, _depth + 1, _max_depth)
         return None
 
