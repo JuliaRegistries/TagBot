@@ -15,9 +15,6 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/web.yml'
-permissions:
-  id-token: write
-  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -30,16 +27,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
       - run: npm ci
       - run: pip install .
       - name: Validate serverless config
         run: npx serverless package --stage dev
         env:
-          # Required for Serverless v4
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           GITHUB_TOKEN: dummy
