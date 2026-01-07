@@ -16,10 +16,11 @@ custom:
 provider:
   name: aws
   runtime: python3.12
+  region: ${env:AWS_REGION, 'us-east-1'}
   iamRoleStatements:
     - Effect: Allow
       Action: lambda:InvokeFunction
-      Resource: arn:aws:lambda:${aws:region}:${aws:accountId}:function:${self:custom.reports}
+      Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:custom.reports}
   environment:
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     REPORTS_FUNCTION: ${self:custom.reports}
