@@ -34,5 +34,9 @@ jobs:
         env:
           # Required for Serverless v4
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+          # Dummy AWS credentials for variable resolution (not actually used)
+          AWS_ACCESS_KEY_ID: testing
+          AWS_SECRET_ACCESS_KEY: testing
+          AWS_DEFAULT_REGION: us-east-1
           # Dummy values for validation only (not deploying)
           GITHUB_TOKEN: dummy
