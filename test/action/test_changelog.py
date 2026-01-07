@@ -42,13 +42,40 @@ def test_slug():
 def test_previous_release():
     c = _changelog()
     tags = ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]
-    c._repo._repo.get_releases = Mock(return_value=[Mock(tag_name=t) for t in tags])
+    c._repo.get_all_tags = Mock(return_value=tags)
+    # Mock get_release to return a minimal release-like object
+    c._repo._repo.get_release = Mock(
+        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
+    )
     assert c._previous_release("v1.0.0") is None
     assert c._previous_release("v1.0.2") is None
     rel = c._previous_release("v1.2.5")
     assert rel and rel.tag_name == "v1.2.3"
     rel = c._previous_release("v1.0.3")
     assert rel and rel.tag_name == "v1.0.2"
+
+
+def test_previous_release_no_github_release():
+    """Test that _previous_release falls back to commit time when no GitHub release."""
+    from datetime import datetime
+    from github import UnknownObjectException
+
+    c = _changelog()
+    tags = ["v1.0.0", "v1.1.0"]
+    c._repo.get_all_tags = Mock(return_value=tags)
+    # Simulate no GitHub release existing for the tag
+    c._repo._repo.get_release = Mock(
+        side_effect=UnknownObjectException(404, "Not Found", {})
+    )
+    # Mock time_of_commit to return a datetime
+    mock_time = datetime(2025, 1, 1, 12, 0, 0)
+    c._repo._git.time_of_commit = Mock(return_value=mock_time)
+
+    rel = c._previous_release("v1.1.1")
+    assert rel is not None
+    assert rel.tag_name == "v1.1.0"
+    assert rel.created_at == mock_time
+    c._repo._git.time_of_commit.assert_called_with("v1.1.0")
 
 
 def test_previous_release_subdir():
@@ -67,7 +94,11 @@ def test_previous_release_subdir():
         "v2.0.1",
         "Foo-v2.0.0",
     ]
-    c._repo._repo.get_releases = Mock(return_value=[Mock(tag_name=t) for t in tags])
+    c._repo.get_all_tags = Mock(return_value=tags)
+    # Mock get_release to return a minimal release-like object
+    c._repo._repo.get_release = Mock(
+        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
+    )
     assert c._previous_release("Foo-v1.0.0") is None
     assert c._previous_release("Foo-v1.0.2") is None
     rel = c._previous_release("Foo-v1.2.5")
