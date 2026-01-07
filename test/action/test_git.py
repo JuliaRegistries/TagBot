@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 from tagbot.action import Abort
-from tagbot.action.git import Git
+from tagbot.action.git import Git, parse_git_datetime
 
 
 def _git(
@@ -43,7 +43,7 @@ def test_command(run):
     run.return_value.configure_mock(stderr="err\n", returncode=1)
     with pytest.raises(Abort) as exc_info:
         g.command("d")
-    assert "stderr: err" in str(exc_info.value)
+    assert str(exc_info.value) == "Git command 'git -C dir d' failed: err"
 
 
 def test_check():
@@ -165,3 +165,80 @@ def test_time_of_commit():
     g = _git(command="2019-12-22T12:49:26+07:00")
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 5, 49, 26)
     g.command.assert_called_with("show", "-s", "--format=%cI", "a", repo="")
+
+
+@patch("subprocess.run")
+def test_command_includes_hint(run):
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="refusing to allow a GitHub App to update workflow",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "workflow" in str(exc_info.value)
+    assert "provide workflow scope" in str(exc_info.value)
+
+
+@patch("subprocess.run")
+def test_command_includes_hint_permission_denied(run):
+    """Test hint for permission denied errors."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="fatal: Permission to user/repo.git denied to user.",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "Permission" in str(exc_info.value) or "permission" in str(exc_info.value)
+    assert "contents:write" in str(exc_info.value)
+    assert "PAT" in str(exc_info.value)
+
+
+@patch("subprocess.run")
+def test_command_includes_hint_publickey(run):
+    """Test hint for publickey/SSH authentication errors."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="Permission denied (publickey). fatal: Could not read from remote",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "publickey" in str(exc_info.value) or "SSH" in str(exc_info.value)
+    assert "SSH" in str(exc_info.value) or "deploy key" in str(exc_info.value)
+
+
+@patch("subprocess.run")
+def test_command_includes_hint_bad_credentials(run):
+    """Test hint for bad credentials/authentication failures."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="fatal: Authentication failed for 'https://github.com/user/repo.git/'",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "token" in str(exc_info.value) or "credentials" in str(exc_info.value)
+    assert "invalid" in str(exc_info.value) or "PAT" in str(exc_info.value)
+
+
+def test_time_of_commit_fallback_formats():
+    g = _git(command=["2019-12-22 12:49:26 +0000", "Mon Dec 23 12:00:00 2024 +0000"])
+    assert g.time_of_commit("a") == datetime(2019, 12, 22, 12, 49, 26)
+    assert g.time_of_commit("b") == datetime(2024, 12, 23, 12, 0, 0)
+
+
+def test_parse_git_datetime_invalid_no_recursion():
+    # String matches the regex but represents an invalid date/time
+    # Ensure the function returns None without infinite recursion
+    s = "2024-13-40 25:61:61 +00:00"
+    assert parse_git_datetime(s) is None

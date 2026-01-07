@@ -2,7 +2,7 @@ import os.path
 import textwrap
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -12,7 +12,12 @@ from github.PullRequest import PullRequest
 from tagbot.action.repo import Repo
 
 
-def _changelog(*, template="", ignore=set(), subdir=None):
+@patch("tagbot.action.repo.Github")
+def _changelog(mock_gh, *, template="", ignore=set(), subdir=None):
+    mock_gh_instance = Mock()
+    mock_gh.return_value = mock_gh_instance
+    mock_repo = Mock()
+    mock_gh_instance.get_repo.return_value = mock_repo
     r = Repo(
         repo="",
         registry="",
@@ -31,6 +36,10 @@ def _changelog(*, template="", ignore=set(), subdir=None):
         branch=None,
         subdir=subdir,
     )
+    # Mock get_all_tags to return empty list (tests override as needed)
+    r.get_all_tags = Mock(return_value=[])
+    # Mock _build_tags_cache to return empty dict
+    r._build_tags_cache = Mock(return_value={})
     return r._changelog
 
 
@@ -41,12 +50,16 @@ def test_slug():
 
 def test_previous_release():
     c = _changelog()
-    tags = ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]
+    tags = [
+        "ignore",
+        "v1.2.4-ignore",
+        "v1.2.3",
+        "v1.2.2",
+        "v1.0.2",
+        "v1.0.10",
+    ]
     c._repo.get_all_tags = Mock(return_value=tags)
-    # Mock get_release to return a minimal release-like object
-    c._repo._repo.get_release = Mock(
-        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
-    )
+    c._repo._repo.get_release = Mock(side_effect=lambda t: Mock(tag_name=t))
     assert c._previous_release("v1.0.0") is None
     assert c._previous_release("v1.0.2") is None
     rel = c._previous_release("v1.2.5")
@@ -95,10 +108,7 @@ def test_previous_release_subdir():
         "Foo-v2.0.0",
     ]
     c._repo.get_all_tags = Mock(return_value=tags)
-    # Mock get_release to return a minimal release-like object
-    c._repo._repo.get_release = Mock(
-        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
-    )
+    c._repo._repo.get_release = Mock(side_effect=lambda t: Mock(tag_name=t))
     assert c._previous_release("Foo-v1.0.0") is None
     assert c._previous_release("Foo-v1.0.2") is None
     rel = c._previous_release("Foo-v1.2.5")
@@ -249,6 +259,7 @@ def test_collect_data():
     c = _changelog()
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
     c._previous_release = Mock(
         side_effect=[
             Mock(tag_name="v1.2.2", created_at=datetime.now(timezone.utc)),
