@@ -43,9 +43,7 @@ def test_command(run):
     run.return_value.configure_mock(stderr="err\n", returncode=1)
     with pytest.raises(Abort) as exc_info:
         g.command("d")
-    # Exception message should be consistent for error deduplication
-    # stderr is logged but not included in exception message
-    assert str(exc_info.value) == "Git command 'git -C dir d' failed"
+    assert str(exc_info.value) == "Git command 'git -C dir d' failed: err"
 
 
 def test_check():
@@ -167,3 +165,24 @@ def test_time_of_commit():
     g = _git(command="2019-12-22T12:49:26+07:00")
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 5, 49, 26)
     g.command.assert_called_with("show", "-s", "--format=%cI", "a", repo="")
+
+
+@patch("subprocess.run")
+def test_command_includes_hint(run):
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="refusing to allow a GitHub App to update workflow",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "workflow" in str(exc_info.value)
+    assert "provide workflow scope" in str(exc_info.value)
+
+
+def test_time_of_commit_fallback_formats():
+    g = _git(command=["2019-12-22 12:49:26 +0000", "Mon Dec 23 12:00:00 2024 +0000"])
+    assert g.time_of_commit("a") == datetime(2019, 12, 22, 12, 49, 26)
+    assert g.time_of_commit("b") == datetime(2024, 12, 23, 12, 0, 0)

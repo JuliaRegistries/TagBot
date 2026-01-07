@@ -41,11 +41,16 @@ def test_slug():
 
 def test_previous_release():
     c = _changelog()
-    tags = ["ignore", "v1.2.4-ignore", "v1.2.3", "v1.2.2", "v1.0.2", "v1.0.10"]
-    c._repo.get_all_tags = Mock(return_value=tags)
-    # Mock get_release to return a minimal release-like object
-    c._repo._repo.get_release = Mock(
-        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
+    tags = [
+        "ignore",
+        "v1.2.4-ignore",
+        "v1.2.3",
+        "v1.2.2",
+        "v1.0.2",
+        "v1.0.10",
+    ]
+    c._repo._repo.get_releases = Mock(
+        return_value=[Mock(tag_name=t) for t in tags]
     )
     assert c._previous_release("v1.0.0") is None
     assert c._previous_release("v1.0.2") is None
@@ -94,10 +99,8 @@ def test_previous_release_subdir():
         "v2.0.1",
         "Foo-v2.0.0",
     ]
-    c._repo.get_all_tags = Mock(return_value=tags)
-    # Mock get_release to return a minimal release-like object
-    c._repo._repo.get_release = Mock(
-        side_effect=lambda tag: type("obj", (object,), {"tag_name": tag})()
+    c._repo._repo.get_releases = Mock(
+        return_value=[Mock(tag_name=t) for t in tags]
     )
     assert c._previous_release("Foo-v1.0.0") is None
     assert c._previous_release("Foo-v1.0.2") is None

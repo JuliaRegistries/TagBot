@@ -1098,6 +1098,23 @@ def test_create_release_skips_existing():
     r._repo.create_git_release.assert_called()
 
 
+def test_create_release_handles_existing_release_error():
+    r = _repo(user="user", email="email")
+    r._commit_sha_of_release_branch = Mock(return_value=None)
+    r._git.create_tag = Mock()
+    r._repo = Mock(default_branch="default")
+    r._repo.get_releases = Mock(return_value=[])
+    r._changelog.get = Mock(return_value="l")
+    r._repo.create_git_release.side_effect = GithubException(
+        422, {"errors": [{"code": "already_exists"}]}, {}
+    )
+
+    r.create_release("v1.0.0", "abc123")
+
+    r._git.create_tag.assert_called_once()
+    r._repo.create_git_release.assert_called_once()
+
+
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
     r._commit_sha_of_release_branch = Mock(return_value="a")

@@ -1,13 +1,57 @@
 import re
 import subprocess
 
-from datetime import datetime
+from datetime import datetime, timezone
 from tempfile import mkdtemp
 from typing import Optional, cast
 from urllib.parse import urlparse
 
 from .. import logger
 from . import Abort
+
+
+def parse_git_datetime(date_str: str) -> Optional[datetime]:
+    """Parse Git date output into a naive UTC datetime.
+
+    Handles common Git formats and normalizes timezone offsets.
+    Returns None if parsing fails.
+    """
+
+    def normalize_offset(s: str) -> str:
+        match = re.search(r"([+-]\d{2})(:?)(\d{2})$", s)
+        if match and not match.group(2):
+            return f"{s[:- len(match.group(0))]}{match.group(1)}:{match.group(3)}"
+        return s
+
+    cleaned = date_str.strip()
+    attempts = [cleaned, normalize_offset(cleaned)]
+    formats = ["%Y-%m-%d %H:%M:%S %z", "%a %b %d %H:%M:%S %Y %z"]
+
+    for candidate in attempts:
+        try:
+            dt = datetime.fromisoformat(candidate)
+        except ValueError:
+            dt = None
+        if dt:
+            offset = dt.utcoffset()
+            if offset:
+                dt -= offset
+            return dt.replace(tzinfo=None)
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+    match = re.search(
+        r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[+-]\d{2}:?\d{2})",
+        cleaned,
+    )
+    if match:
+        return parse_git_datetime(normalize_offset(match.group(1)))
+
+    return None
 
 
 class Git:
@@ -70,14 +114,35 @@ class Git:
         proc = subprocess.run(args, text=True, capture_output=True)
         out = proc.stdout.strip()
         if proc.returncode:
-            # Log detailed output for debugging, but keep exception message
-            # consistent for error report deduplication in TagBotErrorReports
+            err = proc.stderr.strip()
             if out:
                 logger.error(f"stdout: {self._sanitize_command(out)}")
-            if proc.stderr:
-                logger.error(f"stderr: {self._sanitize_command(proc.stderr.strip())}")
-            raise Abort(f"Git command '{self._sanitize_command(cmd)}' failed")
+            if err:
+                logger.error(f"stderr: {self._sanitize_command(err)}")
+
+            detail = err or out
+            hint = self._hint_for_failure(detail)
+            message = f"Git command '{self._sanitize_command(cmd)}' failed"
+            if detail:
+                message = f"{message}: {self._sanitize_command(detail)}"
+            if hint:
+                message = f"{message} ({hint})"
+            raise Abort(message)
         return out
+
+    def _hint_for_failure(self, detail: str) -> Optional[str]:
+        """Return a user-facing hint for common git errors."""
+        lowered = detail.casefold()
+        if "permission to" in lowered and "denied" in lowered:
+            return "use a PAT with contents:write or a deploy key"
+        if "workflow" in lowered or "workflows" in lowered:
+            if "refusing" in lowered or "permission" in lowered:
+                return "provide workflow scope or avoid workflow changes"
+        if "publickey" in lowered or "permission denied (publickey)" in lowered:
+            return "configure SSH deploy key or switch to https with PAT"
+        if "bad credentials" in lowered or "authentication failed" in lowered:
+            return "token is invalid or lacks access"
+        return None
 
     def check(self, *argv: str, repo: Optional[str] = "") -> bool:
         """Run a Git command, but only return its success status."""
@@ -174,9 +239,10 @@ class Git:
         """Get the time that a commit was made."""
         # The format %cI is "committer date, strict ISO 8601 format".
         date = self.command("show", "-s", "--format=%cI", sha, repo=repo)
-        dt = datetime.fromisoformat(date)
-        # Convert to UTC and remove time zone information.
-        offset = dt.utcoffset()
-        if offset:
-            dt -= offset
-        return dt.replace(tzinfo=None)
+        parsed = parse_git_datetime(date)
+        if not parsed:
+            logger.warning(
+                "Could not parse git date '%s', using current UTC", date.strip()
+            )
+            return datetime.utcnow()
+        return parsed
