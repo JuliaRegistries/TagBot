@@ -811,9 +811,7 @@ class Repo:
                     if commit_sha in sha_set:
                         dt = parse_git_datetime(iso_date)
                         if not dt:
-                            logger.debug(
-                                "Could not parse git log date '%s'", iso_date
-                            )
+                            logger.debug("Could not parse git log date '%s'", iso_date)
                             continue
                         self.__commit_datetimes[commit_sha] = dt
                         found += 1
@@ -1500,9 +1498,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             )
         except GithubException as e:
             if e.status == 422 and _release_already_exists(e):
-                logger.info(
-                    f"Release for tag {version_tag} already exists, skipping"
-                )
+                logger.info(f"Release for tag {version_tag} already exists, skipping")
                 return
             if e.status == 403 and "resource not accessible" in str(e).lower():
                 logger.error(
