@@ -42,7 +42,7 @@ from semver import VersionInfo
 from .. import logger
 from . import TAGBOT_WEB, Abort, InvalidProject
 from .changelog import Changelog
-from .git import Git
+from .git import Git, parse_git_datetime
 
 GitlabClient: Any = None
 GitlabUnknown: Any = None
@@ -809,12 +809,10 @@ class Repo:
                 if len(parts) == 2:
                     commit_sha, iso_date = parts
                     if commit_sha in sha_set:
-                        # Parse ISO 8601 date and convert to UTC without timezone
-                        dt = datetime.fromisoformat(iso_date)
-                        offset = dt.utcoffset()
-                        if offset:
-                            dt = dt - offset
-                        dt = dt.replace(tzinfo=None)
+                        dt = parse_git_datetime(iso_date)
+                        if not dt:
+                            logger.debug("Could not parse git log date '%s'", iso_date)
+                            continue
                         self.__commit_datetimes[commit_sha] = dt
                         found += 1
                         if found >= len(uncached):
@@ -1480,15 +1478,40 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         # Use make_latest=False for backfilled old releases to avoid marking them
         # as the "Latest" release on GitHub
         make_latest_str = "true" if is_latest else "false"
-        self._repo.create_git_release(
-            version_tag,
-            version_tag,
-            log,
-            target_commitish=target,
-            draft=self._draft,
-            make_latest=make_latest_str,
-            generate_release_notes=(self._changelog_format == "github"),
-        )
+
+        def _release_already_exists(exc: GithubException) -> bool:
+            data = getattr(exc, "data", {}) or {}
+            for err in data.get("errors", []):
+                if isinstance(err, dict) and err.get("code") == "already_exists":
+                    return True
+            return "already exists" in str(exc)
+
+        try:
+            self._repo.create_git_release(
+                version_tag,
+                version_tag,
+                log,
+                target_commitish=target,
+                draft=self._draft,
+                make_latest=make_latest_str,
+                generate_release_notes=(self._changelog_format == "github"),
+            )
+        except GithubException as e:
+            if e.status == 422 and _release_already_exists(e):
+                logger.info(f"Release for tag {version_tag} already exists, skipping")
+                return
+            elif e.status == 403 and "resource not accessible" in str(e).lower():
+                logger.error(
+                    "Release creation blocked: token lacks required permissions. "
+                    "Use a PAT with contents:write (and workflows if tagging "
+                    "workflow changes)."
+                )
+            elif e.status == 401:
+                logger.error(
+                    "Release creation failed: bad credentials. Refresh the token or "
+                    "use a PAT with repo scope."
+                )
+            raise
         logger.info(f"GitHub release {version_tag} created successfully")
 
     def _check_rate_limit(self) -> None:
@@ -1523,6 +1546,13 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
                 allowed = True
+            elif e.status == 401:
+                logger.error(
+                    "GitHub returned 401 Bad credentials. Verify that your token "
+                    "is valid and has access to the repository and registry."
+                )
+                internal = False
+                allowed = False
             elif e.status == 403:
                 self._check_rate_limit()
                 logger.error(
