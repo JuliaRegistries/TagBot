@@ -182,6 +182,55 @@ def test_command_includes_hint(run):
     assert "provide workflow scope" in str(exc_info.value)
 
 
+@patch("subprocess.run")
+def test_command_includes_hint_permission_denied(run):
+    """Test hint for permission denied errors."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="fatal: Permission to user/repo.git denied to user.",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "Permission" in str(exc_info.value) or "permission" in str(exc_info.value)
+    assert "contents:write" in str(exc_info.value)
+    assert "PAT" in str(exc_info.value)
+
+
+@patch("subprocess.run")
+def test_command_includes_hint_publickey(run):
+    """Test hint for publickey/SSH authentication errors."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="Permission denied (publickey). fatal: Could not read from remote",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "publickey" in str(exc_info.value) or "SSH" in str(exc_info.value)
+    assert "SSH" in str(exc_info.value) or "deploy key" in str(exc_info.value)
+
+
+@patch("subprocess.run")
+def test_command_includes_hint_bad_credentials(run):
+    """Test hint for bad credentials/authentication failures."""
+    g = Git("", "Foo/Bar", "", "user", "email")
+    g._Git__dir = "dir"
+    run.return_value.configure_mock(
+        stdout="",
+        stderr="fatal: Authentication failed for 'https://github.com/user/repo.git/'",
+        returncode=1,
+    )
+    with pytest.raises(Abort) as exc_info:
+        g.command("push", "origin", "v1")
+    assert "token" in str(exc_info.value) or "credentials" in str(exc_info.value)
+    assert "invalid" in str(exc_info.value) or "PAT" in str(exc_info.value)
+
+
 def test_time_of_commit_fallback_formats():
     g = _git(command=["2019-12-22 12:49:26 +0000", "Mon Dec 23 12:00:00 2024 +0000"])
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 12, 49, 26)
