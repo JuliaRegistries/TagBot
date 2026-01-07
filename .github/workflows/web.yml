@@ -1,0 +1,36 @@
+name: Web Service Check
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'tagbot/web/**'
+      - 'serverless.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'tagbot/web/**'
+      - 'serverless.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/web.yml'
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: pip install .
+      - name: Validate serverless config
+        run: npx serverless package --stage dev
+        env:
+          # Dummy values for validation only (not deploying)
+          GITHUB_TOKEN: dummy
