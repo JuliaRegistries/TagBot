@@ -244,5 +244,5 @@ class Git:
             logger.warning(
                 "Could not parse git date '%s', using current UTC", date.strip()
             )
-            return datetime.utcnow()
+            return datetime.now(timezone.utc).replace(tzinfo=None)
         return parsed
