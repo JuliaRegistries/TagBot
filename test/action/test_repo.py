@@ -1105,9 +1105,9 @@ def test_create_release_handles_existing_release_error():
     r._repo = Mock(default_branch="default")
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
-    exc = GithubException(422, "Validation Failed", {})
-    exc.data = {"errors": [{"code": "already_exists"}]}
-    r._repo.create_git_release.side_effect = exc
+    r._repo.create_git_release.side_effect = GithubException(
+        422, {"errors": [{"code": "already_exists"}]}, {}
+    )
 
     r.create_release("v1.0.0", "abc123")
 

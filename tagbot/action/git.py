@@ -10,7 +10,9 @@ from .. import logger
 from . import Abort
 
 
-def parse_git_datetime(date_str: str) -> Optional[datetime]:
+def parse_git_datetime(
+    date_str: str, _depth: int = 0, _max_depth: int = 2
+) -> Optional[datetime]:
     """Parse Git date output into a naive UTC datetime.
 
     Handles common Git formats and normalizes timezone offsets.
@@ -49,7 +51,12 @@ def parse_git_datetime(date_str: str) -> Optional[datetime]:
         cleaned,
     )
     if match:
-        return parse_git_datetime(normalize_offset(match.group(1)))
+        candidate = normalize_offset(match.group(1))
+        # Prevent infinite recursion: only recurse if normalization changed
+        # the matched string and we haven't exceeded a small depth cap.
+        if candidate != match.group(1) and candidate != date_str and _depth < _max_depth:
+            return parse_git_datetime(candidate, _depth + 1, _max_depth)
+        return None
 
     return None
 

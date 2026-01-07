@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 from tagbot.action import Abort
-from tagbot.action.git import Git
+from tagbot.action.git import Git, parse_git_datetime
 
 
 def _git(
@@ -235,3 +235,10 @@ def test_time_of_commit_fallback_formats():
     g = _git(command=["2019-12-22 12:49:26 +0000", "Mon Dec 23 12:00:00 2024 +0000"])
     assert g.time_of_commit("a") == datetime(2019, 12, 22, 12, 49, 26)
     assert g.time_of_commit("b") == datetime(2024, 12, 23, 12, 0, 0)
+
+
+def test_parse_git_datetime_invalid_no_recursion():
+    # String matches the regex but represents an invalid date/time
+    # Ensure the function returns None without infinite recursion
+    s = "2024-13-40 25:61:61 +00:00"
+    assert parse_git_datetime(s) is None
