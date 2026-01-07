@@ -1,7 +1,6 @@
 service: TagBotWeb
 plugins:
   - serverless-domain-manager
-  - serverless-python-requirements
   - serverless-wsgi
 custom:
   prod:
@@ -13,6 +12,7 @@ custom:
   reports: ${self:service}-${opt:stage, 'dev'}-reports
   wsgi:
     app: tagbot.web.app
+  pythonRequirements: {}
 provider:
   name: aws
   runtime: python3.12
