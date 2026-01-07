@@ -1500,13 +1500,13 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             if e.status == 422 and _release_already_exists(e):
                 logger.info(f"Release for tag {version_tag} already exists, skipping")
                 return
-            if e.status == 403 and "resource not accessible" in str(e).lower():
+            elif e.status == 403 and "resource not accessible" in str(e).lower():
                 logger.error(
                     "Release creation blocked: token lacks required permissions. "
                     "Use a PAT with contents:write (and workflows if tagging "
                     "workflow changes)."
                 )
-            if e.status == 401:
+            elif e.status == 401:
                 logger.error(
                     "Release creation failed: bad credentials. Refresh the token or "
                     "use a PAT with repo scope."
