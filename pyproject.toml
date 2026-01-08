@@ -31,6 +31,9 @@ python-gitlab = { version = "^7.1.0", optional = true }
 [tool.poetry.extras]
 gitlab = ["python-gitlab"]
 
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
 [tool.poetry.group.dev.dependencies]
 black = "^25.12"
 boto3 = "^1.42.21"
