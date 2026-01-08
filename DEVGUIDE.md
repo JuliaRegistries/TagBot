@@ -1,7 +1,7 @@
 # TagBot Developer Guide
 
 > **For AI Agents**: This document serves as both DEVGUIDE.md and AGENTS.md (symlinked).
-> Read sections 1-12 for architecture understanding, then follow the [Agent Guidelines](#agent-guidelines)
+> Read sections 1-13 for architecture understanding, then follow the [Agent Guidelines](#agent-guidelines)
 > at the end for coding conventions and contribution rules.
 
 ## Table of Contents
@@ -14,11 +14,12 @@
 6. [Caching Strategy](#caching-strategy)
 7. [Error Handling](#error-handling)
 8. [Release Process](#release-process)
-9. [Monitoring](#monitoring)
-10. [GitLab Support](#gitlab-support)
-11. [SSH and GPG Configuration](#ssh-and-gpg-configuration)
-12. [Manual Intervention](#manual-intervention)
-13. [Agent Guidelines](#agent-guidelines)
+9. [Deploying the Web Service](#deploying-the-web-service)
+10. [Monitoring](#monitoring)
+11. [GitLab Support](#gitlab-support)
+12. [SSH and GPG Configuration](#ssh-and-gpg-configuration)
+13. [Manual Intervention](#manual-intervention)
+14. [Agent Guidelines](#agent-guidelines)
 
 ---
 
@@ -758,6 +759,83 @@ When using a private registry, TagBot clones it via SSH instead of using the API
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Deploying the Web Service
+
+The error reporting web service runs on AWS Lambda and is deployed using the Serverless Framework.
+
+**Prerequisites**:
+- Node.js and npm
+- AWS credentials with deployment permissions
+- Docker (for building Linux-compatible Python packages on macOS)
+
+**Setup**:
+
+```bash
+# Install Serverless and plugins
+npm install
+
+# Configure AWS credentials
+aws configure --profile tagbot
+# Set region to us-east-1
+```
+
+**Deployment**:
+
+```bash
+# Deploy to production
+GITHUB_TOKEN="ghp_..." npx serverless deploy --stage prod --aws-profile tagbot
+
+# Deploy to dev (no custom domain)
+npx serverless deploy --stage dev --aws-profile tagbot
+```
+
+**Configuration files**:
+- `serverless.yml` - Lambda function definitions and AWS configuration
+- `requirements.txt` - Python dependencies for Lambda (keep in sync with pyproject.toml)
+- `package.json` - Serverless plugins
+
+**Environment variables** (set in serverless.yml or AWS console):
+- `GITHUB_TOKEN` - Token with access to TagBotErrorReports repo
+- `TAGBOT_REPO` - Main TagBot repo (default: JuliaRegistries/TagBot)
+- `TAGBOT_ISSUES_REPO` - Error reports repo (default: JuliaRegistries/TagBotErrorReports)
+
+**Troubleshooting**:
+
+If deployment fails with missing Python modules:
+1. Ensure `requirements.txt` has all needed dependencies
+2. Check that `serverless-python-requirements` plugin is installed
+3. Try `rm -rf .requirements .serverless` and redeploy
+
+If you see broken symlinks after deployment:
+```bash
+find . -maxdepth 1 -type l ! -name "AGENTS.md" -delete
+```
+
+**Checking logs**:
+
+View recent Lambda logs via AWS CLI:
+```bash
+# List log groups
+aws logs describe-log-groups --profile tagbot --region us-east-1 \
+  --log-group-name-prefix /aws/lambda/TagBotWeb-prod
+
+# Get recent log events from the API function (last 5 minutes)
+aws logs filter-log-events --profile tagbot --region us-east-1 \
+  --log-group-name /aws/lambda/TagBotWeb-prod-api \
+  --start-time $(($(date +%s) * 1000 - 300000)) \
+  --query 'events[*].message' --output text
+
+# Get logs from the reports function
+aws logs filter-log-events --profile tagbot --region us-east-1 \
+  --log-group-name /aws/lambda/TagBotWeb-prod-reports \
+  --start-time $(($(date +%s) * 1000 - 300000)) \
+  --query 'events[*].message' --output text
+```
+
+Or view logs in the AWS Console:
+- https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/$252Faws$252Flambda$252FTagBotWeb-prod-api
+- https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/$252Faws$252Flambda$252FTagBotWeb-prod-reports
 
 ---
 
