@@ -251,7 +251,9 @@ class Git:
     def time_of_commit(self, sha: str, repo: str = "") -> datetime:
         """Get the time that a commit was made."""
         # The format %cI is "committer date, strict ISO 8601 format".
-        date = self.command("show", "-s", "--format=%cI", sha, repo=repo)
+        # Use git log with ^{commit} to dereference tags to their underlying commit,
+        # since git show on annotated tags outputs the tag message before the commit.
+        date = self.command("log", "-1", "--format=%cI", f"{sha}^{{commit}}", repo=repo)
         parsed = parse_git_datetime(date)
         if not parsed:
             logger.warning(
