@@ -1,6 +1,7 @@
 service: TagBotWeb
 plugins:
   - serverless-domain-manager
+  - serverless-python-requirements
   - serverless-wsgi
 custom:
   prod:
@@ -13,6 +14,10 @@ custom:
   wsgi:
     app: tagbot.web.app
     packRequirements: false
+  pythonRequirements:
+    dockerizePip: non-linux
+    slim: true
+    usePoetry: false
 provider:
   name: aws
   runtime: python3.11
