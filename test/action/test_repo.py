@@ -281,9 +281,25 @@ def test_registry_url_missing_repo_key():
 def test_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
-    assert r._release_branch == "a"
+    r._registry_pr = Mock(return_value=None)
+    assert r._release_branch("v1.0.0") == "a"
+
     r = _repo(branch="b")
-    assert r._release_branch == "b"
+    r._registry_pr = Mock(return_value=None)
+    assert r._release_branch("v1.0.0") == "b"
+    
+    # Test PR branch has highest priority
+    r = _repo(branch="config-branch")
+    r._repo = Mock(default_branch="default-branch")
+    pr_body = "foo\n- Branch: pr-branch\nbar"
+    r._registry_pr = Mock(return_value=Mock(body=pr_body))
+    assert r._release_branch("v1.0.0") == "pr-branch"
+    
+    # Test that missing branch in PR falls back to config
+    r = _repo(branch="config-branch")
+    r._repo = Mock(default_branch="default-branch")
+    r._registry_pr = Mock(return_value=Mock(body="no branch here"))
+    assert r._release_branch("v1.0.0") == "config-branch"
 
 
 def test_only():
@@ -475,6 +491,33 @@ def test_commit_sha_from_registry_pr(logger):
         "Tree SHA of commit from registry PR does not match"
     )
     assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
+
+
+@patch("tagbot.action.repo.logger")
+def test_branch_from_registry_pr(logger):
+    """Test extracting branch from registry PR body."""
+    r = _repo()
+    
+    # No PR found
+    r._registry_pr = Mock(return_value=None)
+    assert r._branch_from_registry_pr("v1.0.0") is None
+    
+    # PR body without branch info
+    r._registry_pr.return_value = Mock(body="foo\nbar\nbaz")
+    assert r._branch_from_registry_pr("v1.0.0") is None
+    
+    # PR body with "- Branch: <branch_name>" format
+    r._registry_pr.return_value.body = "foo\n- Branch: my-release-branch\nbar"
+    assert r._branch_from_registry_pr("v1.0.0") == "my-release-branch"
+    logger.debug.assert_called_with("Found branch 'my-release-branch' in registry PR for v1.0.0")
+    
+    # PR body with "Branch: <branch_name>" format (without dash)
+    r._registry_pr.return_value.body = "foo\nBranch: another-branch\nbar"
+    assert r._branch_from_registry_pr("v2.0.0") == "another-branch"
+    
+    # PR body with extra whitespace
+    r._registry_pr.return_value.body = "foo\n-   Branch:   spaced-branch  \nbar"
+    assert r._branch_from_registry_pr("v3.0.0") == "spaced-branch"
 
 
 def test_commit_sha_of_tree():
@@ -673,8 +716,9 @@ def test_version_with_latest_commit_marks_latest_when_newer(logger):
 def test_commit_sha_of_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
+    r._registry_pr = Mock(return_value=None)
     r._repo.get_branch.return_value.commit.sha = "sha"
-    assert r._commit_sha_of_release_branch() == "sha"
+    assert r._commit_sha_of_release_branch("v1.0.0") == "sha"
     r._repo.get_branch.assert_called_with("a")
 
 
@@ -1020,6 +1064,7 @@ def test_handle_release_branch_subdir():
 def test_create_release():
     r = _repo(user="user", email="email")
     r._commit_sha_of_release_branch = Mock(return_value="a")
+    r._registry_pr = Mock(return_value=None)
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
     r._repo.create_git_tag.return_value.sha = "t"
@@ -1118,6 +1163,7 @@ def test_create_release_handles_existing_release_error():
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
     r._commit_sha_of_release_branch = Mock(return_value="a")
+    r._branch_from_registry_pr = Mock(return_value=None)
     r._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
     )
