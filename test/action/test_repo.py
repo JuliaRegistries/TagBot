@@ -287,14 +287,14 @@ def test_release_branch():
     r = _repo(branch="b")
     r._registry_pr = Mock(return_value=None)
     assert r._release_branch("v1.0.0") == "b"
-    
+
     # Test PR branch has highest priority
     r = _repo(branch="config-branch")
     r._repo = Mock(default_branch="default-branch")
     pr_body = "foo\n- Branch: pr-branch\nbar"
     r._registry_pr = Mock(return_value=Mock(body=pr_body))
     assert r._release_branch("v1.0.0") == "pr-branch"
-    
+
     # Test that missing branch in PR falls back to config
     r = _repo(branch="config-branch")
     r._repo = Mock(default_branch="default-branch")
@@ -497,24 +497,26 @@ def test_commit_sha_from_registry_pr(logger):
 def test_branch_from_registry_pr(logger):
     """Test extracting branch from registry PR body."""
     r = _repo()
-    
+
     # No PR found
     r._registry_pr = Mock(return_value=None)
     assert r._branch_from_registry_pr("v1.0.0") is None
-    
+
     # PR body without branch info
     r._registry_pr.return_value = Mock(body="foo\nbar\nbaz")
     assert r._branch_from_registry_pr("v1.0.0") is None
-    
+
     # PR body with "- Branch: <branch_name>" format
     r._registry_pr.return_value.body = "foo\n- Branch: my-release-branch\nbar"
     assert r._branch_from_registry_pr("v1.0.0") == "my-release-branch"
-    logger.debug.assert_called_with("Found branch 'my-release-branch' in registry PR for v1.0.0")
-    
+    logger.debug.assert_called_with(
+        "Found branch 'my-release-branch' in registry PR for v1.0.0"
+    )
+
     # PR body with "Branch: <branch_name>" format (without dash)
     r._registry_pr.return_value.body = "foo\nBranch: another-branch\nbar"
     assert r._branch_from_registry_pr("v2.0.0") == "another-branch"
-    
+
     # PR body with extra whitespace
     r._registry_pr.return_value.body = "foo\n-   Branch:   spaced-branch  \nbar"
     assert r._branch_from_registry_pr("v3.0.0") == "spaced-branch"

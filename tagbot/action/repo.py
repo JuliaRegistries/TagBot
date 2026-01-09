@@ -331,14 +331,18 @@ class Repo:
 
     def _release_branch(self, version: str) -> str:
         """Get the name of the release branch for a specific version.
-        
+
         Priority:
         1. Branch specified by Registrator invocation (from PR body)
         2. Release branch specified in TagBot config
         3. Default branch
         """
         # First check if Registrator specified a branch for this version
-        pr_branch = self._branch_from_registry_pr(version)
+        try:
+            pr_branch = self._branch_from_registry_pr(version)
+        except Exception as e:
+            logger.debug(f"Skipping registry PR branch lookup: {e}")
+            pr_branch = None
         if pr_branch:
             return pr_branch
         # Fall back to config branch or default
@@ -510,7 +514,7 @@ class Repo:
 
     def _branch_from_registry_pr(self, version: str) -> Optional[str]:
         """Extract release branch name from registry PR body.
-        
+
         Registrator includes branch info in PR body like:
         - Branch: my-branch
         """
