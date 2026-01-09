@@ -1165,7 +1165,7 @@ def test_create_release_handles_existing_release_error():
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
     r._commit_sha_of_release_branch = Mock(return_value="a")
-    r._branch_from_registry_pr = Mock(return_value=None)
+    r._registry_pr = Mock(return_value=None)
     r._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
     )
