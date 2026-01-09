@@ -521,6 +521,8 @@ class Repo:
         pr = self._registry_pr(version)
         if not pr:
             return None
+        if not pr.body:
+            return None
         # Look for "- Branch: <branch_name>" or "Branch: <branch_name>" in PR body
         m = re.search(r"^-?\s*Branch:\s*(.+)$", pr.body, re.MULTILINE)
         if m:

@@ -506,6 +506,10 @@ def test_branch_from_registry_pr(logger):
     r._registry_pr.return_value = Mock(body="foo\nbar\nbaz")
     assert r._branch_from_registry_pr("v1.0.0") is None
 
+    # PR body is None
+    r._registry_pr.return_value.body = None
+    assert r._branch_from_registry_pr("v1.0.0") is None
+
     # PR body with "- Branch: <branch_name>" format
     r._registry_pr.return_value.body = "foo\n- Branch: my-release-branch\nbar"
     assert r._branch_from_registry_pr("v1.0.0") == "my-release-branch"
