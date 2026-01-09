@@ -302,8 +302,10 @@ class Repo:
                 "This may indicate a structural issue with the registry file."
             )
             return None
-        if uuid in registry["packages"]:
-            self.__registry_path = registry["packages"][uuid]["path"]
+        # Normalize registry package UUIDs to lowercase for case-insensitive matching
+        packages_lower = {k.lower(): v for k, v in registry["packages"].items()}
+        if uuid in packages_lower:
+            self.__registry_path = packages_lower[uuid]["path"]
             return self.__registry_path
         return None
 

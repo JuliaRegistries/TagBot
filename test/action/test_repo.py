@@ -166,6 +166,23 @@ def test_registry_path_with_uppercase_uuid():
     assert r._registry_path == "B/Bar"
 
 
+def test_registry_path_with_uppercase_registry_uuid():
+    """Test that uppercase UUIDs in the registry are normalized for matching."""
+    r = _repo()
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Registry has uppercase UUID
+    r._registry.get_git_blob.return_value.content = b64encode(
+        b"""
+        [packages]
+        ABC-DEF-1234 = { path = "P/Package" }
+        """
+    )
+    # Project has lowercase UUID
+    r._project = lambda _k: "abc-def-1234"
+    assert r._registry_path == "P/Package"
+
+
 @patch("tagbot.action.repo.logger")
 def test_registry_path_malformed_toml(logger):
     """Test that malformed Registry.toml returns None and logs warning."""
