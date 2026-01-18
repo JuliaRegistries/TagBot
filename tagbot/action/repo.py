@@ -240,23 +240,23 @@ class Repo:
         """Lazy initialization of GraphQL client."""
         if self._graphql_initialized:
             return self._graphql
-        
+
         self._graphql_initialized = True
         if self._is_gitlab:
             # GraphQL only for GitHub, not GitLab
             return None
-        
+
         # Skip GraphQL in test environments
         if "pytest" in sys.modules:
             return None
-        
+
         # Skip GraphQL in test environments (when repo has no full_name set)
         try:
-            if not hasattr(self._repo, 'full_name') or not self._repo.full_name:
+            if not hasattr(self._repo, "full_name") or not self._repo.full_name:
                 return None
         except Exception:
             return None
-        
+
         try:
             self._graphql = GraphQLClient(self._gh)  # type: ignore
             return self._graphql

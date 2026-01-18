@@ -46,7 +46,9 @@ class GraphQLClient:
 
         if "errors" in data:
             error_messages = [e.get("message", str(e)) for e in data["errors"]]
-            raise GithubException(400, {"message": f"GraphQL errors: {'; '.join(error_messages)}"}, {})
+            raise GithubException(
+                400, {"message": f"GraphQL errors: {'; '.join(error_messages)}"}, {}
+            )
 
         return data.get("data", {})
 

@@ -15,16 +15,16 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock successful response
         mock_requester.requestJsonAndCheck.return_value = (
             {},  # headers
-            {"data": {"repository": {"name": "test"}}}  # data
+            {"data": {"repository": {"name": "test"}}},  # data
         )
-        
+
         client = GraphQLClient(mock_gh)
         result = client.query("query { repository { name } }")
-        
+
         assert result == {"repository": {"name": "test"}}
         mock_requester.requestJsonAndCheck.assert_called_once()
 
@@ -33,18 +33,18 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock error response
         mock_requester.requestJsonAndCheck.return_value = (
             {},
-            {"errors": [{"message": "Field 'unknown' doesn't exist"}]}
+            {"errors": [{"message": "Field 'unknown' doesn't exist"}]},
         )
-        
+
         client = GraphQLClient(mock_gh)
-        
+
         with pytest.raises(GithubException) as exc_info:
             client.query("query { unknown }")
-        
+
         assert "GraphQL errors" in str(exc_info.value)
         assert "Field 'unknown' doesn't exist" in str(exc_info.value)
 
@@ -53,7 +53,7 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock GraphQL response with tags and releases
         # Include both lightweight tags (direct commit) and annotated tags
         mock_response = {
@@ -64,7 +64,7 @@ class TestGraphQLClient:
                         "nodes": [
                             {
                                 "name": "v1.0.0",
-                                "target": {"oid": "abc123"}  # Lightweight tag
+                                "target": {"oid": "abc123"},  # Lightweight tag
                             },
                             {
                                 "name": "v1.1.0",
@@ -73,10 +73,10 @@ class TestGraphQLClient:
                                     "oid": "tag456",  # Tag object OID
                                     "target": {  # Nested target points to actual commit
                                         "oid": "commit789"  # Actual commit SHA
-                                    }
-                                }
-                            }
-                        ]
+                                    },
+                                },
+                            },
+                        ],
                     },
                     "releases": {
                         "pageInfo": {"hasNextPage": False},
@@ -84,22 +84,24 @@ class TestGraphQLClient:
                             {
                                 "tagName": "v1.0.0",
                                 "createdAt": "2024-01-01T00:00:00Z",
-                                "tagCommit": {"oid": "abc123"}
+                                "tagCommit": {"oid": "abc123"},
                             }
-                        ]
-                    }
+                        ],
+                    },
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
         tags_dict, releases_list = client.fetch_tags_and_releases("owner", "repo")
-        
+
         assert len(tags_dict) == 2
         assert tags_dict["v1.0.0"] == "abc123"  # Lightweight tag
-        assert tags_dict["v1.1.0"] == "commit789"  # Annotated tag resolved to commit SHA
-        
+        assert (
+            tags_dict["v1.1.0"] == "commit789"
+        )  # Annotated tag resolved to commit SHA
+
         assert len(releases_list) == 1
         assert releases_list[0]["tagName"] == "v1.0.0"
 
@@ -108,7 +110,7 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock GraphQL response with commit metadata
         mock_response = {
             "data": {
@@ -116,21 +118,21 @@ class TestGraphQLClient:
                     "commit0": {
                         "oid": "abc123",
                         "committedDate": "2024-01-01T00:00:00Z",
-                        "author": {"name": "John Doe", "email": "john@example.com"}
+                        "author": {"name": "John Doe", "email": "john@example.com"},
                     },
                     "commit1": {
                         "oid": "def456",
                         "committedDate": "2024-01-02T00:00:00Z",
-                        "author": {"name": "Jane Doe", "email": "jane@example.com"}
-                    }
+                        "author": {"name": "Jane Doe", "email": "jane@example.com"},
+                    },
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
         metadata = client.fetch_commits_metadata("owner", "repo", ["abc123", "def456"])
-        
+
         assert len(metadata) == 2
         assert metadata["abc123"]["oid"] == "abc123"
         assert metadata["def456"]["committedDate"] == "2024-01-02T00:00:00Z"
@@ -140,10 +142,10 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         client = GraphQLClient(mock_gh)
         metadata = client.fetch_commits_metadata("owner", "repo", [])
-        
+
         # Should return empty dict without making API call
         assert metadata == {}
         mock_requester.requestJsonAndCheck.assert_not_called()
@@ -153,7 +155,7 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock GraphQL response with search results
         mock_response = {
             "data": {
@@ -166,7 +168,7 @@ class TestGraphQLClient:
                             "author": {"login": "user1"},
                             "labels": {"nodes": [{"name": "bug"}]},
                             "closedAt": "2024-01-01T00:00:00Z",
-                            "url": "https://github.com/owner/repo/issues/123"
+                            "url": "https://github.com/owner/repo/issues/123",
                         },
                         {
                             "number": 124,
@@ -175,20 +177,19 @@ class TestGraphQLClient:
                             "labels": {"nodes": [{"name": "enhancement"}]},
                             "closedAt": "2024-01-02T00:00:00Z",
                             "url": "https://github.com/owner/repo/pull/124",
-                            "mergedAt": "2024-01-02T00:00:00Z"
-                        }
-                    ]
+                            "mergedAt": "2024-01-02T00:00:00Z",
+                        },
+                    ],
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
         items = client.search_issues_and_pulls(
-            "owner", "repo", 
-            "2024-01-01T00:00:00", "2024-01-03T00:00:00"
+            "owner", "repo", "2024-01-01T00:00:00", "2024-01-03T00:00:00"
         )
-        
+
         assert len(items) == 2
         assert items[0]["number"] == 123
         assert items[0]["labels"] == ["bug"]
@@ -201,27 +202,24 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock response with hasNextPage=True for tags
         mock_response = {
             "data": {
                 "repository": {
                     "refs": {
                         "pageInfo": {"hasNextPage": True, "endCursor": "cursor123"},
-                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}]
+                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}],
                     },
-                    "releases": {
-                        "pageInfo": {"hasNextPage": False},
-                        "nodes": []
-                    }
+                    "releases": {"pageInfo": {"hasNextPage": False}, "nodes": []},
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
         tags_dict, _ = client.fetch_tags_and_releases("owner", "repo", max_items=100)
-        
+
         # Verify warning was logged
         assert mock_logger.warning.called
         warning_message = mock_logger.warning.call_args[0][0]
@@ -234,27 +232,31 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock response with hasNextPage=True for releases
         mock_response = {
             "data": {
                 "repository": {
                     "refs": {
                         "pageInfo": {"hasNextPage": False},
-                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}]
+                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}],
                     },
                     "releases": {
                         "pageInfo": {"hasNextPage": True, "endCursor": "cursor456"},
-                        "nodes": [{"tagName": "v1.0.0", "createdAt": "2024-01-01T00:00:00Z"}]
-                    }
+                        "nodes": [
+                            {"tagName": "v1.0.0", "createdAt": "2024-01-01T00:00:00Z"}
+                        ],
+                    },
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
-        _, releases_list = client.fetch_tags_and_releases("owner", "repo", max_items=100)
-        
+        _, releases_list = client.fetch_tags_and_releases(
+            "owner", "repo", max_items=100
+        )
+
         # Verify warning was logged
         assert mock_logger.warning.called
         warning_message = mock_logger.warning.call_args[0][0]
@@ -267,7 +269,7 @@ class TestGraphQLClient:
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
-        
+
         # Mock response with hasNextPage=True
         mock_response = {
             "data": {
@@ -280,24 +282,21 @@ class TestGraphQLClient:
                             "author": {"login": "user1"},
                             "labels": {"nodes": []},
                             "closedAt": "2024-01-01T00:00:00Z",
-                            "url": "https://github.com/owner/repo/issues/123"
+                            "url": "https://github.com/owner/repo/issues/123",
                         }
-                    ]
+                    ],
                 }
             }
         }
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
-        
+
         client = GraphQLClient(mock_gh)
         client.search_issues_and_pulls(
-            "owner", "repo",
-            "2024-01-01T00:00:00", "2024-01-03T00:00:00",
-            max_items=100
+            "owner", "repo", "2024-01-01T00:00:00", "2024-01-03T00:00:00", max_items=100
         )
-        
+
         # Verify warning was logged
         assert mock_logger.warning.called
         warning_message = mock_logger.warning.call_args[0][0]
         assert "More than 100 issues/PRs found" in warning_message
         assert "pagination" in warning_message
-
