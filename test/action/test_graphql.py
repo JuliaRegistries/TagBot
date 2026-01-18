@@ -1,7 +1,7 @@
 """Tests for GraphQL client functionality."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from tagbot.action.graphql import GraphQLClient
 
 
