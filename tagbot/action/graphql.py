@@ -57,7 +57,8 @@ class GraphQLClient:
     ) -> Tuple[Dict[str, str], List[Dict[str, Any]]]:
         """Fetch all tags and releases in a single query.
 
-        This replaces separate calls to get_git_matching_refs("tags/") and get_releases().
+        This replaces separate calls to get_git_matching_refs("tags/")
+        and get_releases().
 
         Args:
             owner: Repository owner.
@@ -72,7 +73,11 @@ class GraphQLClient:
         query = """
         query($owner: String!, $name: String!, $maxItems: Int!) {
           repository(owner: $owner, name: $name) {
-            refs(refPrefix: "refs/tags/", first: $maxItems, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {
+            refs(
+              refPrefix: "refs/tags/",
+              first: $maxItems,
+              orderBy: {field: TAG_COMMIT_DATE, direction: DESC}
+            ) {
               pageInfo {
                 hasNextPage
                 endCursor

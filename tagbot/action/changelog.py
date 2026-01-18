@@ -16,7 +16,6 @@ from .. import logger
 
 if TYPE_CHECKING:
     from .repo import Repo
-    from .graphql import GraphQLClient
 
 
 class Changelog:

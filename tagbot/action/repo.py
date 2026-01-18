@@ -258,7 +258,7 @@ class Repo:
             return None
 
         try:
-            self._graphql = GraphQLClient(self._gh)  # type: ignore
+            self._graphql = GraphQLClient(self._gh)
             return self._graphql
         except Exception as e:
             logger.warning(f"Failed to initialize GraphQL client: {e}")
@@ -665,7 +665,8 @@ class Repo:
                     # Cache releases for later use (avoiding redundant API calls)
                     self.__releases_cache = releases_list
                     logger.debug(
-                        f"GraphQL fetched {len(cache)} tags and {len(releases_list)} releases"
+                        f"GraphQL fetched {len(cache)} tags and "
+                        f"{len(releases_list)} releases"
                     )
                     self.__existing_tags_cache = cache
                     return cache
@@ -1512,7 +1513,8 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 for release_data in self.__releases_cache:
                     if release_data.get("tagName") == version_tag:
                         logger.info(
-                            f"Release for tag {version_tag} already exists (from cache), skipping"
+                            f"Release for tag {version_tag} already exists "
+                            f"(from cache), skipping"
                         )
                         return
                 # Store the cache for use elsewhere if needed
