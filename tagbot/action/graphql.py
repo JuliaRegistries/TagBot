@@ -183,25 +183,31 @@ class GraphQLClient:
         batch_size = min(len(commit_shas), 50)
         commit_shas = commit_shas[:batch_size]
 
-        # Build query with aliases for each commit
-        commit_fields = []
+        # Build query with aliases for each commit and corresponding variables
+        commit_fields: List[str] = []
+        variable_definitions: List[str] = ["$owner: String!", "$name: String!"]
+        variables: Dict[str, Any] = {"owner": owner, "name": name}
+
         for i, sha in enumerate(commit_shas):
             alias = f"commit{i}"
+            sha_var_name = f"sha{i}"
+            variable_definitions.append(f"${sha_var_name}: GitObjectID!")
+            variables[sha_var_name] = sha
             commit_fields.append(
-                f'{alias}: object(oid: "{sha}") {{ '
+                f"{alias}: object(oid: ${sha_var_name}) {{ "
                 f"... on Commit {{ oid committedDate author {{ name email }} }} }}"
             )
 
         query = f"""
-        query {{
-          repository(owner: "{owner}", name: "{name}") {{
+        query({', '.join(variable_definitions)}) {{
+          repository(owner: $owner, name: $name) {{
             {' '.join(commit_fields)}
           }}
         }}
         """
 
         logger.debug(f"Fetching metadata for {len(commit_shas)} commits via GraphQL")
-        result = self.query(query)
+        result = self.query(query, variables)
         repo_data = result.get("repository", {})
 
         # Parse results back into a dict
