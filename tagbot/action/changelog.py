@@ -2,7 +2,7 @@ import json
 import re
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from github import UnknownObjectException
 from github.GitRelease import GitRelease

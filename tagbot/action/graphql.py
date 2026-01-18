@@ -123,12 +123,12 @@ class GraphQLClient:
             target = node.get("target", {})
 
             # Handle both direct commits and annotated tags
+            # Use same pattern as REST API: store annotated tags with prefix for lazy resolution
             if target.get("__typename") == "Tag":
-                # Annotated tag - get the commit it points to
-                inner_target = target.get("target", {})
-                commit_sha = inner_target.get("oid")
-                if commit_sha:
-                    tags_dict[tag_name] = commit_sha
+                # Annotated tag - store with prefix for lazy resolution
+                tag_sha = target.get("oid")
+                if tag_sha:
+                    tags_dict[tag_name] = f"annotated:{tag_sha}"
             else:
                 # Direct commit reference
                 commit_sha = target.get("oid")

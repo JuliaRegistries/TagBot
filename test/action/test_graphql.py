@@ -1,7 +1,7 @@
 """Tests for GraphQL client functionality."""
 
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from tagbot.action.graphql import GraphQLClient
 
 
@@ -53,6 +53,7 @@ class TestGraphQLClient:
         mock_gh._Github__requester = mock_requester
         
         # Mock GraphQL response with tags and releases
+        # Include both lightweight tags (direct commit) and annotated tags
         mock_response = {
             "data": {
                 "repository": {
@@ -61,11 +62,14 @@ class TestGraphQLClient:
                         "nodes": [
                             {
                                 "name": "v1.0.0",
-                                "target": {"oid": "abc123"}
+                                "target": {"oid": "abc123"}  # Lightweight tag
                             },
                             {
                                 "name": "v1.1.0",
-                                "target": {"oid": "def456"}
+                                "target": {
+                                    "__typename": "Tag",  # Annotated tag
+                                    "oid": "tag456"
+                                }
                             }
                         ]
                     },
@@ -88,8 +92,8 @@ class TestGraphQLClient:
         tags_dict, releases_list = client.fetch_tags_and_releases("owner", "repo")
         
         assert len(tags_dict) == 2
-        assert tags_dict["v1.0.0"] == "abc123"
-        assert tags_dict["v1.1.0"] == "def456"
+        assert tags_dict["v1.0.0"] == "abc123"  # Lightweight tag
+        assert tags_dict["v1.1.0"] == "annotated:tag456"  # Annotated tag with prefix
         
         assert len(releases_list) == 1
         assert releases_list[0]["tagName"] == "v1.0.0"
@@ -172,3 +176,110 @@ class TestGraphQLClient:
         assert items[0]["labels"] == ["bug"]
         assert items[1]["number"] == 124
         assert items[1]["author_login"] == "user2"
+
+    @patch("tagbot.action.graphql.logger")
+    def test_fetch_tags_and_releases_pagination_warning_tags(self, mock_logger):
+        """Test warning is logged when tags have more pages."""
+        mock_gh = Mock()
+        mock_requester = Mock()
+        mock_gh._Github__requester = mock_requester
+        
+        # Mock response with hasNextPage=True for tags
+        mock_response = {
+            "data": {
+                "repository": {
+                    "refs": {
+                        "pageInfo": {"hasNextPage": True, "endCursor": "cursor123"},
+                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}]
+                    },
+                    "releases": {
+                        "pageInfo": {"hasNextPage": False},
+                        "nodes": []
+                    }
+                }
+            }
+        }
+        mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
+        
+        client = GraphQLClient(mock_gh)
+        tags_dict, _ = client.fetch_tags_and_releases("owner", "repo", max_items=100)
+        
+        # Verify warning was logged
+        assert mock_logger.warning.called
+        warning_message = mock_logger.warning.call_args[0][0]
+        assert "more than 100 tags" in warning_message
+        assert "pagination" in warning_message
+
+    @patch("tagbot.action.graphql.logger")
+    def test_fetch_tags_and_releases_pagination_warning_releases(self, mock_logger):
+        """Test warning is logged when releases have more pages."""
+        mock_gh = Mock()
+        mock_requester = Mock()
+        mock_gh._Github__requester = mock_requester
+        
+        # Mock response with hasNextPage=True for releases
+        mock_response = {
+            "data": {
+                "repository": {
+                    "refs": {
+                        "pageInfo": {"hasNextPage": False},
+                        "nodes": [{"name": "v1.0.0", "target": {"oid": "abc123"}}]
+                    },
+                    "releases": {
+                        "pageInfo": {"hasNextPage": True, "endCursor": "cursor456"},
+                        "nodes": [{"tagName": "v1.0.0", "createdAt": "2024-01-01T00:00:00Z"}]
+                    }
+                }
+            }
+        }
+        mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
+        
+        client = GraphQLClient(mock_gh)
+        _, releases_list = client.fetch_tags_and_releases("owner", "repo", max_items=100)
+        
+        # Verify warning was logged
+        assert mock_logger.warning.called
+        warning_message = mock_logger.warning.call_args[0][0]
+        assert "more than 100 releases" in warning_message
+        assert "pagination" in warning_message
+
+    @patch("tagbot.action.graphql.logger")
+    def test_search_issues_pagination_warning(self, mock_logger):
+        """Test warning is logged when search has more pages."""
+        mock_gh = Mock()
+        mock_requester = Mock()
+        mock_gh._Github__requester = mock_requester
+        
+        # Mock response with hasNextPage=True
+        mock_response = {
+            "data": {
+                "search": {
+                    "pageInfo": {"hasNextPage": True, "endCursor": "cursor789"},
+                    "nodes": [
+                        {
+                            "number": 123,
+                            "title": "Test",
+                            "author": {"login": "user1"},
+                            "labels": {"nodes": []},
+                            "closedAt": "2024-01-01T00:00:00Z",
+                            "url": "https://github.com/owner/repo/issues/123"
+                        }
+                    ]
+                }
+            }
+        }
+        mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
+        
+        client = GraphQLClient(mock_gh)
+        items = client.search_issues_and_pulls(
+            "owner", "repo",
+            "2024-01-01T00:00:00", "2024-01-03T00:00:00",
+            max_items=100
+        )
+        
+        # Verify warning was logged
+        assert mock_logger.warning.called
+        warning_message = mock_logger.warning.call_args[0][0]
+        assert "More than 100 issues/PRs found" in warning_message
+        assert "pagination" in warning_message
+
