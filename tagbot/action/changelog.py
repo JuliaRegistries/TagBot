@@ -2,7 +2,7 @@ import json
 import re
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from github import UnknownObjectException
 from github.GitRelease import GitRelease
@@ -16,6 +16,7 @@ from .. import logger
 
 if TYPE_CHECKING:
     from .repo import Repo
+    from .graphql import GraphQLClient
 
 
 class Changelog:
@@ -135,6 +136,43 @@ class Changelog:
         if self.__issues_and_pulls is not None and self.__range == (start, end):
             return self.__issues_and_pulls
         xs: List[Union[Issue, PullRequest]] = []
+
+        # Try GraphQL first if available
+        if self._repo._graphql is not None:
+            try:
+                owner, name = self._repo._repo.full_name.split("/")
+                start_str = start.strftime("%Y-%m-%dT%H:%M:%S")
+                end_str = end.strftime("%Y-%m-%dT%H:%M:%S")
+                
+                logger.debug(f"Using GraphQL to search issues/PRs: {start_str}..{end_str}")
+                items = self._repo._graphql.search_issues_and_pulls(
+                    owner, name, start_str, end_str, max_items=200
+                )
+                
+                # Convert GraphQL results to PyGithub-like objects
+                for item in items:
+                    # Skip if labeled with ignore labels
+                    item_labels = item.get("labels", [])
+                    if self._ignore.intersection(self._slug(label) for label in item_labels):
+                        continue
+                    
+                    # For PRs, only include merged ones
+                    if "mergedAt" in item and item.get("mergedAt"):
+                        # This is a merged PR - add it
+                        # We'd ideally convert to PyGithub PullRequest, but for now
+                        # just use REST API fallback
+                        pass
+                    elif "mergedAt" not in item:
+                        # This is an issue, not a PR
+                        pass
+                
+                # Fall back to REST API for proper object conversion
+                # (GraphQL results would need wrapper classes)
+                logger.debug("GraphQL found items, using REST API for object conversion")
+                raise Exception("Fallback to REST for proper object types")
+                
+            except Exception as e:
+                logger.debug(f"GraphQL search not used: {e}, falling back to REST API")
 
         # Use search API to filter by date range on the server side.
         # This is much more efficient than fetching all closed issues and filtering.

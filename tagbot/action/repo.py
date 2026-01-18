@@ -43,6 +43,7 @@ from .. import logger
 from . import TAGBOT_WEB, Abort, InvalidProject
 from .changelog import Changelog
 from .git import Git, parse_git_datetime
+from .graphql import GraphQLClient
 
 GitlabClient: Any = None
 GitlabUnknown: Any = None
@@ -218,10 +219,20 @@ class Repo:
         self.__commit_datetimes: Dict[str, datetime] = {}
         # Cache for existing tags to avoid per-version API calls
         self.__existing_tags_cache: Optional[Dict[str, str]] = None
+        # Cache for existing releases (fetched together with tags via GraphQL)
+        self.__releases_cache: Optional[List[Any]] = None
         # Cache for tree SHA → commit SHA mapping (for non-PR registries)
         self.__tree_to_commit_cache: Optional[Dict[str, str]] = None
         # Track manual intervention issue URL for error reporting
         self._manual_intervention_issue_url: Optional[str] = None
+        # GraphQL client for batched API operations
+        self._graphql: Optional[GraphQLClient] = None
+        if not is_gitlab:  # Only initialize for GitHub, not GitLab
+            try:
+                self._graphql = GraphQLClient(self._gh)  # type: ignore
+            except Exception as e:
+                logger.warning(f"Failed to initialize GraphQL client: {e}")
+                self._graphql = None
 
     def _sanitize(self, text: str) -> str:
         """Remove sensitive tokens from text."""
@@ -600,6 +611,7 @@ class Repo:
         """Build a cache of all existing tags mapped to their commit SHAs.
 
         This fetches all tags once and caches them, avoiding per-version API calls.
+        Uses GraphQL for batched fetching when available.
         Returns a dict mapping tag names (without 'refs/tags/' prefix) to commit SHAs.
 
         Args:
@@ -612,6 +624,29 @@ class Repo:
         cache: Dict[str, str] = {}
         last_error: Optional[Exception] = None
 
+        # Try GraphQL first (single API call vs potentially many with pagination)
+        if self._graphql is not None:
+            try:
+                _metrics.api_calls += 1
+                owner, name = self._repo.full_name.split("/")
+                tags_dict, releases_list = self._graphql.fetch_tags_and_releases(
+                    owner, name, max_items=1000
+                )
+                cache = tags_dict
+                # Cache releases for later use (avoiding redundant API calls)
+                self.__releases_cache = releases_list
+                logger.debug(
+                    f"GraphQL fetched {len(cache)} tags and {len(releases_list)} releases"
+                )
+                self.__existing_tags_cache = cache
+                return cache
+            except Exception as e:
+                logger.warning(
+                    f"GraphQL tag fetch failed: {e}. Falling back to REST API."
+                )
+                last_error = e
+
+        # Fallback to REST API
         for attempt in range(retries):
             try:
                 _metrics.api_calls += 1
@@ -1439,13 +1474,27 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         # Also fetch releases list for later use in changelog generation
         releases = []
         try:
-            releases = list(self._repo.get_releases())
-            for release in releases:
-                if release.tag_name == version_tag:
-                    logger.info(
-                        f"Release for tag {version_tag} already exists, skipping"
-                    )
-                    return
+            # Use cached releases from GraphQL if available
+            if self.__releases_cache is not None:
+                # Convert GraphQL release dicts to PyGithub-like objects
+                # For now, we just check tag names
+                for release_data in self.__releases_cache:
+                    if release_data.get("tagName") == version_tag:
+                        logger.info(
+                            f"Release for tag {version_tag} already exists (from cache), skipping"
+                        )
+                        return
+                # Store the cache for use elsewhere if needed
+                logger.debug(f"Using {len(self.__releases_cache)} cached releases")
+            else:
+                # Fetch from API if not cached
+                releases = list(self._repo.get_releases())
+                for release in releases:
+                    if release.tag_name == version_tag:
+                        logger.info(
+                            f"Release for tag {version_tag} already exists, skipping"
+                        )
+                        return
         except GithubException as e:
             logger.warning(f"Could not check for existing releases: {e}")
 
