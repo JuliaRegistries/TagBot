@@ -254,7 +254,7 @@ class Repo:
         try:
             if not hasattr(self._repo, 'full_name') or not self._repo.full_name:
                 return None
-        except:
+        except Exception:
             return None
         
         try:

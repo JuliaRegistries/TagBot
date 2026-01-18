@@ -289,7 +289,7 @@ class TestGraphQLClient:
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
         
         client = GraphQLClient(mock_gh)
-        items = client.search_issues_and_pulls(
+        client.search_issues_and_pulls(
             "owner", "repo",
             "2024-01-01T00:00:00", "2024-01-03T00:00:00",
             max_items=100
