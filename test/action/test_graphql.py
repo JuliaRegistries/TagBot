@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
+from github import GithubException
 from tagbot.action.graphql import GraphQLClient
 
 
@@ -41,10 +42,11 @@ class TestGraphQLClient:
         
         client = GraphQLClient(mock_gh)
         
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(GithubException) as exc_info:
             client.query("query { unknown }")
         
         assert "GraphQL errors" in str(exc_info.value)
+        assert "Field 'unknown' doesn't exist" in str(exc_info.value)
 
     def test_fetch_tags_and_releases(self):
         """Test fetching tags and releases together."""
@@ -67,8 +69,11 @@ class TestGraphQLClient:
                             {
                                 "name": "v1.1.0",
                                 "target": {
-                                    "__typename": "Tag",  # Annotated tag
-                                    "oid": "tag456"
+                                    # Annotated tag - has nested target
+                                    "oid": "tag456",  # Tag object OID
+                                    "target": {  # Nested target points to actual commit
+                                        "oid": "commit789"  # Actual commit SHA
+                                    }
                                 }
                             }
                         ]
@@ -93,7 +98,7 @@ class TestGraphQLClient:
         
         assert len(tags_dict) == 2
         assert tags_dict["v1.0.0"] == "abc123"  # Lightweight tag
-        assert tags_dict["v1.1.0"] == "annotated:tag456"  # Annotated tag with prefix
+        assert tags_dict["v1.1.0"] == "commit789"  # Annotated tag resolved to commit SHA
         
         assert len(releases_list) == 1
         assert releases_list[0]["tagName"] == "v1.0.0"
@@ -129,6 +134,19 @@ class TestGraphQLClient:
         assert len(metadata) == 2
         assert metadata["abc123"]["oid"] == "abc123"
         assert metadata["def456"]["committedDate"] == "2024-01-02T00:00:00Z"
+
+    def test_fetch_commits_metadata_empty_list(self):
+        """Test fetch_commits_metadata returns empty dict for empty input."""
+        mock_gh = Mock()
+        mock_requester = Mock()
+        mock_gh._Github__requester = mock_requester
+        
+        client = GraphQLClient(mock_gh)
+        metadata = client.fetch_commits_metadata("owner", "repo", [])
+        
+        # Should return empty dict without making API call
+        assert metadata == {}
+        mock_requester.requestJsonAndCheck.assert_not_called()
 
     def test_search_issues_and_pulls(self):
         """Test searching issues and PRs by date range."""

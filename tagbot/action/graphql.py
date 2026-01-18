@@ -5,7 +5,7 @@ with single batched requests.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
-from github import Github
+from github import Github, GithubException
 
 from .. import logger
 
@@ -46,7 +46,7 @@ class GraphQLClient:
 
         if "errors" in data:
             error_messages = [e.get("message", str(e)) for e in data["errors"]]
-            raise Exception(f"GraphQL errors: {'; '.join(error_messages)}")
+            raise GithubException(400, {"message": f"GraphQL errors: {'; '.join(error_messages)}"}, {})
 
         return data.get("data", {})
 
@@ -123,14 +123,16 @@ class GraphQLClient:
             target = node.get("target", {})
 
             # Handle both direct commits and annotated tags
-            # Use same pattern as REST API: store annotated tags with prefix for lazy resolution
-            if target.get("__typename") == "Tag":
-                # Annotated tag - store with prefix for lazy resolution
-                tag_sha = target.get("oid")
-                if tag_sha:
-                    tags_dict[tag_name] = f"annotated:{tag_sha}"
+            # Annotated tags have a nested target structure, lightweight tags don't
+            nested_target = target.get("target")
+            if nested_target:
+                # Annotated tag - resolve to underlying commit SHA
+                # GraphQL returns nested target: target.target.oid is the commit
+                commit_sha = nested_target.get("oid")
+                if commit_sha:
+                    tags_dict[tag_name] = commit_sha
             else:
-                # Direct commit reference
+                # Lightweight tag - direct commit reference
                 commit_sha = target.get("oid")
                 if commit_sha:
                     tags_dict[tag_name] = commit_sha
