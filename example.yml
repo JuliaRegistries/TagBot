@@ -22,3 +22,4 @@ jobs:
           # See: https://github.com/JuliaRegistries/TagBot#commits-that-modify-workflow-files
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          # changelog_format: github  # 'custom' (default), 'github', or 'conventional'

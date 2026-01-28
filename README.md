@@ -179,6 +179,24 @@ with:
 
 White-space, case, dashes, and underscores are ignored when comparing labels.
 
+### Changelog Format
+
+TagBot supports multiple changelog formats. You can choose the format using the `changelog_format` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  changelog_format: github  # or 'custom' (default) or 'conventional'
+```
+
+Available formats:
+
+- **`custom`** (default): Uses a Jinja2 template to generate changelogs based on closed issues and merged pull requests. This is the backward-compatible format that allows full customization of the changelog content and appearance.
+
+- **`github`**: Uses GitHub's auto-generated release notes feature. GitHub will automatically generate release notes based on the commits, issues, and pull requests associated with the release.
+
+- **`conventional`**: Generates changelogs based on [Conventional Commits](https://conventionalcommits.org/) specification. This format parses commit messages to categorize changes (features, fixes, documentation, etc.), detects breaking changes, and creates structured release notes with commit links and author attribution.
+
 ### Custom Registries
 
 If you're using a custom registry, add the `registry` input:
