@@ -298,7 +298,7 @@ With the removal of the lookback time window, TagBot now checks all package vers
 ```yml
 jobs:
   TagBot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     env:
       TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
     steps:
