@@ -517,9 +517,9 @@ def test_branch_from_registry_pr(logger):
         "Found branch 'my-release-branch' in registry PR for v1.0.0"
     )
 
-    # PR body with "Branch: <branch_name>" format (without dash)
+    # PR body with "Branch: <branch_name>" format (without dash) should NOT match
     r._registry_pr.return_value.body = "foo\nBranch: another-branch\nbar"
-    assert r._branch_from_registry_pr("v2.0.0") == "another-branch"
+    assert r._branch_from_registry_pr("v2.0.0") is None
 
     # PR body with extra whitespace
     r._registry_pr.return_value.body = "foo\n-   Branch:   spaced-branch  \nbar"
@@ -1069,10 +1069,10 @@ def test_handle_release_branch_subdir():
 
 def test_create_release():
     r = _repo(user="user", email="email")
-    r._commit_sha_of_release_branch = Mock(return_value="a")
     r._registry_pr = Mock(return_value=None)
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
+    r._repo.get_branch.return_value.commit.sha = "a"
     r._repo.create_git_tag.return_value.sha = "t"
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
@@ -1168,7 +1168,6 @@ def test_create_release_handles_existing_release_error():
 
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
-    r._commit_sha_of_release_branch = Mock(return_value="a")
     r._registry_pr = Mock(return_value=None)
     r._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
@@ -1176,6 +1175,7 @@ def test_create_release_subdir():
     assert r._tag_prefix() == "Foo-v"
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
+    r._repo.get_branch.return_value.commit.sha = "a"
     r._repo.create_git_tag.return_value.sha = "t"
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
