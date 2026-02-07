@@ -340,7 +340,7 @@ class Repo:
         # First check if Registrator specified a branch for this version
         try:
             pr_branch = self._branch_from_registry_pr(version)
-        except (GithubException, RequestException) as e:
+        except Exception as e:
             logger.debug(f"Skipping registry PR branch lookup: {e}")
             pr_branch = None
         if pr_branch:
@@ -537,7 +537,7 @@ class Repo:
         if not pr:
             logger.info("Did not find registry PR")
             return None
-        if not pr.body:
+        if pr.body is None:
             logger.info("Registry PR body is empty")
             return None
         m = re.search("- Commit: ([a-f0-9]{32})", pr.body)
@@ -1465,11 +1465,10 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                        them as latest.
         """
         target = sha
-        release_branch = self._release_branch(version)
-        if self._repo.get_branch(release_branch).commit.sha == sha:
+        if self._commit_sha_of_release_branch(version) == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
-            target = release_branch
+            target = self._release_branch(version)
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work
