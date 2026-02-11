@@ -106,8 +106,8 @@ class TestGraphQLClient:
         assert releases_list[0]["tagName"] == "v1.0.0"
 
     @patch("tagbot.action.graphql.logger")
-    def test_fetch_tags_and_releases_pagination_warning_tags(self, mock_logger):
-        """Test warning is logged when tags have more pages."""
+    def test_fetch_tags_and_releases_pagination_exception_tags(self, mock_logger):
+        """Test exception is raised when tags have more pages."""
         mock_gh = Mock()
         mock_requester = Mock()
         mock_gh._Github__requester = mock_requester
@@ -127,11 +127,9 @@ class TestGraphQLClient:
         mock_requester.requestJsonAndCheck.return_value = ({}, mock_response)
 
         client = GraphQLClient(mock_gh)
-        tags_dict, _ = client.fetch_tags_and_releases("owner", "repo", max_items=100)
 
-        # Verify warning was logged
-        assert mock_logger.warning.called
-        warning_message = mock_logger.warning.call_args[0][0]
-        assert "more than 100 tags" in warning_message
-        assert "pagination" in warning_message
+        with pytest.raises(Exception) as exc_info:
+            client.fetch_tags_and_releases("owner", "repo", max_items=100)
 
+        assert "more than 100 tags" in str(exc_info.value)
+        assert "GraphQL cannot fetch all data" in str(exc_info.value)

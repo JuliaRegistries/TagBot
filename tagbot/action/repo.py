@@ -1532,7 +1532,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work
         # Also fetch releases list for later use in changelog generation
-        releases = []
+        releases: List[Any] = []
         try:
             # Use cached releases from GraphQL if available
             if self.__releases_cache is not None:
@@ -1551,9 +1551,9 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 releases = []
                 for release_data in self.__releases_cache:
                     # Create a simple object with tag_name attribute
-                    release_obj = type('MockRelease', (), {
-                        'tag_name': release_data.get('tagName', '')
-                    })()
+                    release_obj = type(
+                        "MockRelease", (), {"tag_name": release_data.get("tagName", "")}
+                    )()
                     releases.append(release_obj)
             else:
                 # Fetch from API if not cached

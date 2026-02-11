@@ -157,17 +157,17 @@ class GraphQLClient:
             if node:  # Skip None entries
                 releases_list.append(node)
 
-        # Check for pagination (log warning if data is truncated)
+        # Check for pagination - raise exception if data is truncated
         if refs_data.get("pageInfo", {}).get("hasNextPage"):
-            logger.warning(
+            raise Exception(
                 f"Repository has more than {max_items} tags, "
-                "some may not be cached. Consider pagination."
+                "GraphQL cannot fetch all data. Falling back to REST API."
             )
 
         if releases_data.get("pageInfo", {}).get("hasNextPage"):
-            logger.warning(
+            raise Exception(
                 f"Repository has more than {max_items} releases, "
-                "some may not be cached. Consider pagination."
+                "GraphQL cannot fetch all data. Falling back to REST API."
             )
 
         logger.debug(
@@ -175,4 +175,3 @@ class GraphQLClient:
         )
 
         return tags_dict, releases_list
-
