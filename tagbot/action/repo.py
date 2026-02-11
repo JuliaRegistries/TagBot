@@ -246,10 +246,6 @@ class Repo:
             # GraphQL only for GitHub, not GitLab
             return None
 
-        # Skip GraphQL in test environments
-        if "pytest" in sys.modules:
-            return None
-
         # Skip GraphQL in test environments (when repo has no full_name set)
         try:
             if not hasattr(self._repo, "full_name") or not self._repo.full_name:
@@ -695,7 +691,7 @@ class Repo:
                 if "/" in full_name:
                     owner, name = full_name.split("/", 1)
                     tags_dict, releases_list = graphql.fetch_tags_and_releases(
-                        owner, name, max_items=1000
+                        owner, name
                     )
                     cache = tags_dict
                     # Cache releases for later use (avoiding redundant API calls)
@@ -708,11 +704,7 @@ class Repo:
                     return cache
         except Exception as e:
             # GraphQL failed - log and fall back to REST API
-            # Don't log as warning if it's just a test environment issue
-            if "Name or service not known" not in str(e):
-                logger.warning(
-                    f"GraphQL tag fetch failed: {e}. Falling back to REST API."
-                )
+            logger.debug(f"GraphQL tag fetch failed: {e}. Falling back to REST API.")
 
         # Fallback to REST API with retry logic
         for attempt in range(retries):
@@ -1555,6 +1547,14 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                         return
                 # Store the cache for use elsewhere if needed
                 logger.debug(f"Using {len(self.__releases_cache)} cached releases")
+                # Create a list of mock release objects for conventional changelog
+                releases = []
+                for release_data in self.__releases_cache:
+                    # Create a simple object with tag_name attribute
+                    release_obj = type('MockRelease', (), {
+                        'tag_name': release_data.get('tagName', '')
+                    })()
+                    releases.append(release_obj)
             else:
                 # Fetch from API if not cached
                 releases = list(self._repo.get_releases())
