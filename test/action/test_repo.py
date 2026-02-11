@@ -13,7 +13,6 @@ from github import GithubException, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
-from tagbot.action.graphql import GraphQLClient
 from tagbot.action.repo import Repo
 
 RequestException = requests.RequestException
@@ -716,16 +715,17 @@ def test_build_tags_cache_graphql_fallback_on_truncation(mock_graphql_client_cla
     # Create mock GraphQL client
     mock_graphql_client = Mock()
     mock_graphql_client_class.return_value = mock_graphql_client
-    
+
     # Mock GraphQL to raise exception due to truncation
     mock_graphql_client.fetch_tags_and_releases.side_effect = Exception(
-        "Repository has more than 100 tags, GraphQL cannot fetch all data. Falling back to REST API."
+        "Repository has more than 100 tags, GraphQL cannot fetch all data. "
+        "Falling back to REST API."
     )
-    
+
     # Create repo with full_name set
     r = _repo(repo="owner/repo")
     r._repo = Mock(full_name="owner/repo")
-    
+
     # Mock REST API response with complete data
     mock_ref1 = Mock(ref="refs/tags/v1.0.0")
     mock_ref1.object.type = "commit"
@@ -734,15 +734,17 @@ def test_build_tags_cache_graphql_fallback_on_truncation(mock_graphql_client_cla
     mock_ref2.object.type = "commit"
     mock_ref2.object.sha = "def456"
     r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
-    
+
     cache = r._build_tags_cache()
-    
+
     # Verify GraphQL was attempted
     mock_graphql_client.fetch_tags_and_releases.assert_called_once_with("owner", "repo")
-    
+
     # Verify REST fallback was used
     r._repo.get_git_matching_refs.assert_called_once()
     assert cache == {"v1.0.0": "abc123", "v2.0.0": "def456"}
+
+
 def test_highest_existing_version():
     """Test _highest_existing_version finds highest semver tag."""
     r = _repo()
