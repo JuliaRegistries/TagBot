@@ -101,9 +101,8 @@ tagbot/
 - Renders Jinja2 template
 
 **`GraphQLClient` (graphql.py)** - Batched API operations:
+- `query()` - Low-level GraphQL query helper
 - `fetch_tags_and_releases()` - Single query for tags + releases
-- `fetch_commits_metadata()` - Batch commit metadata lookup
-- `search_issues_and_pulls()` - Enhanced issue/PR search
 - Provides 2x+ performance improvement over sequential REST calls
 
 ### Special Features

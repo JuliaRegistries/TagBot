@@ -126,8 +126,14 @@ class GraphQLClient:
         tags_dict: Dict[str, str] = {}
         refs_data = repo_data.get("refs", {})
         for node in refs_data.get("nodes", []):
-            tag_name = node["name"]
-            target = node.get("target", {})
+            if not node:
+                # Skip None or falsy entries that may appear in GraphQL connections
+                continue
+            tag_name = node.get("name")
+            if not tag_name:
+                # Skip nodes without a tag name to avoid KeyError and invalid data
+                continue
+            target = node.get("target") or {}
 
             # Handle both direct commits and annotated tags
             # Annotated tags have a nested target structure, lightweight tags don't

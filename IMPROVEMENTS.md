@@ -58,13 +58,12 @@ Many operations that previously made multiple REST API calls are now consolidate
 - Multiple commits' metadata
 - Issues/PRs in a date range
 
-**Implementation**: Created `graphql.py` module with `GraphQLClient` class that provides:
+**Implementation**: Created `graphql.py` module with a `GraphQLClient` class used for GraphQL-based batch operations, including:
 - `fetch_tags_and_releases()` - Single query to get tags + releases (replaces 2 separate REST calls)
-- `fetch_commits_metadata()` - Batch commit metadata lookup
-- `search_issues_and_pulls()` - Enhanced search with GraphQL
 
-The implementation uses GraphQL as the primary method with graceful fallback to REST API on errors.
+Additional helpers may be added over time as the GraphQL integration is expanded.
 
+The implementation uses GraphQL as the primary method with graceful fallback to REST API on errors where applicable.
 **Example**: Fetching tags and releases in one query:
 ```graphql
 query {
