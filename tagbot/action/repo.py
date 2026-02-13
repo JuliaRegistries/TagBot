@@ -1646,5 +1646,5 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             return default not in branches
         except Abort:
             # If git command fails, assume not backport
-            logger.debug("Failed to determine backport status due to git abort", exc_info=True)
+            logger.debug("Failed to determine backport status", exc_info=True)
             return False
