@@ -331,9 +331,23 @@ class Repo:
             raise InvalidProject("Package.toml is missing the 'repo' key")
         return self.__registry_url
 
-    @property
-    def _release_branch(self) -> str:
-        """Get the name of the release branch."""
+    def _release_branch(self, version: str) -> str:
+        """Get the name of the release branch for a specific version.
+
+        Priority:
+        1. Branch specified by Registrator invocation (from PR body)
+        2. Release branch specified in TagBot config
+        3. Default branch
+        """
+        # First check if Registrator specified a branch for this version
+        try:
+            pr_branch = self._branch_from_registry_pr(version)
+        except Exception as e:
+            logger.debug(f"Skipping registry PR branch lookup: {e}")
+            pr_branch = None
+        if pr_branch:
+            return pr_branch
+        # Fall back to config branch or default
         return self.__release_branch or self._repo.default_branch
 
     def _only(self, val: Union[T, List[T]]) -> T:
@@ -500,11 +514,33 @@ class Repo:
         logger.debug(f"Did not find registry PR for branch {head}")
         return None
 
+    def _branch_from_registry_pr(self, version: str) -> Optional[str]:
+        """Extract release branch name from registry PR body.
+
+        Registrator includes branch info in PR body like:
+        - Branch: my-branch
+        """
+        pr = self._registry_pr(version)
+        if not pr:
+            return None
+        if not pr.body:
+            return None
+        # Look for "- Branch: <branch_name>" in PR body (Registrator format)
+        m = re.search(r"^-\s*Branch:\s*(.+)$", pr.body, re.MULTILINE)
+        if m:
+            branch = m[1].strip()
+            logger.debug(f"Found branch '{branch}' in registry PR for {version}")
+            return branch
+        return None
+
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
         """Look up the commit SHA of version from its registry PR."""
         pr = self._registry_pr(version)
         if not pr:
             logger.info("Did not find registry PR")
+            return None
+        if pr.body is None:
+            logger.info("Registry PR body is empty")
             return None
         m = re.search("- Commit: ([a-f0-9]{32})", pr.body)
         if not m:
@@ -671,9 +707,9 @@ class Repo:
             return resolved_sha
         return sha
 
-    def _commit_sha_of_release_branch(self) -> str:
-        """Get the latest commit SHA of the release branch."""
-        branch = self._repo.get_branch(self._release_branch)
+    def _commit_sha_of_release_branch(self, version: str) -> str:
+        """Get the latest commit SHA of the release branch for a specific version."""
+        branch = self._repo.get_branch(self._release_branch(version))
         return cast(str, branch.commit.sha)
 
     def _highest_existing_version(self) -> Optional[VersionInfo]:
@@ -1432,10 +1468,10 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                        them as latest.
         """
         target = sha
-        if self._commit_sha_of_release_branch() == sha:
+        if self._commit_sha_of_release_branch(version) == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
-            target = self._release_branch
+            target = self._release_branch(version)
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work

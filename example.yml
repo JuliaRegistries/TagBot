@@ -11,7 +11,7 @@ on:
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: JuliaRegistries/TagBot@v1
         with:
@@ -22,3 +22,4 @@ jobs:
           # See: https://github.com/JuliaRegistries/TagBot#commits-that-modify-workflow-files
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
+          # changelog_format: github  # 'custom' (default), 'github', or 'conventional'

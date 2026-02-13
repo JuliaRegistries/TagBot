@@ -24,9 +24,9 @@ werkzeug = "3.1.5"
 types-requests = "^2.32.4"
 types-toml = "^0.10.8"
 types-PyYAML = "6.0.12.20250915"
-setuptools = "^80.9.0"
-wheel = "^0.45.1"
-python-gitlab = { version = "^7.1.0", optional = true }
+setuptools = "^81.0.0"
+wheel = "^0.46.3"
+python-gitlab = { version = "^8.0.0", optional = true }
 
 [tool.poetry.extras]
 gitlab = ["python-gitlab"]
@@ -35,8 +35,8 @@ gitlab = ["python-gitlab"]
 poetry-plugin-export = ">=1.8"
 
 [tool.poetry.group.dev.dependencies]
-black = "^25.12"
-boto3 = "^1.42.21"
+black = "^26.1"
+boto3 = "^1.42.44"
 flake8 = "^7"
 mypy = "^1.19"
 pytest-cov = "^7.0.0"
