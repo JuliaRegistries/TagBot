@@ -84,7 +84,7 @@ class Changelog:
     ) -> Optional[GitRelease]:
         """Get the chronologically previous release."""
         tag_prefix = self._repo._tag_prefix()
-        cur_ver = VersionInfo.parse(version_tag[len(tag_prefix):])
+        cur_ver = VersionInfo.parse(version_tag[len(tag_prefix) :])
         prev_rel = None
         latest_time = datetime.min.replace(tzinfo=timezone.utc)
         tags = self._repo.get_all_tags()
@@ -93,7 +93,7 @@ class Changelog:
             if not tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(tag_name[len(tag_prefix):])
+                ver = VersionInfo.parse(tag_name[len(tag_prefix) :])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
