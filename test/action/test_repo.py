@@ -136,12 +136,10 @@ def test_registry_path():
     r = _repo()
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
-    r._registry.get_git_blob.return_value.content = b64encode(
-        b"""
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
         [packages]
         abc-def = { path = "B/Bar" }
-        """
-    )
+        """)
     r._project = lambda _k: "abc-ddd"
     assert r._registry_path is None
     r._project = lambda _k: "abc-def"
@@ -155,12 +153,10 @@ def test_registry_path_with_uppercase_uuid():
     r = _repo()
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
-    r._registry.get_git_blob.return_value.content = b64encode(
-        b"""
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
         [packages]
         abc-def = { path = "B/Bar" }
-        """
-    )
+        """)
     # Test with uppercase UUID
     r._project = lambda _k: "ABC-DEF"
     assert r._registry_path == "B/Bar"
@@ -172,12 +168,10 @@ def test_registry_path_with_uppercase_registry_uuid():
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
     # Registry has uppercase UUID
-    r._registry.get_git_blob.return_value.content = b64encode(
-        b"""
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
         [packages]
         ABC-DEF-1234 = { path = "P/Package" }
-        """
-    )
+        """)
     # Project has lowercase UUID
     r._project = lambda _k: "abc-def-1234"
     assert r._registry_path == "P/Package"
@@ -874,6 +868,8 @@ def test_is_registered():
     assert r.is_registered()
     contents.decoded_content = b"""repo = "git@github.com:Foo/Bar.jl.git"\n"""
     assert not r.is_registered()
+    contents.decoded_content = b"""repo = "https://GH.COM/Foo/Bar.jl"\n"""
+    assert r.is_registered()
     # TODO: We should test for the InvalidProject behaviour,
     # but I'm not really sure how it's possible.
 

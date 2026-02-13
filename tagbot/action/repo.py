@@ -1295,11 +1295,12 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
             package = toml.loads(contents.decoded_content.decode())
         gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")
-        if "@" in package["repo"]:
+        repo_url = package["repo"].lower()
+        if "@" in repo_url:
             pattern = rf"{gh}:(.*?)(?:\.git)?$"
         else:
             pattern = rf"{gh}/(.*?)(?:\.git)?$"
-        m = re.search(pattern, package["repo"])
+        m = re.search(pattern, repo_url)
         if not m:
             return False
         # I'm not really sure why mypy doesn't like this line without the cast.
