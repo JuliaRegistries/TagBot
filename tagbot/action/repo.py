@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import traceback
+import types
 
 from importlib.metadata import version as pkg_version, PackageNotFoundError
 
@@ -1551,9 +1552,9 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                 releases = []
                 for release_data in self.__releases_cache:
                     # Create a simple object with tag_name attribute
-                    release_obj = type(
-                        "MockRelease", (), {"tag_name": release_data.get("tagName", "")}
-                    )()
+                    release_obj = types.SimpleNamespace(
+                        tag_name=release_data.get("tagName", "")
+                    )
                     releases.append(release_obj)
             else:
                 # Fetch from API if not cached

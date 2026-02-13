@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from github import GithubException
-from tagbot.action.graphql import GraphQLClient
+from tagbot.action.graphql import GraphQLClient, GraphQLTruncationError
 
 
 class TestGraphQLClient:
@@ -128,7 +128,7 @@ class TestGraphQLClient:
 
         client = GraphQLClient(mock_gh)
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(GraphQLTruncationError) as exc_info:
             client.fetch_tags_and_releases("owner", "repo", max_items=100)
 
         assert "more than 100 tags" in str(exc_info.value)

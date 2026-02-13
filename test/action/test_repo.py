@@ -13,6 +13,7 @@ from github import GithubException, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
+from tagbot.action.graphql import GraphQLClient, GraphQLTruncationError
 from tagbot.action.repo import Repo
 
 RequestException = requests.RequestException
@@ -717,7 +718,7 @@ def test_build_tags_cache_graphql_fallback_on_truncation(mock_graphql_client_cla
     mock_graphql_client_class.return_value = mock_graphql_client
 
     # Mock GraphQL to raise exception due to truncation
-    mock_graphql_client.fetch_tags_and_releases.side_effect = Exception(
+    mock_graphql_client.fetch_tags_and_releases.side_effect = GraphQLTruncationError(
         "Repository has more than 100 tags, GraphQL cannot fetch all data. "
         "Falling back to REST API."
     )

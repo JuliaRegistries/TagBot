@@ -10,6 +10,12 @@ from github import Github, GithubException
 from .. import logger
 
 
+class GraphQLTruncationError(Exception):
+    """Raised when GraphQL query results are truncated due to pagination limits."""
+
+    pass
+
+
 class GraphQLClient:
     """Client for executing GraphQL queries against GitHub API."""
 
@@ -159,13 +165,13 @@ class GraphQLClient:
 
         # Check for pagination - raise exception if data is truncated
         if refs_data.get("pageInfo", {}).get("hasNextPage"):
-            raise Exception(
+            raise GraphQLTruncationError(
                 f"Repository has more than {max_items} tags, "
                 "GraphQL cannot fetch all data. Falling back to REST API."
             )
 
         if releases_data.get("pageInfo", {}).get("hasNextPage"):
-            raise Exception(
+            raise GraphQLTruncationError(
                 f"Repository has more than {max_items} releases, "
                 "GraphQL cannot fetch all data. Falling back to REST API."
             )
