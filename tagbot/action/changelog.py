@@ -310,7 +310,19 @@ class Changelog:
     def _collect_data(self, version_tag: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
         commit = self._repo._repo.get_commit(sha)
-        commit_date = commit.commit.author.date
+        try:
+            commit_date = commit.commit.author.date
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                f"Failed to read commit author date for {sha}: {exc}. "
+                "Falling back to current time."
+            )
+            commit_date = datetime.now(timezone.utc)
+        if commit_date is None:
+            logger.warning(
+                f"Commit author date is None for {sha}. Falling back to current time."
+            )
+            commit_date = datetime.now(timezone.utc)
         is_backport_commit = self._repo.is_backport_commit(sha)
         if is_backport_commit:
             previous = self._previous_release_chronological(version_tag, commit_date)

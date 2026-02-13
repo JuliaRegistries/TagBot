@@ -1636,13 +1636,15 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
     def is_backport_commit(self, sha: str) -> bool:
         """Check if the commit is on a non-default branch."""
         try:
-            branches = self._git.command("branch", "-r", "--contains", sha)
+            branches_output = self._git.command("branch", "-r", "--contains", sha)
             default = f"origin/{self._repo.default_branch}"
-            for branch in branches.splitlines():
-                branch = branch.strip()
-                if branch and branch != default:
-                    return True
-            return False
-        except Exception:
+            branches = [b.strip() for b in branches_output.splitlines() if b.strip()]
+            if not branches:
+                # If the commit is not on any remote branch, it cannot be a backport
+                return False
+            # A commit is considered a backport only if it is not on the default branch
+            return default not in branches
+        except Abort:
             # If git command fails, assume not backport
+            logger.debug("Failed to determine backport status due to git abort", exc_info=True)
             return False
