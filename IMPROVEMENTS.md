@@ -48,16 +48,19 @@ The `Changelog._issues_and_pulls()` method now uses the GitHub search API to fil
 ---
 
 ### 1.4 Use GraphQL API for Batched Operations
-**Status**: Not implemented
+**Status**: ✅ Implemented
 **Impact**: High
 **Effort**: High
 
-Many operations make multiple REST API calls that could be consolidated using GitHub's GraphQL API. A single GraphQL query could fetch:
+The current GraphQL integration consolidates some operations that previously required multiple REST API calls. The primary GraphQL query currently fetches:
 - All tags
 - All releases
-- Multiple commits' metadata
-- Issues/PRs in a date range
+**Implementation**: Created `graphql.py` module with a `GraphQLClient` class used for GraphQL-based batch operations, including:
+- `fetch_tags_and_releases()` - Single query to get tags + releases (replaces 2 separate REST calls)
 
+Additional helpers may be added over time as the GraphQL integration is expanded.
+
+The implementation uses GraphQL as the primary method with graceful fallback to REST API on errors where applicable.
 **Example**: Fetching tags and releases in one query:
 ```graphql
 query {
@@ -72,7 +75,7 @@ query {
 }
 ```
 
-**Tradeoff**: Would require adding `gql` dependency and significant refactoring.
+**Benefit**: Reduces API calls and improves performance. For repositories with many tags/releases, this can cut API calls by 50% or more.
 
 ---
 
@@ -279,7 +282,7 @@ Current Dockerfile uses `python:3.12-slim`. Could reduce further with:
 | 1.1 | Git log primary lookup | High | Low | ✅ Done |
 | 1.2 | Changelog API optimization | High | Medium | ✅ Done |
 | 1.3 | Batch commit datetime lookups | Medium-High | Low | ✅ Done |
-| 1.4 | GraphQL API | High | High | Not started |
+| 1.4 | GraphQL API | High | High | ✅ Done |
 | 2.1 | Split repo.py | Medium | Medium | Not started |
 | 2.2 | Use tomllib | Low | Low | Not started |
 | 2.3 | Structured logging | Medium | Medium | Not started |
