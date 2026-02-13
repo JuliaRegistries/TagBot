@@ -79,6 +79,42 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
+    def _previous_release_chronological(
+        self, version_tag: str, commit_date: datetime
+    ) -> Optional[GitRelease]:
+        """Get the chronologically previous release."""
+        tag_prefix = self._repo._tag_prefix()
+        cur_ver = VersionInfo.parse(version_tag[len(tag_prefix) :])
+        prev_rel = None
+        latest_time = datetime.min.replace(tzinfo=timezone.utc)
+        tags = self._repo.get_all_tags()
+
+        for tag_name in tags:
+            if not tag_name.startswith(tag_prefix):
+                continue
+            try:
+                ver = VersionInfo.parse(tag_name[len(tag_prefix) :])
+            except ValueError:
+                continue
+            if ver.prerelease or ver.build:
+                continue
+            if ver > cur_ver or ver == cur_ver:
+                continue
+            # Get the release time
+            try:
+                rel = self._repo._repo.get_release(tag_name)
+                rel_time = rel.created_at
+            except UnknownObjectException:
+                rel_time = self._repo._git.time_of_commit(tag_name)
+            if rel_time < commit_date and rel_time > latest_time:
+                prev_rel = type(
+                    "obj",
+                    (object,),
+                    {"tag_name": tag_name, "created_at": rel_time},
+                )()
+                latest_time = rel_time
+        return prev_rel
+
     def _is_backport(self, version: str, tags: Optional[List[str]] = None) -> bool:
         """Determine whether or not the version is a backport."""
         try:
@@ -273,7 +309,13 @@ class Changelog:
 
     def _collect_data(self, version_tag: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
-        previous = self._previous_release(version_tag)
+        commit = self._repo._repo.get_commit(sha)
+        commit_date = commit.commit.author.date
+        is_backport_commit = self._repo.is_backport_commit(sha)
+        if is_backport_commit:
+            previous = self._previous_release_chronological(version_tag, commit_date)
+        else:
+            previous = self._previous_release(version_tag)
         start = datetime.fromtimestamp(0, timezone.utc)
         prev_tag = None
         compare = None
@@ -284,8 +326,7 @@ class Changelog:
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
-        commit = self._repo._repo.get_commit(sha)
-        end = commit.commit.author.date + timedelta(minutes=1)
+        end = commit_date + timedelta(minutes=1)
         logger.debug(f"Previous version: {prev_tag}")
         logger.debug(f"Start date: {start}")
         logger.debug(f"End date: {end}")
@@ -295,7 +336,7 @@ class Changelog:
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
-            "backport": self._is_backport(version_tag),
+            "backport": self._is_backport(version_tag) or is_backport_commit,
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": prev_tag,
