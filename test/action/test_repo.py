@@ -1454,7 +1454,7 @@ def test_is_backport_commit():
     assert r.is_backport_commit("abc123")
 
     # Git command fails
-    r._git.command.side_effect = Exception("git error")
+    r._git.command.side_effect = Abort("git error")
     assert not r.is_backport_commit("abc123")
 
     # Empty output
