@@ -1642,8 +1642,8 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             if not branches:
                 # If the commit is not on any remote branch, it cannot be a backport
                 return False
-            # A commit is considered a backport only if it is not on the default branch
-            return default not in branches
+            # A commit is considered a backport if it is on any non-default branch
+            return any(b != default for b in branches)
         except Abort:
             # If git command fails, assume not backport
             logger.debug("Failed to determine backport status", exc_info=True)
