@@ -40,7 +40,7 @@ class GraphQLClient:
         if variables:
             payload["variables"] = variables
 
-        headers, data = self._requester.requestJsonAndCheck(
+        _headers, data = self._requester.requestJsonAndCheck(
             "POST", "/graphql", input=payload
         )
 

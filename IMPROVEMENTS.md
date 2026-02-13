@@ -48,16 +48,13 @@ The `Changelog._issues_and_pulls()` method now uses the GitHub search API to fil
 ---
 
 ### 1.4 Use GraphQL API for Batched Operations
-**Status**: ✅ Implemented (v1.24.4)
+**Status**: ✅ Implemented
 **Impact**: High
 **Effort**: High
 
-Many operations that previously made multiple REST API calls are now consolidated using GitHub's GraphQL API. A single GraphQL query can fetch:
+The current GraphQL integration consolidates some operations that previously required multiple REST API calls. The primary GraphQL query currently fetches:
 - All tags
 - All releases
-- Multiple commits' metadata
-- Issues/PRs in a date range
-
 **Implementation**: Created `graphql.py` module with a `GraphQLClient` class used for GraphQL-based batch operations, including:
 - `fetch_tags_and_releases()` - Single query to get tags + releases (replaces 2 separate REST calls)
 
