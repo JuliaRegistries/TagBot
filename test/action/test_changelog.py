@@ -8,6 +8,7 @@ import yaml
 
 from github.Issue import Issue
 from github.PullRequest import PullRequest
+from github import UnknownObjectException
 
 from tagbot.action.repo import Repo
 
@@ -441,3 +442,52 @@ def test_get():
     c._collect_data = Mock(return_value={"version": "Foo-v1.2.3"})
     assert c.get("Foo-v1.2.3", "abc") == "Foo-v1.2.3"
     c._collect_data.assert_called_once_with("Foo-v1.2.3", "abc")
+
+
+def test_previous_release_chronological():
+    """Test finding chronologically previous releases."""
+    c = _changelog()
+    c._repo.get_all_tags = Mock(return_value=["v1.0.0", "v2.0.0", "v1.5.0"])
+    c._repo._repo.get_release = Mock()
+    c._repo._git.time_of_commit = Mock()
+
+    # Mock releases with different dates
+    early_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    middle_date = datetime(2023, 6, 1, tzinfo=timezone.utc)
+    late_date = datetime(2023, 12, 1, tzinfo=timezone.utc)
+
+    # v1.0.0 released early
+    rel1 = Mock()
+    rel1.created_at = early_date
+    # v1.5.0 released middle
+    rel2 = Mock()
+    rel2.created_at = middle_date
+    # v2.0.0 has no GitHub release, use commit time
+    c._repo._repo.get_release.side_effect = [
+        rel1,  # v1.0.0
+        rel2,  # v1.5.0
+        UnknownObjectException(None, None, None),  # v2.0.0 missing
+    ]
+    c._repo._git.time_of_commit.return_value = late_date  # for v2.0.0
+
+    commit_date = late_date  # After middle
+
+    # For v2.0.0, should find v1.5.0 (latest before commit_date)
+    result = c._previous_release_chronological("v2.0.0", commit_date)
+    assert result.tag_name == "v1.5.0"
+    assert result.created_at == middle_date
+
+    # No previous release before commit_date
+    early_commit = datetime(2022, 1, 1, tzinfo=timezone.utc)
+    result = c._previous_release_chronological("v1.5.0", early_commit)
+    assert result is None
+
+    # Skip versions >= current
+    result = c._previous_release_chronological("v1.0.0", late_date)
+    assert result is None  # v1.0.0 is the earliest
+
+    # Handle prerelease versions (should be skipped)
+    c._repo.get_all_tags.return_value = ["v1.0.0", "v1.5.0-alpha", "v1.5.0"]
+    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
+    result = c._previous_release_chronological("v2.0.0", late_date)
+    assert result.tag_name == "v1.5.0"  # Should skip v1.5.0-alpha
