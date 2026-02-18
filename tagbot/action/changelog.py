@@ -18,6 +18,17 @@ if TYPE_CHECKING:
     from .repo import Repo
 
 
+def _ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware (UTC).
+
+    PyGithub may return naive or aware datetimes depending on version.
+    This normalizes them so comparisons don't raise TypeError.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 class Changelog:
     """A Changelog produces release notes for a single release."""
 
@@ -151,7 +162,11 @@ class Changelog:
             for x in gh.search_issues(query, sort="created", order="asc"):
                 # Search returns issues, need to filter by closed_at within range
                 # (search date range is approximate, so we still need to verify)
-                if x.closed_at is None or x.closed_at <= start or x.closed_at > end:
+                if (
+                    x.closed_at is None
+                    or _ensure_utc(x.closed_at) <= start
+                    or _ensure_utc(x.closed_at) > end
+                ):
                     continue
                 if self._ignore.intersection(
                     self._slug(label.name) for label in x.labels
@@ -178,7 +193,7 @@ class Changelog:
         """Fallback method using the issues API (slower but more reliable)."""
         xs: List[Union[Issue, PullRequest]] = []
         for x in self._repo._repo.get_issues(state="closed", since=start):
-            if x.closed_at <= start or x.closed_at > end:
+            if _ensure_utc(x.closed_at) <= start or _ensure_utc(x.closed_at) > end:
                 continue
             if self._ignore.intersection(self._slug(label.name) for label in x.labels):
                 continue
@@ -279,13 +294,13 @@ class Changelog:
         compare = None
         if previous:
             if previous.created_at:
-                start = previous.created_at
+                start = _ensure_utc(previous.created_at)
             prev_tag = previous.tag_name
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
         commit = self._repo._repo.get_commit(sha)
-        end = commit.commit.author.date + timedelta(minutes=1)
+        end = _ensure_utc(commit.commit.author.date) + timedelta(minutes=1)
         logger.debug(f"Previous version: {prev_tag}")
         logger.debug(f"Start date: {start}")
         logger.debug(f"End date: {end}")
