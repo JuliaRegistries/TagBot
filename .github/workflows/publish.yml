@@ -18,7 +18,7 @@ permissions:
   pull-requests: write
 jobs:
   publish:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.merged)
     steps:
       - uses: actions/checkout@v6
