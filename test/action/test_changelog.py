@@ -173,9 +173,7 @@ def test_issues_and_pulls_mixed_timezones():
     # Return a naive datetime for closed_at (simulating older PyGithub)
     naive_closed = (end - timedelta(days=5)).replace(tzinfo=None)
     c._repo._repo.get_issues = Mock(
-        return_value=[
-            Mock(closed_at=naive_closed, n=1, pull_request=False, labels=[])
-        ]
+        return_value=[Mock(closed_at=naive_closed, n=1, pull_request=False, labels=[])]
     )
     mock_gh = Mock()
     mock_gh.search_issues.side_effect = Exception("search failed")
@@ -193,9 +191,7 @@ def test_issues_and_pulls_search_mixed_timezones():
     c._repo._repo = Mock()
     c._repo._repo.full_name = "owner/repo"
     naive_closed = (end - timedelta(days=5)).replace(tzinfo=None)
-    issue = Mock(
-        closed_at=naive_closed, pull_request=False, labels=[]
-    )
+    issue = Mock(closed_at=naive_closed, pull_request=False, labels=[])
     mock_gh = Mock()
     mock_gh.search_issues.return_value = [issue]
     c._repo._gh = mock_gh

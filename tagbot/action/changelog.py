@@ -162,7 +162,11 @@ class Changelog:
             for x in gh.search_issues(query, sort="created", order="asc"):
                 # Search returns issues, need to filter by closed_at within range
                 # (search date range is approximate, so we still need to verify)
-                if x.closed_at is None or _ensure_utc(x.closed_at) <= start or _ensure_utc(x.closed_at) > end:
+                if (
+                    x.closed_at is None
+                    or _ensure_utc(x.closed_at) <= start
+                    or _ensure_utc(x.closed_at) > end
+                ):
                     continue
                 if self._ignore.intersection(
                     self._slug(label.name) for label in x.labels
