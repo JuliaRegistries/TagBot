@@ -10,6 +10,7 @@ from github.Issue import Issue
 from github.PullRequest import PullRequest
 from github import UnknownObjectException
 
+from tagbot.action.changelog import _ensure_utc
 from tagbot.action.repo import Repo
 
 
@@ -152,6 +153,51 @@ def test_issues_and_pulls():
         n += 2
         c._repo._repo.get_issues.return_value.extend([i, p])
     assert [x.n for x in c._issues_and_pulls(start, end)] == [5, 4, 3]
+
+
+def test_ensure_utc():
+    naive = datetime(2024, 1, 1, 12, 0, 0)
+    aware = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    assert _ensure_utc(naive) == aware
+    assert _ensure_utc(naive).tzinfo is timezone.utc
+    assert _ensure_utc(aware) is aware
+
+
+def test_issues_and_pulls_mixed_timezones():
+    """Verify no TypeError when closed_at is naive but start/end are aware."""
+    c = _changelog()
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=10)
+    end = now
+    c._repo._repo = Mock()
+    c._repo._repo.full_name = "owner/repo"
+    # Return a naive datetime for closed_at (simulating older PyGithub)
+    naive_closed = (end - timedelta(days=5)).replace(tzinfo=None)
+    c._repo._repo.get_issues = Mock(
+        return_value=[Mock(closed_at=naive_closed, n=1, pull_request=False, labels=[])]
+    )
+    mock_gh = Mock()
+    mock_gh.search_issues.side_effect = Exception("search failed")
+    c._repo._gh = mock_gh
+    result = c._issues_and_pulls(start, end)
+    assert len(result) == 1
+
+
+def test_issues_and_pulls_search_mixed_timezones():
+    """Verify no TypeError when search API returns naive closed_at."""
+    c = _changelog()
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=10)
+    end = now
+    c._repo._repo = Mock()
+    c._repo._repo.full_name = "owner/repo"
+    naive_closed = (end - timedelta(days=5)).replace(tzinfo=None)
+    issue = Mock(closed_at=naive_closed, pull_request=False, labels=[])
+    mock_gh = Mock()
+    mock_gh.search_issues.return_value = [issue]
+    c._repo._gh = mock_gh
+    result = c._issues_and_pulls(start, end)
+    assert len(result) == 1
 
 
 def test_issues_pulls():
