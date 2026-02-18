@@ -3,7 +3,7 @@
   "description": "",
   "version": "0.1.0",
   "devDependencies": {
-    "serverless": "^3.39.0",
+    "serverless": "^4.32.0",
     "serverless-domain-manager": "^7.4.0",
     "serverless-python-requirements": "^6.1.2",
     "serverless-wsgi": "^3.1.0"
