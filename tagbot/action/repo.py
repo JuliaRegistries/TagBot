@@ -1364,8 +1364,6 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
-        # Keep positional arguments for compatibility
-        # across supported PyGithub versions.
         self._repo.create_repository_dispatch("TagBot", payload)
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
@@ -1430,7 +1428,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             if sign_result.status != "signature created":
                 logger.warning(sign_result.stderr)
                 raise Abort("Testing GPG key failed")
-        # On Debian, the Git version can be too old to recognize tag.gpgSign,
+        # On Debian, the Git version is too old to recognize tag.gpgSign,
         # so the tag command will need to use --sign.
         self._git._gpgsign = True
         self._git.config("tag.gpgSign", "true")
