@@ -1635,3 +1635,19 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             return None
         tree = versions[version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)
+
+    def is_backport_commit(self, sha: str) -> bool:
+        """Check if the commit is on a non-default branch."""
+        try:
+            branches_output = self._git.command("branch", "-r", "--contains", sha)
+            default = f"origin/{self._repo.default_branch}"
+            branches = [b.strip() for b in branches_output.splitlines() if b.strip()]
+            if not branches:
+                # If the commit is not on any remote branch, it cannot be a backport
+                return False
+            # A commit is considered a backport if it is on any non-default branch
+            return any(b != default for b in branches)
+        except Abort:
+            # If git command fails, assume not backport
+            logger.debug("Failed to determine backport status", exc_info=True)
+            return False
