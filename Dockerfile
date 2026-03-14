@@ -1,12 +1,6 @@
 FROM python:3.14-slim as builder
 
-RUN apt-get update && apt-get install -y curl
-
-# Install Poetry (latest) using the official install script
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
-
-RUN poetry self add poetry-plugin-export
+RUN pip install --no-cache-dir poetry poetry-plugin-export
 
 COPY pyproject.toml .
 COPY poetry.lock .
