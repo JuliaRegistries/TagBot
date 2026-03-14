@@ -315,7 +315,6 @@ def test_collect_data():
     c._is_backport = Mock(return_value=False)
     commit = Mock(author=Mock(date=datetime.now(timezone.utc)))
     c._repo._repo.get_commit = Mock(return_value=Mock(commit=commit))
-    # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
     c._pulls = Mock(return_value=[])
     c._custom_release_notes = Mock(return_value="custom")
@@ -332,6 +331,11 @@ def test_collect_data():
         "version_url": "https://github.com/A/B.jl/tree/v1.2.3",
         "yanked": False,
     }
+    c._repo._repo.get_commit.assert_called_with("abcdef")
+    c._issues.assert_called_once()
+    c._pulls.assert_called_once()
+    c._custom_release_notes.assert_called_with("v1.2.3")
+    c._is_backport.assert_called_with("v1.2.3")
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
     assert data["previous_release"] is None
