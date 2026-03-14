@@ -28,7 +28,7 @@ gitlab = ["python-gitlab"]
 poetry-plugin-export = ">=1.8"
 
 [tool.poetry.group.dev.dependencies]
-black = "^26.1"
+black = "^26.3"
 boto3 = "^1.42.44"
 flake8 = "^7"
 mypy = "^1.19"
