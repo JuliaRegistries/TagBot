@@ -556,3 +556,14 @@ When this happens, TagBot will automatically open an issue on your repository wi
 ### Missing old tags
 
 TagBot now checks all releases every time, so old releases should be automatically created when TagBot is set up or triggered on a repository.
+
+### "Failed to connect to the docker API"
+
+TagBot requires that the CI runner supports containers.
+
+In particular, the GitHub-hosted `ubuntu-slim` runners do not support containers and thus cannot run TagBot.
+
+If the CI runner doesn't support containers, you might see error messages like this:
+
+- "failed to connect to the docker API"
+- "dial unix /var/run/docker.sock: connect: no such file or directory"
