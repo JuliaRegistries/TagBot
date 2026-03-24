@@ -25,6 +25,14 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: 3.12
+      - uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
+        id: import_gpg
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGNING_KEY }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_config_global: true
+      - run: git config --global user.name "${{ steps.import_gpg.outputs.name }}" && git config --global user.email "${{ steps.import_gpg.outputs.email }}"
       - run: pip install PyGithub semver
       - run: make publish
         env:
