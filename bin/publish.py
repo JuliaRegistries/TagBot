@@ -46,7 +46,7 @@ def on_workflow_dispatch(version: str) -> None:
         raise ValueError("Only major, minor, and patch components should be set")
     update_pyproject_toml(semver)
     digest = build_and_push_versioned_image(semver)
-    update_action_yml(digest)
+    update_action_yml(semver, digest)
     branch = git_push(semver)
     repo = GH.get_repo(REPO)
     msg = f"Release {semver}"
@@ -111,13 +111,13 @@ def update_pyproject_toml(version: VersionInfo) -> None:
         f.write(updated)
 
 
-def update_action_yml(digest: str) -> None:
+def update_action_yml(version: VersionInfo, digest: str) -> None:
     path = repo_file("action.yml")
     with open(path) as f:
         action = f.read()
     updated = re.sub(
         r"image: docker://\S+",
-        f"image: docker://{DOCKER_IMAGE}@sha256:{digest}",
+        f"image: docker://{DOCKER_IMAGE}:{version}@sha256:{digest}",
         action,
         count=1,
     )
