@@ -166,9 +166,9 @@ def _build_cache(self) -> Dict[str, str]:
 
 1. Merge PRs to master
 2. Go to [publish.yml workflow](https://github.com/JuliaRegistries/TagBot/actions/workflows/publish.yml)
-3. Run with desired version bump (major/minor/patch)
+3. Run with desired version bump (major/minor/patch) — this builds and pushes the versioned Docker image (`ghcr.io/juliaregistries/tagbot:{version}`), updates `action.yml` with its SHA digest, and opens a release PR
 4. Review and merge the created PR
-5. CI builds and pushes Docker image to `ghcr.io/juliaregistries/tagbot:{version}`
+5. CI tags the release, pushes floating Docker tags (`latest`, `{major}`, `{major}.{minor}`), and commits updated SHA pins to `example.yml`, `README.md`, and other doc files
 
 ---
 

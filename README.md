@@ -320,7 +320,7 @@ jobs:
     env:
       TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
     steps:
-      - uses: JuliaRegistries/TagBot@v1
+      - uses: JuliaRegistries/TagBot@bdfeaa1ff40e0ea449f9539aa21b2e587431ed49 # v1.24.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -445,14 +445,14 @@ the action configuration should look something like
 ```yml
     steps:
       - name: Tag top-level package
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@bdfeaa1ff40e0ea449f9539aa21b2e587431ed49 # v1.24.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@bdfeaa1ff40e0ea449f9539aa21b2e587431ed49 # v1.24.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -460,7 +460,7 @@ the action configuration should look something like
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
           subdir: SubpackageA.jl
       - name: Tag subpackage B
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@bdfeaa1ff40e0ea449f9539aa21b2e587431ed49 # v1.24.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -475,7 +475,7 @@ specify a different tag prefix as an input:
 ```yml
     steps:
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@bdfeaa1ff40e0ea449f9539aa21b2e587431ed49 # v1.24.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key

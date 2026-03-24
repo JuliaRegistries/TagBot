@@ -19,12 +19,26 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: production
     if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.merged)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: 3.12
+      - name: Import GPG key
+        run: |
+          echo "$GPG_SIGNING_KEY" | gpg --batch --import
+          GPG_FINGERPRINT=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          GPG_UID=$(gpg --list-secret-keys --with-colons | awk -F: '/^uid/{print $10; exit}')
+          GPG_NAME=$(echo "$GPG_UID" | sed 's/ *<[^>]*>//')
+          GPG_EMAIL=$(echo "$GPG_UID" | sed 's/.*<\(.*\)>/\1/')
+          git config --global user.signingkey "$GPG_FINGERPRINT"
+          git config --global commit.gpgsign true
+          git config --global user.name "$GPG_NAME"
+          git config --global user.email "$GPG_EMAIL"
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
       - run: pip install PyGithub semver
       - run: make publish
         env:
@@ -33,3 +47,10 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
+      - name: Remove GPG key
+        if: always()
+        run: |
+          GPG_FINGERPRINT=$(gpg --list-secret-keys --with-colons 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')
+          if [ -n "$GPG_FINGERPRINT" ]; then
+            gpg --batch --yes --delete-secret-and-public-key "$GPG_FINGERPRINT"
+          fi
