@@ -1446,3 +1446,70 @@ def test_is_version_yanked(mock_github):
     # Empty cache (package not registered)
     r._Repo__versions_toml_cache = {}
     assert r.is_version_yanked("v1.0.0") is False
+
+
+def test_is_backport_commit():
+    """Test detection of backport commits based on branch containment."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Commit on default branch only
+    r._git.command.return_value = "  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+    # Commit on default branch and another branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on non-default branch only
+    r._git.command.return_value = "  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on multiple non-default branches
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert r.is_backport_commit("abc123")
+
+    # Git command fails
+    r._git.command.side_effect = Abort("git error")
+    assert not r.is_backport_commit("abc123")
+
+    # Empty output
+    r._git.command.side_effect = None
+    r._git.command.return_value = ""
+    assert not r.is_backport_commit("abc123")
+
+    # Only whitespace
+    r._git.command.return_value = "   \n  \n"
+    assert not r.is_backport_commit("abc123")
+
+    # HEAD symbolic ref line (origin/HEAD -> origin/main) must be filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+
+def test_branches_of_commit():
+    """Test extracting non-default branch names containing a commit."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Default branch only → empty
+    r._git.command.return_value = "  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # One non-default branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.branches_of_commit("abc123") == ["release-1.0"]
+
+    # Multiple non-default branches, no default
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert sorted(r.branches_of_commit("abc123")) == ["hotfix", "release-1.0"]
+
+    # HEAD symbolic ref filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # Git command fails → empty list
+    r._git.command.side_effect = Abort("git error")
+    assert r.branches_of_commit("abc123") == []

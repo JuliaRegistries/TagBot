@@ -1635,3 +1635,23 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             return None
         tree = versions[version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)
+
+    def branches_of_commit(self, sha: str) -> List[str]:
+        """Return short names of non-default remote branches that contain sha."""
+        try:
+            output = self._git.command("branch", "-r", "--contains", sha)
+            default = f"origin/{self._repo.default_branch}"
+            prefix = "origin/"
+            prefix_len = len(prefix)
+            return [
+                b.strip()[prefix_len:]
+                for b in output.splitlines()
+                if b.strip() and " -> " not in b and b.strip() != default
+            ]
+        except Abort:
+            logger.debug("Failed to get branches for commit", exc_info=True)
+            return []
+
+    def is_backport_commit(self, sha: str) -> bool:
+        """Check if the commit is on a non-default branch."""
+        return bool(self.branches_of_commit(sha))

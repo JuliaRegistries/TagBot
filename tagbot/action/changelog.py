@@ -90,6 +90,43 @@ class Changelog:
                 prev_ver = ver
         return prev_rel
 
+    def _previous_release_chronological(
+        self, version_tag: str, commit_date: datetime
+    ) -> Optional[GitRelease]:
+        """Get the chronologically previous release."""
+        tag_prefix = self._repo._tag_prefix()
+        i_start = len(tag_prefix)
+        cur_ver = VersionInfo.parse(version_tag[i_start:])
+        prev_rel = None
+        latest_time = datetime.min.replace(tzinfo=timezone.utc)
+        tags = self._repo.get_all_tags()
+
+        for tag_name in tags:
+            if not tag_name.startswith(tag_prefix):
+                continue
+            try:
+                ver = VersionInfo.parse(tag_name[i_start:])
+            except ValueError:
+                continue
+            if ver.prerelease or ver.build:
+                continue
+            if ver > cur_ver or ver == cur_ver:
+                continue
+            # Get the release time
+            try:
+                rel = self._repo._repo.get_release(tag_name)
+                rel_time = _ensure_utc(rel.created_at)
+            except UnknownObjectException:
+                rel_time = _ensure_utc(self._repo._git.time_of_commit(tag_name))
+            if rel_time < commit_date and rel_time > latest_time:
+                prev_rel = type(
+                    "obj",
+                    (object,),
+                    {"tag_name": tag_name, "created_at": rel_time},
+                )()
+                latest_time = rel_time
+        return prev_rel
+
     def _is_backport(self, version: str, tags: Optional[List[str]] = None) -> bool:
         """Determine whether or not the version is a backport."""
         try:
@@ -218,6 +255,17 @@ class Changelog:
             p for p in self._issues_and_pulls(start, end) if isinstance(p, PullRequest)
         ]
 
+    def _pulls_on_branches(
+        self, start: datetime, end: datetime, branches: List[str]
+    ) -> List[PullRequest]:
+        """Collect PRs in the interval merged into one of the given branches."""
+        branch_set = set(branches)
+        return [
+            p
+            for p in self._issues_and_pulls(start, end)
+            if isinstance(p, PullRequest) and p.base.ref in branch_set
+        ]
+
     def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
@@ -288,29 +336,83 @@ class Changelog:
 
     def _collect_data(self, version_tag: str, sha: str) -> Dict[str, object]:
         """Collect data needed to create the changelog."""
-        previous = self._previous_release(version_tag)
-        start = datetime.fromtimestamp(0, timezone.utc)
-        prev_tag = None
-        compare = None
-        if previous:
-            if previous.created_at:
-                start = _ensure_utc(previous.created_at)
-            prev_tag = previous.tag_name
-            compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
-        # When the last commit is a PR merge, the commit happens a second or two before
-        # the PR and associated issues are closed.
         commit = self._repo._repo.get_commit(sha)
-        end = _ensure_utc(commit.commit.author.date) + timedelta(minutes=1)
-        logger.debug(f"Previous version: {prev_tag}")
-        logger.debug(f"Start date: {start}")
-        logger.debug(f"End date: {end}")
-        issues = self._issues(start, end)
-        pulls = self._pulls(start, end)
+        try:
+            commit_date = commit.commit.author.date
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                f"Failed to read commit author date for {sha}: {exc}. "
+                "Falling back to current time."
+            )
+            commit_date = datetime.now(timezone.utc)
+        if commit_date is None:
+            logger.warning(
+                f"Commit author date is None for {sha}. Falling back to current time."
+            )
+            commit_date = datetime.now(timezone.utc)
+        else:
+            commit_date = _ensure_utc(commit_date)
+        end = commit_date + timedelta(minutes=1)
+
+        release_branches = self._repo.branches_of_commit(sha)
+        if release_branches:
+            # For backport releases (commit on a non-default branch):
+            # - compare URL and previous_release use the SemVer predecessor
+            # - PRs are filtered to those merged into the release branch(es),
+            #   windowed from the SemVer predecessor (catches cherry-picks that
+            #   predate the last main-line release)
+            # - Issues use the chronological predecessor's window (no base-branch
+            #   signal available for issues)
+            previous_semver = self._previous_release(version_tag)
+            previous_chrono = self._previous_release_chronological(
+                version_tag, commit_date
+            )
+            prev_tag = previous_semver.tag_name if previous_semver else None
+            compare = (
+                f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
+                if prev_tag
+                else None
+            )
+            start_issues = (
+                _ensure_utc(previous_chrono.created_at)
+                if previous_chrono and previous_chrono.created_at
+                else datetime.fromtimestamp(0, timezone.utc)
+            )
+            start_pulls = (
+                _ensure_utc(previous_semver.created_at)
+                if previous_semver and previous_semver.created_at
+                else datetime.fromtimestamp(0, timezone.utc)
+            )
+            logger.debug(f"Backport release branches: {release_branches}")
+            logger.debug(f"Previous version (SemVer): {prev_tag}")
+            logger.debug(f"Start date (issues/chronological): {start_issues}")
+            logger.debug(f"Start date (PRs/SemVer): {start_pulls}")
+            logger.debug(f"End date: {end}")
+            issues = self._issues(start_issues, end)
+            pulls = self._pulls_on_branches(start_pulls, end, release_branches)
+        else:
+            previous = self._previous_release(version_tag)
+            start = datetime.fromtimestamp(0, timezone.utc)
+            prev_tag = None
+            compare = None
+            if previous:
+                if previous.created_at:
+                    start = _ensure_utc(previous.created_at)
+                prev_tag = previous.tag_name
+                compare = (
+                    f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
+                )
+            logger.debug(f"Previous version: {prev_tag}")
+            logger.debug(f"Start date: {start}")
+            logger.debug(f"End date: {end}")
+            issues = self._issues(start, end)
+            pulls = self._pulls(start, end)
+
         is_yanked = self._repo.is_version_yanked(version_tag)
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
-            "backport": self._is_backport(version_tag),
+            "backport": self._is_backport(version_tag) or bool(release_branches),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": prev_tag,
