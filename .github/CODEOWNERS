@@ -1,0 +1,9 @@
+# Require review from maintainers for all changes
+* @IanButterworth
+
+# Extra protection for security-sensitive files
+action.yml @IanButterworth
+Dockerfile @IanButterworth
+.github/ @IanButterworth
+serverless.yml @IanButterworth
+bin/publish.py @IanButterworth
