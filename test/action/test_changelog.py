@@ -8,7 +8,6 @@ import yaml
 
 from github.Issue import Issue
 from github.PullRequest import PullRequest
-from github import UnknownObjectException
 
 from tagbot.action.changelog import _ensure_utc
 from tagbot.action.repo import Repo
@@ -570,13 +569,6 @@ def test_previous_release_chronological():
     # v1.5.0 released middle
     rel2 = Mock()
     rel2.created_at = middle_date
-    # v2.0.0 has no GitHub release, use commit time
-    c._repo._repo.get_release.side_effect = [
-        rel1,  # v1.0.0
-        rel2,  # v1.5.0
-        UnknownObjectException(None, None, None),  # v2.0.0 missing
-    ]
-    c._repo._git.time_of_commit.return_value = late_date  # for v2.0.0
 
     # For v2.0.0, should find v1.5.0 (latest before late_date)
     c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
