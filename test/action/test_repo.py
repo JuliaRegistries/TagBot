@@ -1482,3 +1482,7 @@ def test_is_backport_commit():
     # Only whitespace
     r._git.command.return_value = "   \n  \n"
     assert not r.is_backport_commit("abc123")
+
+    # HEAD symbolic ref line (origin/HEAD -> origin/main) must be filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert not r.is_backport_commit("abc123")

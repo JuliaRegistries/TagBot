@@ -516,21 +516,22 @@ def test_previous_release_chronological():
     ]
     c._repo._git.time_of_commit.return_value = late_date  # for v2.0.0
 
-    commit_date = late_date  # After middle
-
-    # For v2.0.0, should find v1.5.0 (latest before commit_date)
-    result = c._previous_release_chronological("v2.0.0", commit_date)
+    # For v2.0.0, should find v1.5.0 (latest before late_date)
+    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
+    result = c._previous_release_chronological("v2.0.0", late_date)
     assert result.tag_name == "v1.5.0"
     assert result.created_at == middle_date
 
     # No previous release before commit_date
     early_commit = datetime(2022, 1, 1, tzinfo=timezone.utc)
+    c._repo._repo.get_release.side_effect = [rel1]  # only v1.0.0 < v1.5.0
     result = c._previous_release_chronological("v1.5.0", early_commit)
     assert result is None
 
-    # Skip versions >= current
+    # Skip versions >= current (no get_release calls expected)
+    c._repo._repo.get_release.side_effect = []
     result = c._previous_release_chronological("v1.0.0", late_date)
-    assert result is None  # v1.0.0 is the earliest
+    assert result is None
 
     # Handle prerelease versions (should be skipped)
     c._repo.get_all_tags.return_value = ["v1.0.0", "v1.5.0-alpha", "v1.5.0"]

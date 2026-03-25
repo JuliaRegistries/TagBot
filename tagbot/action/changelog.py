@@ -95,7 +95,8 @@ class Changelog:
     ) -> Optional[GitRelease]:
         """Get the chronologically previous release."""
         tag_prefix = self._repo._tag_prefix()
-        cur_ver = VersionInfo.parse(version_tag[len(tag_prefix) :])
+        i_start = len(tag_prefix)
+        cur_ver = VersionInfo.parse(version_tag[i_start:])
         prev_rel = None
         latest_time = datetime.min.replace(tzinfo=timezone.utc)
         tags = self._repo.get_all_tags()
@@ -104,7 +105,7 @@ class Changelog:
             if not tag_name.startswith(tag_prefix):
                 continue
             try:
-                ver = VersionInfo.parse(tag_name[len(tag_prefix) :])
+                ver = VersionInfo.parse(tag_name[i_start:])
             except ValueError:
                 continue
             if ver.prerelease or ver.build:
@@ -114,9 +115,9 @@ class Changelog:
             # Get the release time
             try:
                 rel = self._repo._repo.get_release(tag_name)
-                rel_time = rel.created_at
+                rel_time = _ensure_utc(rel.created_at)
             except UnknownObjectException:
-                rel_time = self._repo._git.time_of_commit(tag_name)
+                rel_time = _ensure_utc(self._repo._git.time_of_commit(tag_name))
             if rel_time < commit_date and rel_time > latest_time:
                 prev_rel = type(
                     "obj",
@@ -338,6 +339,8 @@ class Changelog:
                 f"Commit author date is None for {sha}. Falling back to current time."
             )
             commit_date = datetime.now(timezone.utc)
+        else:
+            commit_date = _ensure_utc(commit_date)
         is_backport_commit = self._repo.is_backport_commit(sha)
         if is_backport_commit:
             previous = self._previous_release_chronological(version_tag, commit_date)
@@ -353,7 +356,6 @@ class Changelog:
             compare = f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"
         # When the last commit is a PR merge, the commit happens a second or two before
         # the PR and associated issues are closed.
-        commit = self._repo._repo.get_commit(sha)
         end = _ensure_utc(commit.commit.author.date) + timedelta(minutes=1)
         logger.debug(f"Previous version: {prev_tag}")
         logger.debug(f"Start date: {start}")
