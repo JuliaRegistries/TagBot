@@ -307,6 +307,7 @@ def test_collect_data():
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
     c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=[])
     c._previous_release = Mock(
         side_effect=[
             Mock(tag_name="v1.2.2", created_at=datetime.now(timezone.utc)),
@@ -316,7 +317,6 @@ def test_collect_data():
     c._is_backport = Mock(return_value=False)
     commit = Mock(author=Mock(date=datetime.now(timezone.utc)))
     c._repo._repo.get_commit = Mock(return_value=Mock(commit=commit))
-    # TODO: Put stuff here.
     c._issues = Mock(return_value=[])
     c._pulls = Mock(return_value=[])
     c._custom_release_notes = Mock(return_value="custom")
@@ -336,6 +336,68 @@ def test_collect_data():
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
     assert data["previous_release"] is None
+
+
+def test_collect_data_backport():
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=["release-1.0"])
+    semver_prev = Mock(
+        tag_name="v1.0.0", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    chrono_prev = Mock(
+        tag_name="v2.0.0", created_at=datetime(2023, 3, 1, tzinfo=timezone.utc)
+    )
+    c._previous_release = Mock(return_value=semver_prev)
+    c._previous_release_chronological = Mock(return_value=chrono_prev)
+    c._is_backport = Mock(return_value=True)
+    commit_date = datetime(2023, 4, 1, tzinfo=timezone.utc)
+    commit = Mock(commit=Mock(author=Mock(date=commit_date)))
+    c._repo._repo.get_commit = Mock(return_value=commit)
+    c._issues = Mock(return_value=[])
+    c._pulls_on_branches = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value=None)
+
+    data = c._collect_data("v1.0.1", "abcdef")
+
+    # compare/previous_release come from SemVer predecessor
+    assert data["previous_release"] == "v1.0.0"
+    assert data["compare_url"] == "https://github.com/A/B.jl/compare/v1.0.0...v1.0.1"
+    assert data["backport"] is True
+
+    end = commit_date + timedelta(minutes=1)
+    # Issues windowed from chronological predecessor
+    c._issues.assert_called_once_with(datetime(2023, 3, 1, tzinfo=timezone.utc), end)
+    # PRs filtered to release branches, windowed from SemVer predecessor
+    c._pulls_on_branches.assert_called_once_with(
+        datetime(2023, 1, 1, tzinfo=timezone.utc), end, ["release-1.0"]
+    )
+
+
+def test_pulls_on_branches():
+    c = _changelog()
+    pr_main = Mock(spec=PullRequest)
+    pr_main.base = Mock(ref="main")
+    pr_release = Mock(spec=PullRequest)
+    pr_release.base = Mock(ref="release-1.0")
+    pr_other = Mock(spec=PullRequest)
+    pr_other.base = Mock(ref="release-2.0")
+    issue = Mock(spec=Issue)
+    c._issues_and_pulls = Mock(return_value=[pr_main, pr_release, pr_other, issue])
+
+    start = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2023, 12, 1, tzinfo=timezone.utc)
+
+    result = c._pulls_on_branches(start, end, ["release-1.0"])
+    assert result == [pr_release]
+    c._issues_and_pulls.assert_called_once_with(start, end)
+
+    # Multiple branches
+    c._issues_and_pulls.reset_mock()
+    result = c._pulls_on_branches(start, end, ["release-1.0", "release-2.0"])
+    assert result == [pr_release, pr_other]
 
 
 def test_is_backport():
