@@ -60,7 +60,9 @@ def _handle_report(
         closed_duplicate_url = None
         if duplicate:
             closed_duplicate_url = duplicate.html_url
-            logger.info(f"Duplicate (#{duplicate.number}) is closed, creating new issue")
+            logger.info(
+                f"Duplicate (#{duplicate.number}) is closed, creating new issue"
+            )
         logger.info("Creating a new issue")
         issue = _create_issue(
             image=image,
