@@ -85,7 +85,7 @@ def test_handle_report_with_extras(create_issue, find_duplicate):
         "manual_intervention_url": "https://example.com/issues/1",
     }
     reports._handle_report(**kwargs)
-    create_issue.assert_called_with(**kwargs)
+    create_issue.assert_called_with(**kwargs, closed_duplicate_url=None)
 
 
 def test_already_commented():
