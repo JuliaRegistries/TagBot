@@ -40,7 +40,7 @@ def _handle_report(
 ) -> None:
     """Report an error."""
     duplicate = _find_duplicate(stacktrace)
-    if duplicate:
+    if duplicate and duplicate.state == "open":
         logger.info(f"Found a duplicate (#{duplicate.number})")
         if _already_commented(duplicate, repo=repo):
             logger.info("Already reported")
@@ -57,6 +57,10 @@ def _handle_report(
             )
             logger.info(f"Created comment: {comment.html_url}")
     else:
+        closed_duplicate_url = None
+        if duplicate:
+            closed_duplicate_url = duplicate.html_url
+            logger.info(f"Duplicate (#{duplicate.number}) is closed, creating new issue")
         logger.info("Creating a new issue")
         issue = _create_issue(
             image=image,
@@ -65,6 +69,7 @@ def _handle_report(
             stacktrace=stacktrace,
             version=version,
             manual_intervention_url=manual_intervention_url,
+            closed_duplicate_url=closed_duplicate_url,
         )
         logger.info(f"Created issue: {issue.html_url}")
 
@@ -111,6 +116,7 @@ def _report_body(
     stacktrace: str,
     version: Optional[str] = None,
     manual_intervention_url: Optional[str] = None,
+    closed_duplicate_url: Optional[str] = None,
 ) -> str:
     """Format the error report."""
     lines = [
@@ -122,6 +128,8 @@ def _report_body(
         lines.append(f"TagBot version: {version}")
     if manual_intervention_url:
         lines.append(f"Manual intervention issue: {manual_intervention_url}")
+    if closed_duplicate_url:
+        lines.append(f"Found a closed duplicate: {closed_duplicate_url}")
     lines.append(f"Stacktrace:\n```py\n{stacktrace}\n```\n")
     return "\n".join(lines)
 
@@ -156,6 +164,7 @@ def _create_issue(
     stacktrace: str,
     version: Optional[str] = None,
     manual_intervention_url: Optional[str] = None,
+    closed_duplicate_url: Optional[str] = None,
 ) -> Issue:
     """Create a new error report."""
     title = f"Automatic error report from {repo}"
@@ -166,5 +175,6 @@ def _create_issue(
         stacktrace=stacktrace,
         version=version,
         manual_intervention_url=manual_intervention_url,
+        closed_duplicate_url=closed_duplicate_url,
     )
     return TAGBOT_ISSUES_REPO.create_issue(title, body)
