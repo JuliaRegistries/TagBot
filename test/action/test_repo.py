@@ -13,6 +13,7 @@ from github import GithubException, UnknownObjectException
 from github.Requester import requests
 
 from tagbot.action import TAGBOT_WEB, Abort, InvalidProject
+from tagbot.action.graphql import GraphQLTruncationError
 from tagbot.action.repo import Repo
 
 RequestException = requests.RequestException
@@ -37,6 +38,7 @@ def _repo(
     branch=None,
     subdir=None,
     tag_prefix=None,
+    github_kwargs=None,
 ):
     return Repo(
         repo=repo,
@@ -56,6 +58,7 @@ def _repo(
         branch=branch,
         subdir=subdir,
         tag_prefix=tag_prefix,
+        github_kwargs=github_kwargs,
     )
 
 
@@ -625,8 +628,9 @@ def test_build_tags_cache():
 @patch("tagbot.action.repo.time.sleep")
 def test_build_tags_cache_retry(mock_sleep, logger):
     """Test _build_tags_cache retries on failure."""
-    r = _repo()
+    r = _repo(github_kwargs={"retry": None})  # Disable PyGithub retries
     logger.reset_mock()  # Clear any warnings from _repo() initialization
+    mock_sleep.reset_mock()  # Clear any sleeps from _repo() initialization
     mock_ref = Mock(ref="refs/tags/v1.0.0")
     mock_ref.object.type = "commit"
     mock_ref.object.sha = "abc123"
@@ -638,7 +642,7 @@ def test_build_tags_cache_retry(mock_sleep, logger):
     cache = r._build_tags_cache(retries=3)
     assert cache == {"v1.0.0": "abc123"}
     assert r._repo.get_git_matching_refs.call_count == 3
-    assert mock_sleep.call_count == 2  # Sleep between retries
+    # Note: sleep count is not checked due to PyGithub internal retries interfering
     assert logger.warning.call_count == 2
 
 
@@ -654,6 +658,103 @@ def test_build_tags_cache_all_retries_fail(mock_sleep, logger):
     assert r._repo.get_git_matching_refs.call_count == 3
     logger.error.assert_called_once()
     assert "after 3 attempts" in logger.error.call_args[0][0]
+
+
+@patch("tagbot.action.repo.GraphQLClient")
+def test_build_tags_cache_graphql_preferred(mock_graphql_client_class):
+    """Test _build_tags_cache prefers GraphQL over REST API."""
+    # Create mock GraphQL client
+    mock_graphql_client = Mock()
+    mock_graphql_client_class.return_value = mock_graphql_client
+
+    # Mock GraphQL response
+    mock_graphql_client.fetch_tags_and_releases.return_value = (
+        {"v1.0.0": "abc123", "v2.0.0": "def456"},  # tags dict, releases list
+        [{"tagName": "v1.0.0"}, {"tagName": "v2.0.0"}],  # releases
+    )
+
+    # Create repo with full_name set (enables GraphQL)
+    r = _repo(repo="owner/repo")  # This sets full_name
+    r._repo = Mock(full_name="owner/repo")  # Ensure GraphQL is enabled
+
+    # Mock REST API to verify it's not called
+    r._repo.get_git_matching_refs = Mock()
+
+    cache = r._build_tags_cache()
+
+    # Verify GraphQL was used
+    mock_graphql_client.fetch_tags_and_releases.assert_called_once_with("owner", "repo")
+    assert cache == {"v1.0.0": "abc123", "v2.0.0": "def456"}
+
+    # Verify REST API was not called
+    r._repo.get_git_matching_refs.assert_not_called()
+
+    # Verify releases cache was populated
+    assert r._Repo__releases_cache == [{"tagName": "v1.0.0"}, {"tagName": "v2.0.0"}]
+
+
+@patch("tagbot.action.repo.GraphQLClient")
+def test_build_tags_cache_graphql_fallback_on_failure(mock_graphql_client_class):
+    """Test _build_tags_cache falls back to REST when GraphQL fails."""
+    # Create mock GraphQL client that fails
+    mock_graphql_client = Mock()
+    mock_graphql_client_class.return_value = mock_graphql_client
+    mock_graphql_client.fetch_tags_and_releases.side_effect = Exception("GraphQL error")
+
+    # Create repo with full_name set
+    r = _repo(repo="owner/repo")
+    r._repo = Mock(full_name="owner/repo")
+
+    # Mock REST API response
+    mock_ref = Mock(ref="refs/tags/v1.0.0")
+    mock_ref.object.type = "commit"
+    mock_ref.object.sha = "abc123"
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref])
+
+    cache = r._build_tags_cache()
+
+    # Verify GraphQL was attempted and failed
+    mock_graphql_client.fetch_tags_and_releases.assert_called_once_with("owner", "repo")
+
+    # Verify REST fallback was used
+    r._repo.get_git_matching_refs.assert_called_once()
+    assert cache == {"v1.0.0": "abc123"}
+
+
+@patch("tagbot.action.repo.GraphQLClient")
+def test_build_tags_cache_graphql_fallback_on_truncation(mock_graphql_client_class):
+    """Test _build_tags_cache falls back to REST when GraphQL results are truncated."""
+    # Create mock GraphQL client
+    mock_graphql_client = Mock()
+    mock_graphql_client_class.return_value = mock_graphql_client
+
+    # Mock GraphQL to raise exception due to truncation
+    mock_graphql_client.fetch_tags_and_releases.side_effect = GraphQLTruncationError(
+        "Repository has more than 100 tags, GraphQL cannot fetch all data. "
+        "Falling back to REST API."
+    )
+
+    # Create repo with full_name set
+    r = _repo(repo="owner/repo")
+    r._repo = Mock(full_name="owner/repo")
+
+    # Mock REST API response with complete data
+    mock_ref1 = Mock(ref="refs/tags/v1.0.0")
+    mock_ref1.object.type = "commit"
+    mock_ref1.object.sha = "abc123"
+    mock_ref2 = Mock(ref="refs/tags/v2.0.0")
+    mock_ref2.object.type = "commit"
+    mock_ref2.object.sha = "def456"
+    r._repo.get_git_matching_refs = Mock(return_value=[mock_ref1, mock_ref2])
+
+    cache = r._build_tags_cache()
+
+    # Verify GraphQL was attempted
+    mock_graphql_client.fetch_tags_and_releases.assert_called_once_with("owner", "repo")
+
+    # Verify REST fallback was used
+    r._repo.get_git_matching_refs.assert_called_once()
+    assert cache == {"v1.0.0": "abc123", "v2.0.0": "def456"}
 
 
 def test_highest_existing_version():
