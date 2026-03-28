@@ -918,10 +918,9 @@ def test_is_registered():
     assert r.is_registered()
     contents.decoded_content = b"""repo = "git@github.com:Foo/Bar.jl.git"\n"""
     assert not r.is_registered()
-    contents.decoded_content = b"""repo = "https://GH.COM/Foo/Bar.jl"\n"""
-    assert r.is_registered()
-    # TODO: We should test for the InvalidProject behaviour,
-    # but I'm not really sure how it's possible.
+    with patch.object(type(r), "_registry_path", new_callable=PropertyMock) as root:
+        root.side_effect = InvalidProject("bad project")
+        assert not r.is_registered()
 
 
 def test_new_versions():
