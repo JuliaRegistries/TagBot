@@ -39,8 +39,8 @@ jobs:
           git config --global user.email "$GPG_EMAIL"
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
-      - run: pip install PyGithub semver
-      - run: make publish
+      - run: pip install poetry && poetry install --only main
+      - run: poetry run make publish
         env:
           DOCKER_IMAGE: ghcr.io/juliaregistries/tagbot
           DOCKER_USERNAME: christopher-dG
