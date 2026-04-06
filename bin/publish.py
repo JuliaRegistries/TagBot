@@ -9,7 +9,7 @@ from subprocess import DEVNULL
 from tempfile import mkstemp
 from typing import List, Optional
 
-from github import Github, GithubException
+from github import Auth, Github, GithubException
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 from semver import VersionInfo
@@ -19,7 +19,7 @@ WORKSPACE = os.environ["GITHUB_WORKSPACE"]
 DOCKER_IMAGE = os.environ["DOCKER_IMAGE"]
 DOCKER_USERNAME = os.environ["DOCKER_USERNAME"]
 DOCKER_PASSWORD = os.environ["DOCKER_PASSWORD"]
-GH = Github(os.environ["GITHUB_TOKEN"])
+GH = Github(auth=Auth.Token(os.environ["GITHUB_TOKEN"]))
 
 
 def configure_ssh() -> None:
