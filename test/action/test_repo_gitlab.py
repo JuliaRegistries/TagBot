@@ -11,7 +11,7 @@ def _repo(
     repo="",
     registry="",
     github="",
-    github_api="",
+    github_api="https://api.github.com",
     token="x",
     registry_token="",
     changelog="",
