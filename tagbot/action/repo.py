@@ -488,7 +488,7 @@ class Repo:
                 break
             # Only cache merged PRs (not closed without merging)
             if pr.merged:
-                cache[pr.head.ref] = cast(PullRequest, pr)
+                cache[pr.head.ref] = pr
 
         if prs_fetched < MAX_PRS_TO_CHECK:
             logger.debug(
