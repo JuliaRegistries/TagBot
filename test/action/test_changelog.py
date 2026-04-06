@@ -25,6 +25,7 @@ def _changelog(mock_gh, *, template="", ignore=set(), subdir=None):
         github="",
         github_api="",
         token="x",
+        registry_token="",
         changelog=template,
         changelog_ignore=ignore,
         changelog_format="custom",

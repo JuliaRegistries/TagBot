@@ -121,6 +121,7 @@ class Repo:
         github: str,
         github_api: str,
         token: str,
+        registry_token: str = "",
         changelog: str,
         changelog_ignore: List[str],
         changelog_format: str,
@@ -170,8 +171,17 @@ class Repo:
             )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry_name = registry
+        if registry_token:
+            registry_gh = Github(
+                auth=Auth.Token(registry_token),
+                base_url=self._gh_api,
+                per_page=100,
+                **github_kwargs,  # type: ignore
+            )
+        else:
+            registry_gh = self._gh
         try:
-            self._registry = self._gh.get_repo(registry)
+            self._registry = registry_gh.get_repo(registry)
         except UnknownObjectExceptions:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
@@ -184,13 +194,14 @@ class Repo:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
                 logger.warning("'awful hack' in use", exc_info=exc)
-                self._registry = self._gh.get_repo(registry, lazy=True)
+                self._registry = registry_gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
                 raise
         else:
             self._clone_registry = False
         self._token = token
+        self._registry_token = registry_token
         self.__versions_toml_cache: Optional[Dict[str, Any]] = None
         self._changelog_format = changelog_format
         # Only initialize Changelog if using custom format
@@ -227,6 +238,8 @@ class Repo:
         """Remove sensitive tokens from text."""
         if self._token:
             text = text.replace(self._token, "***")
+        if self._registry_token:
+            text = text.replace(self._registry_token, "***")
         return text
 
     def _project(self, k: str) -> str:
@@ -475,7 +488,7 @@ class Repo:
                 break
             # Only cache merged PRs (not closed without merging)
             if pr.merged:
-                cache[pr.head.ref] = cast(PullRequest, pr)
+                cache[pr.head.ref] = pr
 
         if prs_fetched < MAX_PRS_TO_CHECK:
             logger.debug(

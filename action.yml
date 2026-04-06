@@ -45,6 +45,9 @@ inputs:
   gpg_password:
     description: Password for the GPG key
     required: false
+  registry_token:
+    description: GitHub API token for accessing the registry (defaults to the main token)
+    required: false
   registry_ssh:
     description: SSH private key for accessing a private registry
     required: false

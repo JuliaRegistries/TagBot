@@ -25,6 +25,7 @@ def _repo(
     github="",
     github_api="",
     token="x",
+    registry_token="",
     changelog="",
     ignore=[],
     changelog_format="custom",
@@ -44,6 +45,7 @@ def _repo(
         github=github,
         github_api=github_api,
         token=token,
+        registry_token=registry_token,
         changelog=changelog,
         changelog_ignore=ignore,
         changelog_format=changelog_format,
@@ -81,6 +83,32 @@ def test_constructor(mock_github):
     assert r._gh_url == "https://github.com"
     assert r._gh_api == "https://api.github.com"
     assert r._git._github == "github.com"
+
+
+@patch("tagbot.action.repo.Github")
+def test_registry_token(mock_github):
+    """Test that registry_token creates a separate GitHub client for registry access."""
+    mock_gh_instance = Mock()
+    mock_registry_gh_instance = Mock()
+    mock_github.side_effect = [mock_gh_instance, mock_registry_gh_instance]
+    mock_gh_instance.get_repo.return_value = Mock()
+    mock_registry_gh_instance.get_repo.return_value = Mock()
+
+    r = _repo(
+        github="github.com",
+        github_api="api.github.com",
+        token="pkg_token",
+        registry_token="reg_token",
+        registry="test/registry",
+    )
+    # Should have created two Github instances
+    assert mock_github.call_count == 2
+    # Registry repo should be fetched from the second (registry) client
+    mock_registry_gh_instance.get_repo.assert_called_once_with("test/registry")
+    # Package repo should be fetched from the first (main) client
+    mock_gh_instance.get_repo.assert_called_once_with("", lazy=True)
+    # Both tokens should be sanitized
+    assert r._sanitize("pkg_token reg_token") == "*** ***"
 
 
 def test_project():
