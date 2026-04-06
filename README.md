@@ -208,12 +208,24 @@ with:
 ```
 
 If your registry is public, this is all you need to do.
-If your registry is private, you'll need to configure access to it via one of two options.
+If your registry is private, you'll need to configure access to it via one of three options.
 
-The first option is to change the `token` input to a [PAT](#personal-access-tokens-pats) that has access to both your package repository and the registry.
+The first option is to use a separate `registry_token` that has access to the registry:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  registry: MyOrg/MyRegistry
+  registry_token: ${{ secrets.REGISTRY_TOKEN }}
+```
+
+This is the simplest approach when you have a PAT or fine-grained token scoped to the registry.
+The main `token` is used for the package repository (creating tags and releases), while `registry_token` is used only for reading the registry.
+
+The second option is to change the `token` input to a [PAT](#personal-access-tokens-pats) that has access to both your package repository and the registry.
 Take a look at the warnings about PATs if you choose this option.
 
-The other option is to use the `registry_ssh` input, like so:
+The third option is to use the `registry_ssh` input, like so:
 
 ```yml
 with:

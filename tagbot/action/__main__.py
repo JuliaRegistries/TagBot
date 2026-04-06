@@ -65,6 +65,7 @@ try:
         github=get_input("github"),
         github_api=get_input("github_api"),
         token=token,
+        registry_token=get_input("registry_token"),
         changelog=get_input("changelog"),
         changelog_ignore=ignore,
         changelog_format=changelog_format,
