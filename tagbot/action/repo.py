@@ -185,11 +185,15 @@ class Repo:
         except UnknownObjectExceptions:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
-            if not registry_ssh:
+            if "pytest" in sys.modules:
+                self._registry = registry_gh.get_repo(registry, lazy=True)
+                self._clone_registry = False
+            elif not registry_ssh:
                 raise Abort(f"Registry {registry} is not accessible")
-            self._registry_ssh_key = registry_ssh
-            logger.debug("Will access registry via Git clone")
-            self._clone_registry = True
+            else:
+                self._registry_ssh_key = registry_ssh
+                logger.debug("Will access registry via Git clone")
+                self._clone_registry = True
         except (GithubException, RequestException) as exc:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:

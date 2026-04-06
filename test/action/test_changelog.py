@@ -23,7 +23,7 @@ def _changelog(mock_gh, *, template="", ignore=set(), subdir=None):
         repo="",
         registry="",
         github="",
-        github_api="",
+        github_api="https://api.github.com",
         token="x",
         registry_token="",
         changelog=template,
