@@ -29,6 +29,19 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt
 
 
+def _safe_created_at(release: GitRelease) -> Optional[datetime]:
+    """Safely access a release's created_at, returning None on 404."""
+    try:
+        dt = release.created_at
+        return _ensure_utc(dt) if dt else None
+    except UnknownObjectException:
+        logger.warning(
+            f"Release {release.tag_name!r} returned 404 when fetching "
+            "created_at (deleted?); treating as no previous release."
+        )
+        return None
+
+
 class Changelog:
     """A Changelog produces release notes for a single release."""
 
@@ -374,15 +387,11 @@ class Changelog:
                 else None
             )
             start_issues = (
-                _ensure_utc(previous_chrono.created_at)
-                if previous_chrono and previous_chrono.created_at
-                else datetime.fromtimestamp(0, timezone.utc)
-            )
+                _safe_created_at(previous_chrono) if previous_chrono else None
+            ) or datetime.fromtimestamp(0, timezone.utc)
             start_pulls = (
-                _ensure_utc(previous_semver.created_at)
-                if previous_semver and previous_semver.created_at
-                else datetime.fromtimestamp(0, timezone.utc)
-            )
+                _safe_created_at(previous_semver) if previous_semver else None
+            ) or datetime.fromtimestamp(0, timezone.utc)
             logger.debug(f"Backport release branches: {release_branches}")
             logger.debug(f"Previous version (SemVer): {prev_tag}")
             logger.debug(f"Start date (issues/chronological): {start_issues}")
@@ -396,8 +405,9 @@ class Changelog:
             prev_tag = None
             compare = None
             if previous:
-                if previous.created_at:
-                    start = _ensure_utc(previous.created_at)
+                created = _safe_created_at(previous)
+                if created:
+                    start = created
                 prev_tag = previous.tag_name
                 compare = (
                     f"{self._repo._repo.html_url}/compare/{prev_tag}...{version_tag}"

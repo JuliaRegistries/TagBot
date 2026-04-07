@@ -9,7 +9,7 @@ import yaml
 from github.Issue import Issue
 from github.PullRequest import PullRequest
 
-from tagbot.action.changelog import _ensure_utc
+from tagbot.action.changelog import _ensure_utc, _safe_created_at
 from tagbot.action.repo import Repo
 
 
@@ -91,6 +91,45 @@ def test_previous_release_no_github_release():
     assert rel.tag_name == "v1.1.0"
     assert rel.created_at == mock_time
     c._repo._git.time_of_commit.assert_called_with("v1.1.0")
+
+
+def test_safe_created_at_normal():
+    """_safe_created_at returns the created_at datetime when accessible."""
+    release = Mock()
+    release.created_at = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) == datetime(2025, 6, 1, tzinfo=timezone.utc)
+
+
+def test_safe_created_at_naive():
+    """_safe_created_at normalizes naive datetimes to UTC."""
+    release = Mock()
+    release.created_at = datetime(2025, 6, 1)
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) == datetime(2025, 6, 1, tzinfo=timezone.utc)
+
+
+def test_safe_created_at_404():
+    """_safe_created_at returns None when the release is deleted (404)."""
+    from github import UnknownObjectException
+
+    class DeletedRelease:
+        tag_name = "v1.0.0"
+
+        @property
+        def created_at(self):
+            raise UnknownObjectException(404, "Not Found", {})
+
+    release = DeletedRelease()
+    assert _safe_created_at(release) is None
+
+
+def test_safe_created_at_none():
+    """_safe_created_at returns None when created_at is None."""
+    release = Mock()
+    release.created_at = None
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) is None
 
 
 def test_previous_release_subdir():
