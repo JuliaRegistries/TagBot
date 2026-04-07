@@ -173,7 +173,7 @@ When creating multiple releases (e.g., backfilling), they're processed sequentia
 Add a `dry_run` input that shows what would be created without actually creating tags/releases.
 
 ```yaml
-- uses: JuliaRegistries/TagBot@bec137295ac1aaecc0eab42d7842a5cab5a7ab50 # v1.25.1
+- uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     dry_run: true  # Shows actions without executing
