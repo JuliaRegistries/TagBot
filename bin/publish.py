@@ -146,7 +146,6 @@ def update_action_ref_pins(version: VersionInfo, sha: str) -> None:
         repo_file("example.yml"),
         repo_file(".github", "workflows", "tagbot.yml"),
         repo_file("README.md"),
-        repo_file("IMPROVEMENTS.md"),
     ]
     for path in files:
         with open(path) as f:
