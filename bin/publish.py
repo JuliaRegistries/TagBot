@@ -10,7 +10,6 @@ from tempfile import mkstemp
 from typing import List, Optional
 
 from github import Auth, Github, GithubException
-from github.PullRequest import PullRequest
 from github.Repository import Repository
 from semver import VersionInfo
 
@@ -47,22 +46,9 @@ def on_workflow_dispatch(version: str) -> None:
     update_pyproject_toml(semver)
     digest = build_and_push_versioned_image(semver)
     update_action_yml(semver, digest)
-    branch = git_push(semver)
+    release_sha = git_commit(semver)
     repo = GH.get_repo(REPO)
-    msg = f"Release {semver}"
-    repo.create_pull(title=msg, body=msg, head=branch, base="master")
-
-
-def on_pull_request(number: int) -> None:
-    repo = GH.get_repo(REPO)
-    pr = repo.get_pull(number)
-    if not pr.merged or not pr.head.ref.startswith("release/"):
-        return
-    version = current_version()
-    tag_sha = pr.merge_commit_sha
-    git("fetch", "origin", "master")
-    git("checkout", "-B", "master", "origin/master")
-    update_action_ref_pins(version, tag_sha)
+    update_action_ref_pins(semver, release_sha)
     git("add", "--all")
     has_changes = (
         subprocess.run(
@@ -71,10 +57,10 @@ def on_pull_request(number: int) -> None:
         != 0
     )
     if has_changes:
-        git("commit", "--message", f"Pin action refs to v{version}")
+        git("commit", "--message", f"Pin action refs to v{semver}")
         git("push", "origin", "master")
-    update_tags(tag_sha)
-    create_release(repo, pr, tag_sha)
+    update_tags(release_sha)
+    create_release(repo, release_sha)
     push_floating_tags()
 
 
@@ -125,13 +111,17 @@ def update_action_yml(version: VersionInfo, digest: str) -> None:
         f.write(updated)
 
 
-def git_push(version: VersionInfo) -> str:
-    branch = f"release/{version}"
-    msg = f"Release {version}"
-    git("checkout", "-B", branch)
-    git("commit", "--all", "--message", msg)
-    git("push", "origin", "--force", branch)
-    return branch
+def git_commit(version: VersionInfo) -> str:
+    """Commit the release changes to master and return the commit SHA."""
+    git("commit", "--all", "--message", f"Release {version}")
+    git("push", "origin", "master")
+    result = subprocess.run(
+        ["git", "-C", WORKSPACE, "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 def update_tags(commit: str) -> None:
@@ -169,14 +159,13 @@ def update_action_ref_pins(version: VersionInfo, sha: str) -> None:
             f.write(updated)
 
 
-def create_release(repo: Repository, pr: PullRequest, commit: str) -> None:
-    notes = get_release_notes(pr)
+def create_release(repo: Repository, commit: str) -> None:
     release = "v" + str(current_version())
     try:
         repo.create_git_release(
             tag=release,
             name=release,
-            message=notes,
+            message="",
             target_commitish=commit,
             generate_release_notes=True,
         )
@@ -185,14 +174,6 @@ def create_release(repo: Repository, pr: PullRequest, commit: str) -> None:
             print("This release already exists, ignoring")
         else:
             raise
-
-
-def get_release_notes(pr: PullRequest) -> str:
-    for comment in pr.get_issue_comments():
-        m = re.search("(?si)Release notes:(.*)", comment.body)
-        if m:
-            return m[1].strip()
-    return ""
 
 
 def build_and_push_versioned_image(version: VersionInfo) -> str:
@@ -256,5 +237,3 @@ if __name__ == "__main__":
         event = json.load(f)
     if name == "workflow_dispatch":
         on_workflow_dispatch(event["inputs"]["bump"])
-    elif name == "pull_request":
-        on_pull_request(event["pull_request"]["number"])
