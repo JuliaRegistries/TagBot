@@ -186,17 +186,17 @@ The web service runs on AWS Lambda via Serverless Framework.
 
 ```bash
 npm install
-aws configure --profile tagbot  # region: us-east-1
+aws configure --profile julia_tagbot  # region: us-east-1
 ```
 
 ### Deployment
 
 ```bash
 # Production (with custom domain julia-tagbot.com)
-GITHUB_TOKEN="ghp_..." npx serverless deploy --stage prod --aws-profile tagbot
+GITHUB_TOKEN="ghp_..." npx serverless deploy --stage prod --aws-profile julia_tagbot
 
 # Dev (no custom domain)
-npx serverless deploy --stage dev --aws-profile tagbot
+npx serverless deploy --stage dev --aws-profile julia_tagbot
 ```
 
 ### Configuration
@@ -222,13 +222,13 @@ npx serverless deploy --stage dev --aws-profile tagbot
 
 ```bash
 # Recent API function logs (last 5 min)
-aws logs filter-log-events --profile tagbot --region us-east-1 \
+aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
   --log-group-name /aws/lambda/TagBotWeb-prod-api \
   --start-time $(($(date +%s) * 1000 - 300000)) \
   --query 'events[*].message' --output text
 
 # Reports function logs
-aws logs filter-log-events --profile tagbot --region us-east-1 \
+aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
   --log-group-name /aws/lambda/TagBotWeb-prod-reports \
   --start-time $(($(date +%s) * 1000 - 300000)) \
   --query 'events[*].message' --output text
