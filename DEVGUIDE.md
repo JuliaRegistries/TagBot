@@ -82,9 +82,8 @@ When auto-tagging fails due to workflow file changes or other manual interventio
 
 1. Merge PRs to master
 2. Go to [publish.yml workflow](https://github.com/JuliaRegistries/TagBot/actions/workflows/publish.yml)
-3. Run with desired version bump (major/minor/patch) — this builds and pushes the versioned Docker image (`ghcr.io/juliaregistries/tagbot:{version}`), updates `action.yml` with its SHA digest, and opens a release PR
-4. Review and merge the created PR
-5. CI tags the release, pushes floating Docker tags (`latest`, `{major}`, `{major}.{minor}`), and commits updated SHA pins to `example.yml`, `README.md`, and other doc files
+3. Run with desired version bump (major/minor/patch) and approve the `production` environment gate
+4. The workflow builds and pushes the versioned Docker image, commits the version bump to master, creates the Git tag and GitHub release, pushes floating Docker tags (`latest`, `{major}`, `{major}.{minor}`), and commits updated SHA pins to `example.yml`, `README.md`, and other doc files
 
 ---
 
