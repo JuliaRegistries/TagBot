@@ -1189,7 +1189,7 @@ class Repo:
         return changelog
 
     def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
-        """Create an issue requesting manual intervention for failed releases.
+        """Create or update an issue requesting manual intervention for failed releases.
 
         Args:
             failures: List of (version, sha, error_message) tuples
@@ -1197,19 +1197,29 @@ class Repo:
         if not failures:
             return
 
-        # Check for existing open issue to avoid duplicates
-        # Search by title since labels may not be available
+        # Check for existing open issue to update instead of duplicating
+        existing_issue = None
         try:
-            existing = list(self._repo.get_issues(state="open"))
-            for issue in existing:
+            for issue in self._repo.get_issues(state="open"):
                 if "TagBot: Manual intervention" in issue.title:
-                    logger.info(
-                        "Issue already exists for manual tag intervention: "
-                        f"{issue.html_url}"
-                    )
-                    return
+                    existing_issue = issue
+                    break
         except GithubException as e:
             logger.debug(f"Could not check for existing issues: {e}")
+
+        body = self._manual_tag_body(failures)
+
+        if existing_issue:
+            try:
+                existing_issue.edit(body=body)
+                logger.info(
+                    "Updated existing manual intervention issue: "
+                    f"{existing_issue.html_url}"
+                )
+                self._manual_intervention_issue_url = existing_issue.html_url
+            except GithubException as e:
+                logger.warning(f"Could not update manual intervention issue: {e}")
+            return
 
         # Try to create/get the label
         label_available = False
@@ -1227,38 +1237,92 @@ class Repo:
         except GithubException as e:
             logger.debug(f"Could not check for 'tagbot-manual' label: {e}")
 
-        # Build command list, checking which tags already exist
-        commands = []
-        for v, sha, _ in failures:
-            if self._tag_exists(v):
-                # Tag exists, just need to create release
-                commands.append(f"gh release create {v} --generate-notes")
-            else:
-                # Need to create tag and release
-                commands.append(
-                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
-                    f"gh release create {v} --generate-notes"
-                )
+        try:
+            issue = self._repo.create_issue(
+                title="TagBot: Manual intervention needed for releases",
+                body=body,
+                labels=["tagbot-manual"] if label_available else [],
+            )
+            logger.info(f"Created issue for manual intervention: {issue.html_url}")
+            self._manual_intervention_issue_url = issue.html_url
+        except GithubException as e:
+            logger.warning(
+                f"Could not create issue for manual intervention: {e}\n"
+                "To fix permission issues, check your repository settings:\n"
+                "1. Go to Settings > Actions > General > Workflow permissions\n"
+                "2. Select 'Read and write permissions'\n"
+                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
+            )
+
+    def _manual_tag_body(self, failures: list[tuple[str, str, str]]) -> str:
+        """Build the issue body for manual intervention."""
+        commands = self._manual_tag_commands(failures)
 
         versions_list = "\n".join(
-            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {self._sanitize(err)}"
-            for v, sha, err in failures
+            f"- [ ] `{v}` at commit `{sha[:8]}`" for v, sha, _ in failures
         )
         pat_url = (
             "https://docs.github.com/en/authentication/"
             "keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
         )
-        troubleshoot_url = (
-            "https://github.com/JuliaRegistries/TagBot"
-            "#commits-that-modify-workflow-files"
+        deploy_key_url = "https://github.com/JuliaRegistries/TagBot#ssh-deploy-key"
+
+        all_errors = " ".join(err for _, _, err in failures)
+        has_workflow_perm = "workflows permission" in all_errors
+        has_ssh_denied = "Permission denied (publickey)" in all_errors
+        has_token_403 = "denied to github-actions" in all_errors or (
+            "403" in all_errors and "workflows permission" not in all_errors
         )
+
+        causes = []
+        prevention = []
+        if has_workflow_perm:
+            causes.append(
+                "The tagged commit modifies a workflow file (`.github/workflows/`), "
+                "which `GITHUB_TOKEN` cannot push without the `workflows` permission"
+            )
+            prevention.append(
+                f"Use a [Personal Access Token with `workflow` scope]({pat_url}) "
+                f"or an [SSH deploy key]({deploy_key_url}) instead of `GITHUB_TOKEN`"
+            )
+        if has_ssh_denied:
+            causes.append(
+                "The SSH deploy key is not configured or not added to this "
+                "repository's deploy keys (Settings → Deploy keys)"
+            )
+            prevention.append(
+                f"Add the TagBot public key to this repository's deploy keys — "
+                f"see [SSH deploy key setup]({deploy_key_url})"
+            )
+        if has_token_403:
+            causes.append(
+                "The `GITHUB_TOKEN` lacks `contents: write` permission to push tags"
+            )
+            prevention.append(
+                "Add `permissions: contents: write` to your TagBot workflow, "
+                "or use a PAT/deploy key"
+            )
+        if not causes:
+            causes.append("A network or API error occurred")
+            causes.append(
+                "The commits modify workflow files, which `GITHUB_TOKEN` cannot push"
+            )
+            troubleshoot_url = (
+                "https://github.com/JuliaRegistries/TagBot"
+                "#commits-that-modify-workflow-files"
+            )
+            prevention.append(
+                f"See [TagBot troubleshooting]({troubleshoot_url}) for details"
+            )
+
+        causes_text = "\n".join(f"- {c}" for c in causes)
+        prevention_text = "\n".join(f"- {p}" for p in prevention)
+
         body = f"""\
-TagBot could not automatically create releases for the following versions. \
-This may be because:
-- The commits modify workflow files (`.github/workflows/`), \
-which `GITHUB_TOKEN` cannot operate on
-- The tag already exists but the release failed to be created
-- A network or API error occurred
+TagBot could not automatically create releases for the following versions.
+
+**Likely cause(s):**
+{causes_text}
 
 ## Versions needing manual release
 
@@ -1276,31 +1340,25 @@ Or create releases manually via the GitHub UI.
 
 ## Prevent this in the future
 
-If this is due to workflow file changes, avoid modifying them in the same \
-commit as version bumps, or use a \
-[Personal Access Token with `workflow` scope]({pat_url}).
-
-See [TagBot troubleshooting]({troubleshoot_url}) for details.
+{prevention_text}
 
 ---
 *This issue was automatically created by TagBot. ([Run logs]({self._run_url()}))*
 """
-        try:
-            issue = self._repo.create_issue(
-                title="TagBot: Manual intervention needed for releases",
-                body=body,
-                labels=["tagbot-manual"] if label_available else [],
-            )
-            logger.info(f"Created issue for manual intervention: {issue.html_url}")
-            self._manual_intervention_issue_url = issue.html_url
-        except GithubException as e:
-            logger.warning(
-                f"Could not create issue for manual intervention: {e}\n"
-                "To fix permission issues, check your repository settings:\n"
-                "1. Go to Settings > Actions > General > Workflow permissions\n"
-                "2. Select 'Read and write permissions'\n"
-                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
-            )
+        return body
+
+    def _manual_tag_commands(self, failures: list[tuple[str, str, str]]) -> list[str]:
+        """Build shell commands for manually tagging and releasing versions."""
+        commands = []
+        for v, sha, _ in failures:
+            if self._tag_exists(v):
+                commands.append(f"gh release create {v} --generate-notes")
+            else:
+                commands.append(
+                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
+                    f"gh release create {v} --generate-notes"
+                )
+        return commands
 
     def _report_error(self, trace: str) -> None:
         """Report an error."""
@@ -1588,10 +1646,11 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         internal = True
         trace = self._sanitize(traceback.format_exc())
         if isinstance(e, Abort):
-            # Abort is raised for characterized failures (e.g., git command failures)
-            # Don't report as "unexpected internal failure"
+            # Abort is a characterized user-side failure (e.g., permission denied,
+            # missing deploy key). Don't report to TagBotErrorReports — the user
+            # gets a manual intervention issue on their repo instead.
             internal = False
-            allowed = False
+            allowed = True
         elif isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
             logger.info(trace)
