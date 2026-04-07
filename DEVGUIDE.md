@@ -6,12 +6,11 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Core Workflow](#core-workflow)
-4. [Caching Strategy](#caching-strategy)
-5. [Error Handling](#error-handling)
-6. [Release Process](#release-process)
-7. [Deploying the Web Service](#deploying-the-web-service)
-8. [Agent Guidelines](#agent-guidelines)
+3. [Special Features](#special-features)
+4. [Error Handling](#error-handling)
+5. [Release Process](#release-process)
+6. [Deploying the Web Service](#deploying-the-web-service)
+7. [Agent Guidelines](#agent-guidelines)
 
 ---
 
@@ -55,108 +54,25 @@ tagbot/
 
 ---
 
-## Core Workflow
+## Special Features
 
-### Main Execution (`action/__main__.py`)
+**Subpackages**: For monorepos with `subdir` input, tag format is `SubPkgA-v1.0.0`.
 
-1. Parse workflow inputs (token, registry, ssh, gpg, changelog config)
-2. Create `Repo` instance
-3. Check if package is registered → exit if not
-4. Call `new_versions()` to find versions needing tags
-5. If `dispatch=true`, create dispatch event and wait
-6. Configure SSH/GPG keys if provided
-7. Determine which version gets "latest" badge
-8. For each version: optionally handle release branch, then `create_release()`
-9. Handle errors, create manual intervention issue if needed
+**Private registries**: With `registry_ssh` input, the registry is cloned via SSH instead of the API.
 
-### Version Discovery (`repo.new_versions()`)
+**GitLab support**: `gitlab.py` provides a PyGithub-compatible wrapper for python-gitlab.
 
-1. `_versions()` parses `Registry/Package/Versions.toml` → `{version: tree_sha}`
-2. `_filter_map_versions()` for each version:
-   - Skip if tag already exists (uses tags cache)
-   - Find commit SHA for tree-sha1:
-     - **Primary**: `git log --all --format="%H %T"` cache lookup (O(1))
-     - **Fallback**: Search merged registry PRs for commit
-3. Returns `{tag_name: commit_sha}` for versions needing tags
+**SSH keys**: Used when `GITHUB_TOKEN` can't push (e.g. protected branches, workflow files).
 
-### Key Classes
-
-**`Repo` (repo.py)** - Core logic:
-- Registry interaction: `_registry_path`, `_versions()`, `_registry_pr()`
-- Commit resolution: `_commit_sha_of_tree()`, `_build_tree_to_commit_cache()`
-- Release creation: `create_release()`, `configure_ssh()`, `configure_gpg()`
-- Error handling: `handle_error()`, `create_issue_for_manual_tag()`
-
-**`Git` (git.py)** - Git operations:
-- Clones repo to temp directory on first access
-- Uses oauth2 token in clone URL
-- Sanitizes output to hide tokens
-- Methods: `command()`, `create_tag()`, `set_remote_url()`, `fetch_branch()`, etc.
-
-**`Changelog` (changelog.py)** - Release notes:
-- Finds previous release by SemVer
-- Collects issues/PRs closed in time range
-- Extracts custom notes from registry PR (`<!-- BEGIN RELEASE NOTES -->`)
-- Renders Jinja2 template
-
-### Special Features
-
-**Subpackages**: For monorepos with `subdir` input:
-- Tag format: `SubPkgA-v1.0.0`
-- Tree SHA is for subdir, not root
-
-**Private registries**: With `registry_ssh` input:
-- Clones registry via SSH instead of API
-- `_registry_pr()` returns None
-
-**GitLab support**: `gitlab.py` wraps python-gitlab to match PyGithub interface.
-
-**SSH keys**: Used when GITHUB_TOKEN can't push (protected branches, workflow files).
-
-**GPG signing**: Optional tag signing via `configure_gpg()`.
-
----
-
-## Caching Strategy
-
-Performance: 600+ versions in ~4 seconds via aggressive caching.
-
-| Cache | Purpose | Built By |
-|-------|---------|----------|
-| `__existing_tags_cache` | Skip existing tags | Single API call to `get_git_matching_refs("tags/")` |
-| `__tree_to_commit_cache` | Tree SHA → commit | Single `git log --all --format=%H %T` |
-| `__registry_prs_cache` | Fallback commit lookup | Fetch up to 300 merged PRs |
-| `__commit_datetimes` | "Latest" determination | Lazily built |
-
-**Pattern for new caches**:
-```python
-def __init__(self, ...):
-    self.__cache: Optional[Dict[str, str]] = None
-
-def _build_cache(self) -> Dict[str, str]:
-    if self.__cache is not None:
-        return self.__cache
-    # Build cache...
-    self.__cache = result
-    return result
-```
+**GPG signing**: Optional tag signing via the `gpg` input.
 
 ---
 
 ## Error Handling
 
-1. `repo.handle_error()` classifies exceptions:
-   - `Abort`: Expected, log only
-   - `RequestException`: Transient, allow retry
-   - `GithubException`: Check status (5xx/403 = transient, else report)
+Errors are classified as expected (`Abort`), transient (network/5xx), or reportable. Reportable errors are POSTed to `julia-tagbot.com/report`, where the web service deduplicates by stacktrace similarity and creates/updates issues in [TagBotErrorReports](https://github.com/JuliaRegistries/TagBotErrorReports).
 
-2. Reportable errors POST to `julia-tagbot.com/report`
-
-3. Web service (`reports.handler()`):
-   - Deduplicates by Levenshtein distance on stacktrace
-   - Creates/updates issues in [TagBotErrorReports](https://github.com/JuliaRegistries/TagBotErrorReports)
-
-4. Manual intervention: When auto-tag fails (workflow file changes, etc.), creates issue with ready-to-run commands.
+When auto-tagging fails due to workflow file changes or other manual intervention requirements, TagBot creates an issue with ready-to-run commands.
 
 ---
 
@@ -273,13 +189,6 @@ Or view in [AWS Console](https://console.aws.amazon.com/cloudwatch/home?region=u
 2. **KISS** - Simple over clever
 3. **DRY** - Use caching for repeated operations
 4. **SRP** - Each method does one thing
-
-### Performance Rules
-
-- Always use caches (`_build_tags_cache()`, `_build_tree_to_commit_cache()`)
-- Batch operations (single API call > per-item calls)
-- Git commands > GitHub API
-- Lazy loading (build caches when first needed)
 
 ### Testing
 
