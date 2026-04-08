@@ -48,6 +48,11 @@ def on_workflow_dispatch(version: str) -> None:
     update_action_yml(semver, digest)
     release_sha = git_commit(semver)
     repo = GH.get_repo(REPO)
+    update_tags(release_sha)
+    create_release(repo, release_sha)
+    # Pin refs AFTER release creation: this commit modifies
+    # .github/workflows/tagbot.yml, and pushing workflow file changes to the
+    # default branch can cause GitHub to invalidate the running GITHUB_TOKEN.
     update_action_ref_pins(semver, release_sha)
     git("add", "--all")
     has_changes = (
@@ -59,8 +64,6 @@ def on_workflow_dispatch(version: str) -> None:
     if has_changes:
         git("commit", "--message", f"Pin action refs to v{semver}")
         git("push", "origin", "master")
-    update_tags(release_sha)
-    create_release(repo, release_sha)
     push_floating_tags()
 
 
