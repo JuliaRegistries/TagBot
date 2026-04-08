@@ -332,7 +332,7 @@ jobs:
     env:
       TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
     steps:
-      - uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+      - uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -457,14 +457,14 @@ the action configuration should look something like
 ```yml
     steps:
       - name: Tag top-level package
-        uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+        uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+        uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -472,7 +472,7 @@ the action configuration should look something like
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
           subdir: SubpackageA.jl
       - name: Tag subpackage B
-        uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+        uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -487,7 +487,7 @@ specify a different tag prefix as an input:
 ```yml
     steps:
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+        uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key

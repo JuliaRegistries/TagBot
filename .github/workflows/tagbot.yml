@@ -13,7 +13,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-slim
     steps:
-      - uses: JuliaRegistries/TagBot@c3a02453d403126c81e34ec21f9a6a7530d66a65 # v1.25.2
+      - uses: JuliaRegistries/TagBot@a39ffe1e9ec683f639c18cbee68da2712baa6af6 # v1.25.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # For commits that modify workflow files: SSH key enables tagging, but
