@@ -108,7 +108,7 @@ aws configure --profile julia_tagbot  # region: us-east-1
 ```bash
 # Production (with custom domain julia-tagbot.com)
 sam build && sam deploy --config-env prod \
-  --parameter-overrides "GithubToken=ghp_... TagbotCommit=$(git rev-parse HEAD)" \
+  --parameter-overrides "TagbotCommit=$(git rev-parse HEAD)" \
   --profile julia_tagbot
 
 # Dev
@@ -126,11 +126,12 @@ sam build && sam deploy \
 | `requirements.txt` | Python deps for Lambda (keep in sync with pyproject.toml) |
 
 **Parameters** (in template.yaml, pass via `--parameter-overrides`):
-- `GithubToken` - Access to TagBotErrorReports repo
+- `GithubTokenParam` - SSM parameter name for the GitHub token (default: `/tagbot/github-token`)
 - `TagbotRepo` - Main repo (default: JuliaRegistries/TagBot)
 - `TagbotIssuesRepo` - Error reports repo (default: JuliaRegistries/TagBotErrorReports)
 - `TagbotCommit` - Git commit SHA shown on index page (default: unknown)
-- `Stage` - dev or prod (default: dev)
+
+The GitHub token is stored in SSM Parameter Store as a SecureString at `/tagbot/github-token` and read at runtime by the reports Lambda.
 
 ### Troubleshooting
 

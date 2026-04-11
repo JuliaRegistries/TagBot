@@ -3,10 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: TagBot Web Service
 
 Parameters:
-  GithubToken:
+  GithubTokenParam:
     Type: String
-    NoEcho: true
-    Default: ''
+    Default: /tagbot/github-token
+    Description: SSM parameter name for the GitHub token (SecureString)
   TagbotRepo:
     Type: String
     Default: JuliaRegistries/TagBot
@@ -22,7 +22,6 @@ Globals:
     Runtime: python3.12
     Environment:
       Variables:
-        GITHUB_TOKEN: !Ref GithubToken
         TAGBOT_REPO: !Ref TagbotRepo
         TAGBOT_ISSUES_REPO: !Ref TagbotIssuesRepo
         TAGBOT_COMMIT: !Ref TagbotCommit
@@ -58,6 +57,12 @@ Resources:
       Handler: tagbot.web.reports.handler
       CodeUri: .
       Timeout: 30
+      Environment:
+        Variables:
+          GITHUB_TOKEN_PARAM: !Ref GithubTokenParam
+      Policies:
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref GithubTokenParam
 
 Outputs:
   ApiUrl:
