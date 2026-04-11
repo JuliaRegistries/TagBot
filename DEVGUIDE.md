@@ -156,24 +156,6 @@ aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
 
 Or view in [AWS Console](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups).
 
-### Migrating from Serverless Framework
-
-The web service was migrated from Serverless Framework to AWS SAM. The SAM stack uses the same function names (`TagBotWeb-{stage}-api`, `TagBotWeb-{stage}-reports`) as the old Serverless stack. To deploy:
-
-1. Delete the old Serverless CloudFormation stack first:
-   ```bash
-   aws cloudformation delete-stack --stack-name TagBotWeb-prod --profile julia_tagbot
-   aws cloudformation wait stack-delete-complete --stack-name TagBotWeb-prod --profile julia_tagbot
-   ```
-2. Then deploy the SAM stack:
-   ```bash
-   sam build && sam deploy --config-env prod \
-     --parameter-overrides "GithubToken=ghp_..." \
-     --profile julia_tagbot
-   ```
-
-The function names match so the `REPORTS_FUNCTION` reference used by the action's error reporting will continue to work without changes.
-
 ---
 
 ## Agent Guidelines
