@@ -1027,7 +1027,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     spawn.return_value.assert_has_calls(calls)
 
 
-@patch("tagbot.action.repo.GPG")
+@patch("gnupg.GPG")
 @patch("tagbot.action.repo.mkdtemp", return_value="gpgdir")
 @patch("os.chmod")
 def test_configure_gpg(chmod, mkdtemp, GPG):
