@@ -6,6 +6,8 @@ on:
       - 'tagbot/web/**'
       - 'template.yaml'
       - 'samconfig.toml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
       - 'requirements.txt'
       - '.github/workflows/web.yml'
   pull_request:
@@ -13,6 +15,8 @@ on:
       - 'tagbot/web/**'
       - 'template.yaml'
       - 'samconfig.toml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
       - 'requirements.txt'
       - '.github/workflows/web.yml'
 jobs:
@@ -23,6 +27,11 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - run: pip install poetry poetry-plugin-export
+      - name: Check requirements.txt is current
+        run: |
+          poetry export --extras web --output requirements.txt.check
+          diff requirements.txt requirements.txt.check
       - uses: aws-actions/setup-sam@d78e1a4a9656d3b223e59b80676a797f20093133 # v2
       - run: sam validate --lint
       - run: sam build
