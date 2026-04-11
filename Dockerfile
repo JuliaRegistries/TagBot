@@ -4,7 +4,7 @@ RUN pip install --no-cache-dir poetry poetry-plugin-export
 
 COPY pyproject.toml .
 COPY poetry.lock .
-RUN poetry export --format requirements.txt --output /root/requirements.txt
+RUN poetry export --extras all --format requirements.txt --output /root/requirements.txt
 
 FROM python:3.14-slim
 LABEL org.opencontainers.image.source https://github.com/JuliaRegistries/TagBot

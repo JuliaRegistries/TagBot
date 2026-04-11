@@ -9,9 +9,6 @@ import traceback
 
 from importlib.metadata import version as pkg_version, PackageNotFoundError
 
-import docker
-import pexpect
-import requests
 import toml
 
 from base64 import b64decode
@@ -36,7 +33,6 @@ from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
 from github.PullRequest import PullRequest
-from gnupg import GPG
 from semver import VersionInfo
 
 from .. import logger
@@ -65,7 +61,10 @@ UnknownObjectExceptions: tuple[type[Exception], ...] = (UnknownObjectException,)
 if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
-RequestException = requests.RequestException
+try:
+    from requests import RequestException
+except ImportError:
+    RequestException = OSError  # type: ignore[assignment,misc]
 
 # Maximum number of PRs to check when looking for registry PR
 # This prevents excessive API calls on large registries
@@ -1038,9 +1037,14 @@ class Repo:
         if not host:
             logger.warning("HOSTNAME is not set")
             return "Unknown"
-        client = docker.from_env()
-        container = client.containers.get(host)
-        return container.image.id
+        try:
+            import docker
+
+            client = docker.from_env()
+            container = client.containers.get(host)
+            return container.image.id
+        except Exception:
+            return "Unknown"
 
     def _tag_exists(self, version: str) -> bool:
         """Check if a tag already exists."""
@@ -1384,9 +1388,14 @@ Or create releases manually via the GitHub UI.
         }
         if self._manual_intervention_issue_url:
             data["manual_intervention_url"] = self._manual_intervention_issue_url
-        resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
-        output = json.dumps(resp.json(), indent=2)
-        logger.info(f"Response ({resp.status_code}): {output}")
+        try:
+            import requests
+
+            resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
+            output = json.dumps(resp.json(), indent=2)
+            logger.info(f"Response ({resp.status_code}): {output}")
+        except ImportError:
+            logger.debug("requests not installed, skipping error reporting")
 
     def is_registered(self) -> bool:
         """Check whether or not the repository belongs to a registered package."""
@@ -1477,6 +1486,8 @@ Or create releases manually via the GitHub UI.
             for k, v in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
                 logger.debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
+            import pexpect
+
             child = pexpect.spawn(f"ssh-add {priv}")
             child.expect("Enter passphrase")
             child.sendline(password)
@@ -1486,6 +1497,8 @@ Or create releases manually via the GitHub UI.
 
     def configure_gpg(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to sign tags with GPG."""
+        from gnupg import GPG
+
         home = os.environ["GNUPGHOME"] = mkdtemp(prefix="tagbot_gpg_")
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         logger.debug(f"Set GNUPGHOME to {home}")
