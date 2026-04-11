@@ -71,6 +71,7 @@ Resources:
   CustomDomain:
     Type: AWS::ApiGateway::DomainName
     DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Condition: IsProd
     Properties:
       DomainName: julia-tagbot.com
@@ -81,6 +82,7 @@ Resources:
   CustomDomainMapping:
     Type: AWS::ApiGateway::BasePathMapping
     DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Condition: IsProd
     Properties:
       DomainName: !Ref CustomDomain
