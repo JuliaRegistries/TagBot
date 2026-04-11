@@ -35,3 +35,4 @@ jobs:
         run: npx serverless package --stage dev
         env:
           GITHUB_TOKEN: dummy
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
