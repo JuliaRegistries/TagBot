@@ -41,7 +41,6 @@ def configure_ssh() -> None:
 def on_workflow_dispatch(version: str) -> None:
     semver = resolve_version(version)
     if semver.build is not None or semver.prerelease is not None:
-        # TODO: It might actually be nice to properly support prereleases.
         raise ValueError("Only major, minor, and patch components should be set")
     update_pyproject_toml(semver)
     digest = build_and_push_versioned_image(semver)

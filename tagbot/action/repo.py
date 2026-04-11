@@ -12,7 +12,7 @@ from importlib.metadata import version as pkg_version, PackageNotFoundError
 import toml
 
 from base64 import b64decode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from stat import S_IREAD, S_IWRITE, S_IEXEC
 from subprocess import DEVNULL
 from tempfile import mkdtemp, mkstemp
@@ -965,7 +965,7 @@ class Repo:
         # Get the most recent commit from before min_age.
         kwargs: Dict[str, str] = {}
         if min_age is not None:
-            until = datetime.now() - min_age
+            until = datetime.now(timezone.utc).replace(tzinfo=None) - min_age
             commits = self._registry.get_commits(until=until)
             # Get the first value like this because the iterator has no `next` method.
             for commit in commits:
@@ -988,9 +988,8 @@ class Repo:
         """Same as _versions, but uses a Git clone to access the registry."""
         registry = self._registry_clone_dir
         if min_age:
-            # TODO: Time zone stuff?
             default_sha = self._git.command("rev-parse", "HEAD", repo=registry)
-            earliest = datetime.now() - min_age
+            earliest = datetime.now(timezone.utc).replace(tzinfo=None) - min_age
             shas = self._git.command("log", "--format=%H", repo=registry).split("\n")
             for sha in shas:
                 dt = self._git.time_of_commit(sha, repo=registry)
@@ -1449,7 +1448,6 @@ Or create releases manually via the GitHub UI.
 
     def create_dispatch_event(self, payload: Mapping[str, object]) -> None:
         """Create a repository dispatch event."""
-        # TODO: Remove the comment when PyGithub#1502 is published.
         self._repo.create_repository_dispatch("TagBot", payload)
 
     def configure_ssh(self, key: str, password: Optional[str], repo: str = "") -> None:
