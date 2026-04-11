@@ -17,18 +17,22 @@ Parameters:
   TagbotIssuesRepo:
     Type: String
     Default: JuliaRegistries/TagBotErrorReports
+  TagbotCommit:
+    Type: String
+    Default: unknown
 
 Conditions:
   IsProd: !Equals [!Ref Stage, prod]
 
 Globals:
   Function:
-    Runtime: python3.11
+    Runtime: python3.12
     Environment:
       Variables:
         GITHUB_TOKEN: !Ref GithubToken
         TAGBOT_REPO: !Ref TagbotRepo
         TAGBOT_ISSUES_REPO: !Ref TagbotIssuesRepo
+        TAGBOT_COMMIT: !Ref TagbotCommit
 
 Resources:
   ApiFunction:
@@ -66,15 +70,17 @@ Resources:
 
   CustomDomain:
     Type: AWS::ApiGateway::DomainName
+    DeletionPolicy: Retain
     Condition: IsProd
     Properties:
       DomainName: julia-tagbot.com
-      RegionalCertificateArn: !Sub arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/{{resolve:ssm:/tagbot/cert-arn}}
+      CertificateArn: !Sub arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/{{resolve:ssm:/tagbot/cert-arn}}
       EndpointConfiguration:
-        Types: [REGIONAL]
+        Types: [EDGE]
 
   CustomDomainMapping:
     Type: AWS::ApiGateway::BasePathMapping
+    DeletionPolicy: Retain
     Condition: IsProd
     Properties:
       DomainName: !Ref CustomDomain

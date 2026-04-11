@@ -108,11 +108,13 @@ aws configure --profile julia_tagbot  # region: us-east-1
 ```bash
 # Production (with custom domain julia-tagbot.com)
 sam build && sam deploy --config-env prod \
-  --parameter-overrides "GithubToken=ghp_..." \
+  --parameter-overrides "GithubToken=ghp_... TagbotCommit=$(git rev-parse HEAD)" \
   --profile julia_tagbot
 
 # Dev
-sam build && sam deploy --profile julia_tagbot
+sam build && sam deploy \
+  --parameter-overrides "TagbotCommit=$(git rev-parse HEAD)" \
+  --profile julia_tagbot
 ```
 
 ### Configuration
@@ -127,6 +129,7 @@ sam build && sam deploy --profile julia_tagbot
 - `GithubToken` - Access to TagBotErrorReports repo
 - `TagbotRepo` - Main repo (default: JuliaRegistries/TagBot)
 - `TagbotIssuesRepo` - Error reports repo (default: JuliaRegistries/TagBotErrorReports)
+- `TagbotCommit` - Git commit SHA shown on index page (default: unknown)
 - `Stage` - dev or prod (default: dev)
 
 ### Troubleshooting
@@ -179,7 +182,7 @@ The function names match so the `REPORTS_FUNCTION` reference used by the action'
 
 | Item | Value |
 |------|-------|
-| Language | Python 3.12+ (Docker uses 3.14, Lambda uses 3.11) |
+| Language | Python 3.12+ (Docker uses 3.14, Lambda uses 3.12) |
 | Formatter | black |
 | Linter | flake8 |
 | Type Checker | mypy (stubs in `stubs/`) |
