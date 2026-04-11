@@ -123,7 +123,6 @@ sam build && sam deploy \
 |------|---------|
 | `template.yaml` | SAM template: Lambda functions, API Gateway, IAM |
 | `samconfig.toml` | Deploy config per environment |
-| `requirements.txt` | Python deps for Lambda (keep in sync with pyproject.toml) |
 
 **Parameters** (in template.yaml, pass via `--parameter-overrides`):
 - `GithubTokenParam` - SSM parameter name for the GitHub token (default: `/tagbot/github-token`)
@@ -135,7 +134,7 @@ The GitHub token is stored in SSM Parameter Store as a SecureString at `/tagbot/
 
 ### Troubleshooting
 
-**Missing Python modules**: Check `requirements.txt`, try `rm -rf .aws-sam/`
+**Missing Python modules**: Check `poetry.lock`, try `rm -rf .aws-sam/`
 
 **Build issues**: `sam build --use-container` to build in a Docker container matching the Lambda runtime
 

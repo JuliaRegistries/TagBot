@@ -8,7 +8,7 @@ on:
       - 'samconfig.toml'
       - 'pyproject.toml'
       - 'poetry.lock'
-      - 'requirements.txt'
+      - 'Makefile'
       - '.github/workflows/web.yml'
   pull_request:
     paths:
@@ -17,7 +17,7 @@ on:
       - 'samconfig.toml'
       - 'pyproject.toml'
       - 'poetry.lock'
-      - 'requirements.txt'
+      - 'Makefile'
       - '.github/workflows/web.yml'
 jobs:
   check:
@@ -28,10 +28,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install poetry poetry-plugin-export
-      - name: Check requirements.txt is current
-        run: |
-          poetry export --extras web --output requirements.txt.check
-          diff requirements.txt requirements.txt.check
       - uses: aws-actions/setup-sam@d78e1a4a9656d3b223e59b80676a797f20093133 # v2
       - run: sam validate --lint
       - run: sam build
