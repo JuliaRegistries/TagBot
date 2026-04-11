@@ -1,4 +1,9 @@
-.PHONY: test test-docker publish pytest black flake8 mypy
+.PHONY: test test-docker publish pytest black flake8 mypy build-ApiFunction build-ReportsFunction
+
+build-ApiFunction build-ReportsFunction:
+	poetry export --extras web --without-hashes --output requirements.txt
+	pip install -r requirements.txt -t $(ARTIFACTS_DIR)/
+	cp -r tagbot $(ARTIFACTS_DIR)/
 
 test:
 	./bin/test.sh

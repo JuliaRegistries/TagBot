@@ -29,6 +29,8 @@ Globals:
 Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       Handler: tagbot.web.lambda_handler.handler
       CodeUri: .
@@ -53,6 +55,8 @@ Resources:
 
   ReportsFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       Handler: tagbot.web.reports.handler
       CodeUri: .
