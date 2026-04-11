@@ -14,7 +14,7 @@ jobs:
     # ubuntu-slim doesn't support containers, and thus won't work
     runs-on: ubuntu-latest
     steps:
-      - uses: JuliaRegistries/TagBot@204066965d6267cb476105b71fedfb3442b2e85d # v1.25.5
+      - uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # For commits that modify workflow files: SSH key enables tagging, but
