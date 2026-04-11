@@ -107,13 +107,14 @@ def test_is_duplicate():
     assert not reports._is_duplicate("hello", "friend")
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_find_duplicate(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_find_duplicate(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     body = "foo\n```py\nstack\n```\nbar"
-    TAGBOT_ISSUES_REPO.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
+    repo.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
     assert not reports._find_duplicate("foo bar")
     assert not reports._find_duplicate("hello")
-    expected = TAGBOT_ISSUES_REPO.get_issues.return_value[1]
+    expected = repo.get_issues.return_value[1]
     assert reports._find_duplicate("stack") is expected
 
 
@@ -219,8 +220,9 @@ def test_add_duplicate_comment_with_extras():
     issue.create_comment.assert_called_with(dedent(expected))
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_create_issue(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_create_issue(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     reports._create_issue(image="img", repo="Foo/Bar", run="123", stacktrace="ow")
     expected = """\
     Repo: Foo/Bar
@@ -231,13 +233,14 @@ def test_create_issue(TAGBOT_ISSUES_REPO):
     ow
     ```
     """
-    TAGBOT_ISSUES_REPO.create_issue.assert_called_with(
+    repo.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
     )
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_create_issue_with_extras(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_create_issue_with_extras(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     reports._create_issue(
         image="img",
         repo="Foo/Bar",
@@ -257,6 +260,6 @@ def test_create_issue_with_extras(TAGBOT_ISSUES_REPO):
     ow
     ```
     """
-    TAGBOT_ISSUES_REPO.create_issue.assert_called_with(
+    repo.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
     )

@@ -1665,4 +1665,4 @@ web = ["Flask", "pylev", "werkzeug"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "b643a64e38e9dbb06b703e689e36d0651189e03f862620dae8113c66bb940704"
+content-hash = "e7bce1f372c4ed91c04915d951cd0187d053e09954fd77642bc4c2de3718a528"

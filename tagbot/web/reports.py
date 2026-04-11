@@ -4,16 +4,35 @@ import re
 
 from typing import Dict, Optional
 
+import boto3
+
 from github import Github
 from github.Issue import Issue
 from github.IssueComment import IssueComment
+from github.Repository import Repository
 from pylev import levenshtein
 
 from .. import logger
 from . import TAGBOT_ISSUES_REPO_NAME
 
-_gh = Github(os.getenv("GITHUB_TOKEN"), per_page=100)
-TAGBOT_ISSUES_REPO = _gh.get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
+_ssm = boto3.client("ssm", region_name=os.getenv("AWS_REGION", "us-east-1"))
+_gh: Optional[Github] = None
+
+
+def _get_gh() -> Github:
+    """Get a lazily-initialized GitHub client, reading the token from SSM."""
+    global _gh
+    if _gh is None:
+        param_name = os.getenv("GITHUB_TOKEN_PARAM", "/tagbot/github-token")
+        resp = _ssm.get_parameter(Name=param_name, WithDecryption=True)
+        token = resp["Parameter"]["Value"]
+        _gh = Github(token, per_page=100)
+    return _gh
+
+
+def _get_issues_repo() -> Repository:
+    """Get the issues repo, lazily initialized."""
+    return _get_gh().get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 
 def handler(event: Dict[str, str], ctx: object = None) -> None:
@@ -101,7 +120,7 @@ def _is_duplicate(a: str, b: str) -> bool:
 
 def _find_duplicate(stacktrace: str) -> Optional[Issue]:
     """Look for a duplicate error report."""
-    for issue in TAGBOT_ISSUES_REPO.get_issues(state="all"):
+    for issue in _get_issues_repo().get_issues(state="all"):
         m = re.search("(?s)```py\n(.*)\n```", issue.body)
         if not m:
             continue
@@ -179,4 +198,4 @@ def _create_issue(
         manual_intervention_url=manual_intervention_url,
         closed_duplicate_url=closed_duplicate_url,
     )
-    return TAGBOT_ISSUES_REPO.create_issue(title, body)
+    return _get_issues_repo().create_issue(title, body)
