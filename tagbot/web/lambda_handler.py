@@ -1,7 +1,8 @@
 """AWS Lambda handler that adapts API Gateway REST events to Flask/WSGI."""
+
 import io
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
 from tagbot.web import app
@@ -44,9 +45,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         status: str,
         response_headers: List[Tuple[str, str]],
         exc_info: Optional[Any] = None,
-    ) -> None:
+    ) -> Callable[[bytes], object]:
         status_ref.append(status)
         headers_ref.append(response_headers)
+        return lambda b: None
 
     result = app(environ, start_response)
     try:
