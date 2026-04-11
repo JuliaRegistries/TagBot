@@ -3,6 +3,7 @@
 .pytest_cache/
 .requirements/
 .aws-sam/
+packaged.yaml
 __pycache__/
 htmlcov/
 tagbot.egg-info/
