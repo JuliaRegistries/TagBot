@@ -194,7 +194,7 @@ Or view in [AWS Console](https://console.aws.amazon.com/cloudwatch/home?region=u
 ```bash
 # Setup
 python3 -m venv .venv && source .venv/bin/activate
-pip install . && pip install pytest pytest-cov black flake8 mypy boto3
+pip install '.[all]' && pip install pytest pytest-cov black flake8 mypy boto3
 
 # Run all checks
 make test

@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: 3.12
       - run: pip install poetry
-      - run: poetry install
+      - run: poetry install --all-extras
       - run: poetry run make test
   docker:
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: |
           docker run --name tagbot-deps --mount type=bind,source=$(pwd),target=/repo tagbot:test sh -c '
-            pip install poetry && cd /repo && poetry install'
+            pip install poetry && cd /repo && poetry install --all-extras'
           docker commit tagbot-deps tagbot:ready
           docker rm tagbot-deps
       - name: Run pytest
