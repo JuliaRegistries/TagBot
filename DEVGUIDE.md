@@ -89,18 +89,17 @@ When auto-tagging fails due to workflow file changes or other manual interventio
 
 ## Deploying the Web Service
 
-The web service runs on AWS Lambda via Serverless Framework.
+The web service runs on AWS Lambda via AWS SAM.
 
 ### Prerequisites
 
-- Node.js and npm
+- AWS SAM CLI (`brew install aws-sam-cli` or `pip install aws-sam-cli`)
 - AWS credentials with deployment permissions
 - Docker (for building Linux-compatible packages on macOS)
 
 ### Setup
 
 ```bash
-npm install
 aws configure --profile julia_tagbot  # region: us-east-1
 ```
 
@@ -108,30 +107,33 @@ aws configure --profile julia_tagbot  # region: us-east-1
 
 ```bash
 # Production (with custom domain julia-tagbot.com)
-GITHUB_TOKEN="ghp_..." npx serverless deploy --stage prod --aws-profile julia_tagbot
+sam build && sam deploy --config-env prod \
+  --parameter-overrides "GithubToken=ghp_..." \
+  --profile julia_tagbot
 
-# Dev (no custom domain)
-npx serverless deploy --stage dev --aws-profile julia_tagbot
+# Dev
+sam build && sam deploy --profile julia_tagbot
 ```
 
 ### Configuration
 
 | File | Purpose |
 |------|---------|
-| `serverless.yml` | Lambda functions, AWS config |
+| `template.yaml` | SAM template: Lambda functions, API Gateway, IAM |
+| `samconfig.toml` | Deploy config per environment |
 | `requirements.txt` | Python deps for Lambda (keep in sync with pyproject.toml) |
-| `package.json` | Serverless plugins |
 
-**Environment variables** (in serverless.yml):
-- `GITHUB_TOKEN` - Access to TagBotErrorReports repo
-- `TAGBOT_REPO` - Main repo (default: JuliaRegistries/TagBot)
-- `TAGBOT_ISSUES_REPO` - Error reports repo (default: JuliaRegistries/TagBotErrorReports)
+**Parameters** (in template.yaml, pass via `--parameter-overrides`):
+- `GithubToken` - Access to TagBotErrorReports repo
+- `TagbotRepo` - Main repo (default: JuliaRegistries/TagBot)
+- `TagbotIssuesRepo` - Error reports repo (default: JuliaRegistries/TagBotErrorReports)
+- `Stage` - dev or prod (default: dev)
 
 ### Troubleshooting
 
-**Missing Python modules**: Check `requirements.txt`, ensure `serverless-python-requirements` installed, try `rm -rf .requirements .serverless`
+**Missing Python modules**: Check `requirements.txt`, try `rm -rf .aws-sam/`
 
-**Broken symlinks**: `find . -maxdepth 1 -type l ! -name "AGENTS.md" -delete`
+**Build issues**: `sam build --use-container` to build in a Docker container matching the Lambda runtime
 
 ### Checking Logs
 
@@ -150,6 +152,24 @@ aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
 ```
 
 Or view in [AWS Console](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups).
+
+### Migrating from Serverless Framework
+
+The web service was migrated from Serverless Framework to AWS SAM. The SAM stack uses the same function names (`TagBotWeb-{stage}-api`, `TagBotWeb-{stage}-reports`) as the old Serverless stack. To deploy:
+
+1. Delete the old Serverless CloudFormation stack first:
+   ```bash
+   aws cloudformation delete-stack --stack-name TagBotWeb-prod --profile julia_tagbot
+   aws cloudformation wait stack-delete-complete --stack-name TagBotWeb-prod --profile julia_tagbot
+   ```
+2. Then deploy the SAM stack:
+   ```bash
+   sam build && sam deploy --config-env prod \
+     --parameter-overrides "GithubToken=ghp_..." \
+     --profile julia_tagbot
+   ```
+
+The function names match so the `REPORTS_FUNCTION` reference used by the action's error reporting will continue to work without changes.
 
 ---
 

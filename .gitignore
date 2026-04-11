@@ -2,9 +2,8 @@
 .mypy_cache/
 .pytest_cache/
 .requirements/
-.serverless/
+.aws-sam/
 __pycache__/
 htmlcov/
-node_modules/
 tagbot.egg-info/
 .venv/
