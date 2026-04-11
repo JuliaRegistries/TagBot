@@ -3,10 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: TagBot Web Service
 
 Parameters:
-  Stage:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, prod]
   GithubToken:
     Type: String
     NoEcho: true
@@ -20,9 +16,6 @@ Parameters:
   TagbotCommit:
     Type: String
     Default: unknown
-
-Conditions:
-  IsProd: !Equals [!Ref Stage, prod]
 
 Globals:
   Function:
@@ -38,7 +31,6 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub TagBotWeb-${Stage}-api
       Handler: tagbot.web.lambda_handler.handler
       CodeUri: .
       Timeout: 10
@@ -63,37 +55,11 @@ Resources:
   ReportsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub TagBotWeb-${Stage}-reports
       Handler: tagbot.web.reports.handler
       CodeUri: .
       Timeout: 30
-
-  CustomDomain:
-    Type: AWS::ApiGateway::DomainName
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Condition: IsProd
-    Properties:
-      DomainName: julia-tagbot.com
-      CertificateArn: !Sub arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/{{resolve:ssm:/tagbot/cert-arn}}
-      EndpointConfiguration:
-        Types: [EDGE]
-
-  CustomDomainMapping:
-    Type: AWS::ApiGateway::BasePathMapping
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Condition: IsProd
-    Properties:
-      DomainName: !Ref CustomDomain
-      RestApiId: !Ref ServerlessRestApi
-      Stage: !Ref ServerlessRestApi.Stage
 
 Outputs:
   ApiUrl:
     Description: API Gateway URL
     Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
-  CustomDomainUrl:
-    Condition: IsProd
-    Description: Custom domain URL
-    Value: https://julia-tagbot.com/
