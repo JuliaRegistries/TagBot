@@ -65,8 +65,10 @@ Resources:
         Variables:
           GITHUB_TOKEN_PARAM: !Ref GithubTokenParam
       Policies:
-        - SSMParameterReadPolicy:
-            ParameterName: !Ref GithubTokenParam
+        - Statement:
+          - Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GithubTokenParam}
 
 Outputs:
   ApiUrl:
