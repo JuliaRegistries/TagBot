@@ -6,6 +6,7 @@ build-ApiFunction build-ReportsFunction:
 		--platform manylinux2014_x86_64 --only-binary=:all: \
 		--python-version 3.12 --implementation cp
 	cp -r tagbot $(ARTIFACTS_DIR)/
+	cp pyproject.toml $(ARTIFACTS_DIR)/
 
 test:
 	./bin/test.sh
