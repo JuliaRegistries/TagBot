@@ -95,7 +95,7 @@ The web service runs on AWS Lambda via AWS SAM.
 
 - AWS SAM CLI (`brew install aws-sam-cli` or `pip install aws-sam-cli`)
 - AWS credentials with deployment permissions
-- Docker (for building Linux-compatible packages on macOS)
+- Python 3.12+ venv (the Makefile uses `--platform manylinux2014_x86_64` pip flags to cross-install Linux wheels, so Docker is **not** required)
 
 ### Setup
 
@@ -106,6 +106,12 @@ aws configure --profile julia_tagbot  # region: us-east-1
 ### Deployment
 
 ```bash
+# Activate the venv (must be Python 3.12+ so pip markers match)
+source .venv/bin/activate
+
+# Pre-generate requirements.txt (poetry is not available in Lambda build containers)
+poetry export --extras web --without-hashes --output requirements.txt
+
 # Production (with custom domain julia-tagbot.com)
 sam build && sam deploy --config-env prod \
   --parameter-overrides "TagbotCommit=$(git rev-parse HEAD)" \
@@ -116,6 +122,8 @@ sam build && sam deploy \
   --parameter-overrides "TagbotCommit=$(git rev-parse HEAD)" \
   --profile julia_tagbot
 ```
+
+> **Note**: Do NOT use `sam build --use-container`. SAM's CopySource follows symlinks in `.venv/` which don't exist inside the container, causing build failures. The Makefile's `--platform manylinux2014_x86_64 --only-binary=:all:` pip flags handle cross-compilation without Docker.
 
 ### Configuration
 
@@ -134,27 +142,57 @@ The GitHub token is stored in SSM Parameter Store as a SecureString at `/tagbot/
 
 ### Troubleshooting
 
-**Missing Python modules**: Check `poetry.lock`, try `rm -rf .aws-sam/`
+**Missing Python modules on Lambda** (`No module named 'flask'`): Your local Python is likely < 3.12, so pip skips packages with `python_version >= "3.12"` markers. Use the `.venv` (Python 3.13) or ensure `--python-version 3.12` is passed to pip.
 
-**Build issues**: `sam build --use-container` to build in a Docker container matching the Lambda runtime
+**Invalid ELF header on Lambda** (`_rust.abi3.so: invalid ELF header`): Native extensions were built for macOS. The Makefile passes `--platform manylinux2014_x86_64 --only-binary=:all:` to pip, which installs Linux wheels. If this still happens, run `rm -rf .aws-sam/` and rebuild.
+
+**`sam build --use-container` fails with `.venv`**: SAM's CopySource tries to follow `.venv/bin/python3` symlinks inside the container where they don't exist. `.samignore` does not help. Use the default `sam build` (without `--use-container`) instead.
+
+**Stale cached state**: Try `rm -rf .aws-sam/` and rebuild.
 
 ### Checking Logs
+
+Log group names include CloudFormation-generated suffixes. Discover them first:
+
+```bash
+aws logs describe-log-groups --profile julia_tagbot --region us-east-1 \
+  --log-group-name-prefix /aws/lambda/TagBotWeb-prod \
+  --query 'logGroups[*].logGroupName' --output text
+```
+
+Then query with the actual names:
 
 ```bash
 # Recent API function logs (last 5 min)
 aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
-  --log-group-name /aws/lambda/TagBotWeb-prod-api \
+  --log-group-name /aws/lambda/TagBotWeb-prod-ApiFunction-XXXX \
   --start-time $(($(date +%s) * 1000 - 300000)) \
   --query 'events[*].message' --output text
 
 # Reports function logs
 aws logs filter-log-events --profile julia_tagbot --region us-east-1 \
-  --log-group-name /aws/lambda/TagBotWeb-prod-reports \
+  --log-group-name /aws/lambda/TagBotWeb-prod-ReportsFunction-XXXX \
   --start-time $(($(date +%s) * 1000 - 300000)) \
   --query 'events[*].message' --output text
 ```
 
 Or view in [AWS Console](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups).
+
+### Updating the GitHub Token
+
+The reports Lambda reads the GitHub PAT from SSM at runtime and caches it globally. After updating the token, you must force a cold start:
+
+```bash
+# Update the token
+aws ssm put-parameter --profile julia_tagbot --region us-east-1 \
+  --name /tagbot/github-token --type SecureString \
+  --value "ghp_XXXXX" --overwrite
+
+# Force cold start (updates description to invalidate warm instances)
+aws lambda update-function-configuration --profile julia_tagbot --region us-east-1 \
+  --function-name TagBotWeb-prod-ReportsFunction-XXXX \
+  --description "Force cold start $(date +%s)"
+```
 
 ---
 
