@@ -13,6 +13,7 @@ import docker
 import pexpect
 import requests
 import toml
+from pexpect.popen_spawn import PopenSpawn
 
 from base64 import b64decode
 from datetime import datetime, timedelta
@@ -66,6 +67,7 @@ if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
 RequestException = requests.RequestException
+PEXPECT_SPAWN = getattr(pexpect, "spawn", PopenSpawn)
 
 # Maximum number of PRs to check when looking for registry PR
 # This prevents excessive API calls on large registries
@@ -1363,7 +1365,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             for k, v in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
                 logger.debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
-            child = pexpect.spawn(f"ssh-add {priv}")
+            child = PEXPECT_SPAWN(f"ssh-add {priv}")
             child.expect("Enter passphrase")
             child.sendline(password)
             child.expect("Identity added")
@@ -1520,7 +1522,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         if exc.status != 403:
             return False
         data = getattr(exc, "data", {}) or {}
-        message = str(data.get("message", ""))
+        message = str(data.get("message", "")) if isinstance(data, dict) else str(data)
         if "resource not accessible" in message.lower():
             return True
         return "resource not accessible" in str(exc).lower()
@@ -1539,31 +1541,34 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
     def handle_error(self, e: Exception, *, raise_abort: bool = True) -> None:
         """Handle an unexpected error."""
-        allowed = False
         internal = True
+        report_error = True
+        fatal = True
         trace = self._sanitize(traceback.format_exc())
         if isinstance(e, Abort):
             # Abort is raised for characterized failures (e.g., git command failures)
             # Don't report as "unexpected internal failure"
             internal = False
-            allowed = False
+            report_error = False
+            fatal = False
         elif isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
             logger.info(trace)
-            allowed = True
+            report_error = False
+            fatal = False
         elif isinstance(e, GithubException):
             logger.info(e.headers)
             if 500 <= e.status < 600:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
-                allowed = True
+                report_error = False
+                fatal = False
             elif e.status == 401:
                 logger.error(
                     "GitHub returned 401 Bad credentials. Verify that your token "
                     "is valid and has access to the repository and registry."
                 )
                 internal = False
-                allowed = False
             elif e.status == 403:
                 self._check_rate_limit()
                 if self._is_resource_not_accessible_error(e):
@@ -1573,7 +1578,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                         "scenario."
                     )
                     internal = False
-                    allowed = True
+                    report_error = False
                 else:
                     logger.error(
                         "GitHub returned a 403 error. This may indicate: "
@@ -1583,8 +1588,7 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                         "3. Resource not accessible - see setup documentation"
                     )
                     internal = False
-                    allowed = False
-        if not allowed:
+        if report_error:
             if internal:
                 logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
@@ -1593,8 +1597,8 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             except Exception:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
-            if raise_abort:
-                raise Abort("Cannot continue due to internal failure")
+        if fatal and raise_abort:
+            raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""

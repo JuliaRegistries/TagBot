@@ -125,7 +125,9 @@ def test_project_subdir():
     )
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
-    r._repo.get_contents.assert_called_once_with("path/to/FooBar.jl/Project.toml")
+    r._repo.get_contents.assert_called_once_with(
+        os.path.join("path/to/FooBar.jl", "Project.toml")
+    )
     r._repo.get_contents.side_effect = UnknownObjectException(404, "???", {})
     r._Repo__project = None
     with pytest.raises(InvalidProject):
@@ -883,7 +885,7 @@ def test_create_dispatch_event():
 @patch("tagbot.action.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
 @patch("os.chmod")
 @patch("subprocess.run")
-@patch("pexpect.spawn")
+@patch("tagbot.action.repo.PEXPECT_SPAWN")
 def test_configure_ssh(spawn, run, chmod, mkstemp):
     r = _repo(github="gh.com", repo="foo")
     r._repo = Mock(ssh_url="sshurl")
@@ -1280,7 +1282,8 @@ def test_handle_error(mock_logger, format_exc):
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
 def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
-    r = _repo()
+    r = Repo.__new__(Repo)
+    r._token = ""
     r._report_error = Mock()
     r._check_rate_limit = Mock()
     try:
@@ -1296,18 +1299,20 @@ def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
 def test_handle_error_403_resource_not_accessible_not_reported(
     mock_logger, format_exc
 ):
-    r = _repo()
+    r = Repo.__new__(Repo)
+    r._token = ""
     r._report_error = Mock()
     r._check_rate_limit = Mock()
 
     # Known permissions issue should not be treated as an internal failure.
-    r.handle_error(
-        GithubException(
-            403,
-            {"message": "Resource not accessible by integration"},
-            {},
+    with pytest.raises(Abort):
+        r.handle_error(
+            GithubException(
+                403,
+                {"message": "Resource not accessible by integration"},
+                {},
+            )
         )
-    )
 
     r._check_rate_limit.assert_called_once()
     r._report_error.assert_not_called()
