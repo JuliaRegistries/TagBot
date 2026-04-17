@@ -1291,6 +1291,32 @@ def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
     assert any("403" in str(call) for call in mock_logger.error.call_args_list)
 
 
+@patch("traceback.format_exc", return_value="ahh")
+@patch("tagbot.action.repo.logger")
+def test_handle_error_403_resource_not_accessible_not_reported(
+    mock_logger, format_exc
+):
+    r = _repo()
+    r._report_error = Mock()
+    r._check_rate_limit = Mock()
+
+    # Known permissions issue should not be treated as an internal failure.
+    r.handle_error(
+        GithubException(
+            403,
+            {"message": "Resource not accessible by integration"},
+            {},
+        )
+    )
+
+    r._check_rate_limit.assert_called_once()
+    r._report_error.assert_not_called()
+    assert any(
+        "Resource not accessible by integration" in str(call)
+        for call in mock_logger.warning.call_args_list
+    )
+
+
 def test_commit_sha_of_version():
     r = _repo()
     r._Repo__registry_path = ""
