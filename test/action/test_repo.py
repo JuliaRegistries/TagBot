@@ -1390,9 +1390,7 @@ def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
 
 @patch("traceback.format_exc", return_value="ahh")
 @patch("tagbot.action.repo.logger")
-def test_handle_error_403_resource_not_accessible_not_reported(
-    mock_logger, format_exc
-):
+def test_handle_error_403_resource_not_accessible_not_reported(mock_logger, format_exc):
     r = _repo()
     r._token = ""
     r._registry_token = ""
