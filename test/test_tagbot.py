@@ -4,7 +4,6 @@ from time import sleep, strftime
 
 from tagbot import LogFormatter
 
-
 stream = StringIO()
 handler = StreamHandler(stream)
 logger = getLogger("actions")

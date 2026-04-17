@@ -179,6 +179,24 @@ with:
 
 White-space, case, dashes, and underscores are ignored when comparing labels.
 
+### Changelog Format
+
+TagBot supports multiple changelog formats. You can choose the format using the `changelog_format` input:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  changelog_format: github  # or 'custom' (default) or 'conventional'
+```
+
+Available formats:
+
+- **`custom`** (default): Uses a Jinja2 template to generate changelogs based on closed issues and merged pull requests. This is the backward-compatible format that allows full customization of the changelog content and appearance.
+
+- **`github`**: Uses GitHub's auto-generated release notes feature. GitHub will automatically generate release notes based on the commits, issues, and pull requests associated with the release.
+
+- **`conventional`**: Generates changelogs based on [Conventional Commits](https://conventionalcommits.org/) specification. This format parses commit messages to categorize changes (features, fixes, documentation, etc.), detects breaking changes, and creates structured release notes with commit links and author attribution.
+
 ### Custom Registries
 
 If you're using a custom registry, add the `registry` input:
@@ -190,12 +208,24 @@ with:
 ```
 
 If your registry is public, this is all you need to do.
-If your registry is private, you'll need to configure access to it via one of two options.
+If your registry is private, you'll need to configure access to it via one of three options.
 
-The first option is to change the `token` input to a [PAT](#personal-access-tokens-pats) that has access to both your package repository and the registry.
+The first option is to use a separate `registry_token` that has access to the registry:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  registry: MyOrg/MyRegistry
+  registry_token: ${{ secrets.REGISTRY_TOKEN }}
+```
+
+This is the simplest approach when you have a PAT or fine-grained token scoped to the registry.
+The main `token` is used for the package repository (creating tags and releases), while `registry_token` is used only for reading the registry.
+
+The second option is to change the `token` input to a [PAT](#personal-access-tokens-pats) that has access to both your package repository and the registry.
 Take a look at the warnings about PATs if you choose this option.
 
-The other option is to use the `registry_ssh` input, like so:
+The third option is to use the `registry_ssh` input, like so:
 
 ```yml
 with:
@@ -298,11 +328,11 @@ With the removal of the lookback time window, TagBot now checks all package vers
 ```yml
 jobs:
   TagBot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     env:
       TAGBOT_MAX_PRS_TO_CHECK: 500  # Increase limit if needed
     steps:
-      - uses: JuliaRegistries/TagBot@v1
+      - uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -427,14 +457,14 @@ the action configuration should look something like
 ```yml
     steps:
       - name: Tag top-level package
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
           ssh: ${{ secrets.DOCUMENTER_KEY }}
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -442,7 +472,7 @@ the action configuration should look something like
           # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
           subdir: SubpackageA.jl
       - name: Tag subpackage B
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -457,7 +487,7 @@ specify a different tag prefix as an input:
 ```yml
     steps:
       - name: Tag subpackage A
-        uses: JuliaRegistries/TagBot@v1
+        uses: JuliaRegistries/TagBot@2e567597902989da0c8edb314470b1c6e3df43a6 # v1.25.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
@@ -512,7 +542,7 @@ You can also run the code outside of Docker, but you'll just need to install [Po
 ```sh
 $ git clone https://github.com/JuliaRegistries/TagBot  # Consider --branch vA.B.C
 $ cd TagBot
-$ poetry install
+$ poetry install --all-extras
 $ poetry run python -m tagbot.local --help
 ```
 
@@ -538,3 +568,14 @@ When this happens, TagBot will automatically open an issue on your repository wi
 ### Missing old tags
 
 TagBot now checks all releases every time, so old releases should be automatically created when TagBot is set up or triggered on a repository.
+
+### "Failed to connect to the docker API"
+
+TagBot requires that the CI runner supports containers.
+
+In particular, the GitHub-hosted `ubuntu-slim` runners do not support containers and thus cannot run TagBot.
+
+If the CI runner doesn't support containers, you might see error messages like this:
+
+- "failed to connect to the docker API"
+- "dial unix /var/run/docker.sock: connect: no such file or directory"

@@ -1,5 +1,7 @@
 import json
 import os
+import tomllib
+from pathlib import Path
 
 from typing import Dict, Optional, Tuple, TypeVar, Union, cast
 
@@ -14,6 +16,13 @@ T = TypeVar("T")
 StatusOptional = Union[T, Tuple[T, int]]
 HTML = StatusOptional[str]
 JSON = StatusOptional[Dict[str, object]]
+
+_pyproject = Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
+if _pyproject.exists():
+    with open(_pyproject, "rb") as _f:
+        VERSION = tomllib.load(_f)["project"]["version"]
+else:
+    VERSION = "dev"
 
 LAMBDA = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
 REPORTS_FUNCTION_NAME = os.getenv("REPORTS_FUNCTION", "")
@@ -69,7 +78,11 @@ def error(e: InternalServerError) -> Union[HTML, JSON]:
 
 @app.route("/")
 def index() -> HTML:
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        version=VERSION,
+        commit=os.getenv("TAGBOT_COMMIT", "unknown"),
+    )
 
 
 @app.route("/report", methods=["POST"])

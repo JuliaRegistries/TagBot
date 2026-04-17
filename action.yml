@@ -45,6 +45,9 @@ inputs:
   gpg_password:
     description: Password for the GPG key
     required: false
+  registry_token:
+    description: GitHub API token for accessing the registry (defaults to the main token)
+    required: false
   registry_ssh:
     description: SSH private key for accessing a private registry
     required: false
@@ -119,7 +122,7 @@ inputs:
     default: custom
 runs:
   using: docker
-  image: docker://ghcr.io/juliaregistries/tagbot:1.24.3
+  image: docker://ghcr.io/juliaregistries/tagbot:1.25.6@sha256:d506de3fea59ae25c392663506713164f4493e59c43f70a1a6e4d915d699eacd
 branding:
   icon: tag
   color: red

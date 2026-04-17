@@ -1,23 +1,18 @@
-FROM python:3.14-slim as builder
+FROM python:3.14-slim AS builder
 
-RUN apt-get update && apt-get install -y curl
-
-# Install Poetry (latest) using the official install script
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
-
-RUN poetry self add poetry-plugin-export
+RUN pip install --no-cache-dir poetry poetry-plugin-export
 
 COPY pyproject.toml .
 COPY poetry.lock .
-RUN poetry export --format requirements.txt --output /root/requirements.txt
+RUN poetry export --all-extras --format requirements.txt --output /root/requirements.txt
 
 FROM python:3.14-slim
-LABEL org.opencontainers.image.source https://github.com/JuliaRegistries/TagBot
-ENV PYTHONPATH /root
+LABEL org.opencontainers.image.source="https://github.com/JuliaRegistries/TagBot"
 RUN apt-get update && apt-get install -y git gnupg make openssh-client
 COPY --from=builder /root/requirements.txt /root/requirements.txt
 RUN pip install --no-cache-dir --requirement /root/requirements.txt
+COPY pyproject.toml /root/pyproject.toml
 COPY action.yml /root/action.yml
 COPY tagbot /root/tagbot
-CMD python -m tagbot.action
+RUN pip install --no-cache-dir --no-deps /root
+CMD ["python", "-m", "tagbot.action"]

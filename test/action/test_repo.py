@@ -23,8 +23,9 @@ def _repo(
     repo="",
     registry="",
     github="",
-    github_api="",
+    github_api="https://api.github.com",
     token="x",
+    registry_token="",
     changelog="",
     ignore=[],
     changelog_format="custom",
@@ -44,6 +45,7 @@ def _repo(
         github=github,
         github_api=github_api,
         token=token,
+        registry_token=registry_token,
         changelog=changelog,
         changelog_ignore=ignore,
         changelog_format=changelog_format,
@@ -81,6 +83,32 @@ def test_constructor(mock_github):
     assert r._gh_url == "https://github.com"
     assert r._gh_api == "https://api.github.com"
     assert r._git._github == "github.com"
+
+
+@patch("tagbot.action.repo.Github")
+def test_registry_token(mock_github):
+    """Test that registry_token creates a separate GitHub client for registry access."""
+    mock_gh_instance = Mock()
+    mock_registry_gh_instance = Mock()
+    mock_github.side_effect = [mock_gh_instance, mock_registry_gh_instance]
+    mock_gh_instance.get_repo.return_value = Mock()
+    mock_registry_gh_instance.get_repo.return_value = Mock()
+
+    r = _repo(
+        github="github.com",
+        github_api="api.github.com",
+        token="pkg_token",
+        registry_token="reg_token",
+        registry="test/registry",
+    )
+    # Should have created two Github instances
+    assert mock_github.call_count == 2
+    # Registry repo should be fetched from the second (registry) client
+    mock_registry_gh_instance.get_repo.assert_called_once_with("test/registry")
+    # Package repo should be fetched from the first (main) client
+    mock_gh_instance.get_repo.assert_called_once_with("", lazy=True)
+    # Both tokens should be sanitized
+    assert r._sanitize("pkg_token reg_token") == "*** ***"
 
 
 def test_project():
@@ -138,12 +166,10 @@ def test_registry_path():
     r = _repo()
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
-    r._registry.get_git_blob.return_value.content = b64encode(
-        b"""
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
         [packages]
         abc-def = { path = "B/Bar" }
-        """
-    )
+        """)
     r._project = lambda _k: "abc-ddd"
     assert r._registry_path is None
     r._project = lambda _k: "abc-def"
@@ -157,15 +183,28 @@ def test_registry_path_with_uppercase_uuid():
     r = _repo()
     r._registry = Mock()
     r._registry.get_contents.return_value.sha = "123"
-    r._registry.get_git_blob.return_value.content = b64encode(
-        b"""
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
         [packages]
         abc-def = { path = "B/Bar" }
-        """
-    )
+        """)
     # Test with uppercase UUID
     r._project = lambda _k: "ABC-DEF"
     assert r._registry_path == "B/Bar"
+
+
+def test_registry_path_with_uppercase_registry_uuid():
+    """Test that uppercase UUIDs in the registry are normalized for matching."""
+    r = _repo()
+    r._registry = Mock()
+    r._registry.get_contents.return_value.sha = "123"
+    # Registry has uppercase UUID
+    r._registry.get_git_blob.return_value.content = b64encode(b"""
+        [packages]
+        ABC-DEF-1234 = { path = "P/Package" }
+        """)
+    # Project has lowercase UUID
+    r._project = lambda _k: "abc-def-1234"
+    assert r._registry_path == "P/Package"
 
 
 @patch("tagbot.action.repo.logger")
@@ -283,9 +322,25 @@ def test_registry_url_missing_repo_key():
 def test_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
-    assert r._release_branch == "a"
+    r._registry_pr = Mock(return_value=None)
+    assert r._release_branch("v1.0.0") == "a"
+
     r = _repo(branch="b")
-    assert r._release_branch == "b"
+    r._registry_pr = Mock(return_value=None)
+    assert r._release_branch("v1.0.0") == "b"
+
+    # Test PR branch has highest priority
+    r = _repo(branch="config-branch")
+    r._repo = Mock(default_branch="default-branch")
+    pr_body = "foo\n- Branch: pr-branch\nbar"
+    r._registry_pr = Mock(return_value=Mock(body=pr_body))
+    assert r._release_branch("v1.0.0") == "pr-branch"
+
+    # Test that missing branch in PR falls back to config
+    r = _repo(branch="config-branch")
+    r._repo = Mock(default_branch="default-branch")
+    r._registry_pr = Mock(return_value=Mock(body="no branch here"))
+    assert r._release_branch("v1.0.0") == "config-branch"
 
 
 def test_only():
@@ -477,6 +532,39 @@ def test_commit_sha_from_registry_pr(logger):
         "Tree SHA of commit from registry PR does not match"
     )
     assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
+
+
+@patch("tagbot.action.repo.logger")
+def test_branch_from_registry_pr(logger):
+    """Test extracting branch from registry PR body."""
+    r = _repo()
+
+    # No PR found
+    r._registry_pr = Mock(return_value=None)
+    assert r._branch_from_registry_pr("v1.0.0") is None
+
+    # PR body without branch info
+    r._registry_pr.return_value = Mock(body="foo\nbar\nbaz")
+    assert r._branch_from_registry_pr("v1.0.0") is None
+
+    # PR body is None
+    r._registry_pr.return_value.body = None
+    assert r._branch_from_registry_pr("v1.0.0") is None
+
+    # PR body with "- Branch: <branch_name>" format
+    r._registry_pr.return_value.body = "foo\n- Branch: my-release-branch\nbar"
+    assert r._branch_from_registry_pr("v1.0.0") == "my-release-branch"
+    logger.debug.assert_called_with(
+        "Found branch 'my-release-branch' in registry PR for v1.0.0"
+    )
+
+    # PR body with "Branch: <branch_name>" format (without dash) should NOT match
+    r._registry_pr.return_value.body = "foo\nBranch: another-branch\nbar"
+    assert r._branch_from_registry_pr("v2.0.0") is None
+
+    # PR body with extra whitespace
+    r._registry_pr.return_value.body = "foo\n-   Branch:   spaced-branch  \nbar"
+    assert r._branch_from_registry_pr("v3.0.0") == "spaced-branch"
 
 
 def test_commit_sha_of_tree():
@@ -675,8 +763,9 @@ def test_version_with_latest_commit_marks_latest_when_newer(logger):
 def test_commit_sha_of_release_branch():
     r = _repo()
     r._repo = Mock(default_branch="a")
+    r._registry_pr = Mock(return_value=None)
     r._repo.get_branch.return_value.commit.sha = "sha"
-    assert r._commit_sha_of_release_branch() == "sha"
+    assert r._commit_sha_of_release_branch("v1.0.0") == "sha"
     r._repo.get_branch.assert_called_with("a")
 
 
@@ -859,6 +948,8 @@ def test_is_registered():
     assert r.is_registered()
     contents.decoded_content = b"""repo = "git@github.com:Foo/Bar.jl.git"\n"""
     assert not r.is_registered()
+    contents.decoded_content = b"""repo = "https://GH.COM/Foo/Bar.jl"\n"""
+    assert r.is_registered()
     # TODO: We should test for the InvalidProject behaviour,
     # but I'm not really sure how it's possible.
 
@@ -938,7 +1029,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     spawn.return_value.assert_has_calls(calls)
 
 
-@patch("tagbot.action.repo.GPG")
+@patch("gnupg.GPG")
 @patch("tagbot.action.repo.mkdtemp", return_value="gpgdir")
 @patch("os.chmod")
 def test_configure_gpg(chmod, mkdtemp, GPG):
@@ -1021,9 +1112,10 @@ def test_handle_release_branch_subdir():
 
 def test_create_release():
     r = _repo(user="user", email="email")
-    r._commit_sha_of_release_branch = Mock(return_value="a")
+    r._registry_pr = Mock(return_value=None)
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
+    r._repo.get_branch.return_value.commit.sha = "a"
     r._repo.create_git_tag.return_value.sha = "t"
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
@@ -1119,13 +1211,14 @@ def test_create_release_handles_existing_release_error():
 
 def test_create_release_subdir():
     r = _repo(user="user", email="email", subdir="path/to/Foo.jl")
-    r._commit_sha_of_release_branch = Mock(return_value="a")
+    r._registry_pr = Mock(return_value=None)
     r._repo.get_contents = Mock(
         return_value=Mock(decoded_content=b"""name = "Foo"\nuuid="abc-def"\n""")
     )
     assert r._tag_prefix() == "Foo-v"
     r._git.create_tag = Mock()
     r._repo = Mock(default_branch="default")
+    r._repo.get_branch.return_value.commit.sha = "a"
     r._repo.create_git_tag.return_value.sha = "t"
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
@@ -1412,3 +1505,70 @@ def test_is_version_yanked(mock_github):
     # Empty cache (package not registered)
     r._Repo__versions_toml_cache = {}
     assert r.is_version_yanked("v1.0.0") is False
+
+
+def test_is_backport_commit():
+    """Test detection of backport commits based on branch containment."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Commit on default branch only
+    r._git.command.return_value = "  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+    # Commit on default branch and another branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on non-default branch only
+    r._git.command.return_value = "  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on multiple non-default branches
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert r.is_backport_commit("abc123")
+
+    # Git command fails
+    r._git.command.side_effect = Abort("git error")
+    assert not r.is_backport_commit("abc123")
+
+    # Empty output
+    r._git.command.side_effect = None
+    r._git.command.return_value = ""
+    assert not r.is_backport_commit("abc123")
+
+    # Only whitespace
+    r._git.command.return_value = "   \n  \n"
+    assert not r.is_backport_commit("abc123")
+
+    # HEAD symbolic ref line (origin/HEAD -> origin/main) must be filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+
+def test_branches_of_commit():
+    """Test extracting non-default branch names containing a commit."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Default branch only → empty
+    r._git.command.return_value = "  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # One non-default branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.branches_of_commit("abc123") == ["release-1.0"]
+
+    # Multiple non-default branches, no default
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert sorted(r.branches_of_commit("abc123")) == ["hotfix", "release-1.0"]
+
+    # HEAD symbolic ref filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # Git command fails → empty list
+    r._git.command.side_effect = Abort("git error")
+    assert r.branches_of_commit("abc123") == []

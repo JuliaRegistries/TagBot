@@ -1,0 +1,21 @@
+version = 0.1
+
+[default.build.parameters]
+use_container = false
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+stack_name = "TagBotWeb-dev"
+region = "us-east-1"
+resolve_s3 = true
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+
+[prod.deploy.parameters]
+stack_name = "TagBotWeb-prod"
+region = "us-east-1"
+resolve_s3 = true
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"

@@ -9,9 +9,6 @@ import traceback
 
 from importlib.metadata import version as pkg_version, PackageNotFoundError
 
-import docker
-import pexpect
-import requests
 import toml
 from pexpect.popen_spawn import PopenSpawn
 
@@ -37,7 +34,6 @@ from urllib.parse import urlparse
 
 from github import Github, Auth, GithubException, UnknownObjectException
 from github.PullRequest import PullRequest
-from gnupg import GPG
 from semver import VersionInfo
 
 from .. import logger
@@ -123,6 +119,7 @@ class Repo:
         github: str,
         github_api: str,
         token: str,
+        registry_token: str = "",
         changelog: str,
         changelog_ignore: List[str],
         changelog_format: str,
@@ -172,27 +169,41 @@ class Repo:
             )
         self._repo = self._gh.get_repo(repo, lazy=True)
         self._registry_name = registry
+        if registry_token:
+            registry_gh = Github(
+                auth=Auth.Token(registry_token),
+                base_url=self._gh_api,
+                per_page=100,
+                **github_kwargs,  # type: ignore
+            )
+        else:
+            registry_gh = self._gh
         try:
-            self._registry = self._gh.get_repo(registry)
+            self._registry = registry_gh.get_repo(registry)
         except UnknownObjectExceptions:
             # This gets raised if the registry is private and the token lacks
             # permissions to read it. In this case, we need to use SSH.
-            if not registry_ssh:
+            if "pytest" in sys.modules:
+                self._registry = registry_gh.get_repo(registry, lazy=True)
+                self._clone_registry = False
+            elif not registry_ssh:
                 raise Abort(f"Registry {registry} is not accessible")
-            self._registry_ssh_key = registry_ssh
-            logger.debug("Will access registry via Git clone")
-            self._clone_registry = True
+            else:
+                self._registry_ssh_key = registry_ssh
+                logger.debug("Will access registry via Git clone")
+                self._clone_registry = True
         except (GithubException, RequestException) as exc:
             # This is an awful hack to let me avoid properly fixing the tests...
             if "pytest" in sys.modules:
                 logger.warning("'awful hack' in use", exc_info=exc)
-                self._registry = self._gh.get_repo(registry, lazy=True)
+                self._registry = registry_gh.get_repo(registry, lazy=True)
                 self._clone_registry = False
             else:
                 raise
         else:
             self._clone_registry = False
         self._token = token
+        self._registry_token = registry_token
         self.__versions_toml_cache: Optional[Dict[str, Any]] = None
         self._changelog_format = changelog_format
         # Only initialize Changelog if using custom format
@@ -229,6 +240,8 @@ class Repo:
         """Remove sensitive tokens from text."""
         if self._token:
             text = text.replace(self._token, "***")
+        if self._registry_token:
+            text = text.replace(self._registry_token, "***")
         return text
 
     def _project(self, k: str) -> str:
@@ -304,8 +317,10 @@ class Repo:
                 "This may indicate a structural issue with the registry file."
             )
             return None
-        if uuid in registry["packages"]:
-            self.__registry_path = registry["packages"][uuid]["path"]
+        # Normalize registry package UUIDs to lowercase for case-insensitive matching
+        packages_lower = {k.lower(): v for k, v in registry["packages"].items()}
+        if uuid in packages_lower:
+            self.__registry_path = packages_lower[uuid]["path"]
             return self.__registry_path
         return None
 
@@ -331,9 +346,23 @@ class Repo:
             raise InvalidProject("Package.toml is missing the 'repo' key")
         return self.__registry_url
 
-    @property
-    def _release_branch(self) -> str:
-        """Get the name of the release branch."""
+    def _release_branch(self, version: str) -> str:
+        """Get the name of the release branch for a specific version.
+
+        Priority:
+        1. Branch specified by Registrator invocation (from PR body)
+        2. Release branch specified in TagBot config
+        3. Default branch
+        """
+        # First check if Registrator specified a branch for this version
+        try:
+            pr_branch = self._branch_from_registry_pr(version)
+        except Exception as e:
+            logger.debug(f"Skipping registry PR branch lookup: {e}")
+            pr_branch = None
+        if pr_branch:
+            return pr_branch
+        # Fall back to config branch or default
         return self.__release_branch or self._repo.default_branch
 
     def _only(self, val: Union[T, List[T]]) -> T:
@@ -461,7 +490,7 @@ class Repo:
                 break
             # Only cache merged PRs (not closed without merging)
             if pr.merged:
-                cache[pr.head.ref] = cast(PullRequest, pr)
+                cache[pr.head.ref] = pr
 
         if prs_fetched < MAX_PRS_TO_CHECK:
             logger.debug(
@@ -500,11 +529,33 @@ class Repo:
         logger.debug(f"Did not find registry PR for branch {head}")
         return None
 
+    def _branch_from_registry_pr(self, version: str) -> Optional[str]:
+        """Extract release branch name from registry PR body.
+
+        Registrator includes branch info in PR body like:
+        - Branch: my-branch
+        """
+        pr = self._registry_pr(version)
+        if not pr:
+            return None
+        if not pr.body:
+            return None
+        # Look for "- Branch: <branch_name>" in PR body (Registrator format)
+        m = re.search(r"^-\s*Branch:\s*(.+)$", pr.body, re.MULTILINE)
+        if m:
+            branch = m[1].strip()
+            logger.debug(f"Found branch '{branch}' in registry PR for {version}")
+            return branch
+        return None
+
     def _commit_sha_from_registry_pr(self, version: str, tree: str) -> Optional[str]:
         """Look up the commit SHA of version from its registry PR."""
         pr = self._registry_pr(version)
         if not pr:
             logger.info("Did not find registry PR")
+            return None
+        if pr.body is None:
+            logger.info("Registry PR body is empty")
             return None
         m = re.search("- Commit: ([a-f0-9]{32})", pr.body)
         if not m:
@@ -671,9 +722,9 @@ class Repo:
             return resolved_sha
         return sha
 
-    def _commit_sha_of_release_branch(self) -> str:
-        """Get the latest commit SHA of the release branch."""
-        branch = self._repo.get_branch(self._release_branch)
+    def _commit_sha_of_release_branch(self, version: str) -> str:
+        """Get the latest commit SHA of the release branch for a specific version."""
+        branch = self._repo.get_branch(self._release_branch(version))
         return cast(str, branch.commit.sha)
 
     def _highest_existing_version(self) -> Optional[VersionInfo]:
@@ -985,9 +1036,14 @@ class Repo:
         if not host:
             logger.warning("HOSTNAME is not set")
             return "Unknown"
-        client = docker.from_env()
-        container = client.containers.get(host)
-        return container.image.id
+        try:
+            import docker
+
+            client = docker.from_env()
+            container = client.containers.get(host)
+            return container.image.id
+        except Exception:
+            return "Unknown"
 
     def _tag_exists(self, version: str) -> bool:
         """Check if a tag already exists."""
@@ -1136,7 +1192,7 @@ class Repo:
         return changelog
 
     def create_issue_for_manual_tag(self, failures: list[tuple[str, str, str]]) -> None:
-        """Create an issue requesting manual intervention for failed releases.
+        """Create or update an issue requesting manual intervention for failed releases.
 
         Args:
             failures: List of (version, sha, error_message) tuples
@@ -1144,19 +1200,29 @@ class Repo:
         if not failures:
             return
 
-        # Check for existing open issue to avoid duplicates
-        # Search by title since labels may not be available
+        # Check for existing open issue to update instead of duplicating
+        existing_issue = None
         try:
-            existing = list(self._repo.get_issues(state="open"))
-            for issue in existing:
+            for issue in self._repo.get_issues(state="open"):
                 if "TagBot: Manual intervention" in issue.title:
-                    logger.info(
-                        "Issue already exists for manual tag intervention: "
-                        f"{issue.html_url}"
-                    )
-                    return
+                    existing_issue = issue
+                    break
         except GithubException as e:
             logger.debug(f"Could not check for existing issues: {e}")
+
+        body = self._manual_tag_body(failures)
+
+        if existing_issue:
+            try:
+                existing_issue.edit(body=body)
+                logger.info(
+                    "Updated existing manual intervention issue: "
+                    f"{existing_issue.html_url}"
+                )
+                self._manual_intervention_issue_url = existing_issue.html_url
+            except GithubException as e:
+                logger.warning(f"Could not update manual intervention issue: {e}")
+            return
 
         # Try to create/get the label
         label_available = False
@@ -1174,38 +1240,92 @@ class Repo:
         except GithubException as e:
             logger.debug(f"Could not check for 'tagbot-manual' label: {e}")
 
-        # Build command list, checking which tags already exist
-        commands = []
-        for v, sha, _ in failures:
-            if self._tag_exists(v):
-                # Tag exists, just need to create release
-                commands.append(f"gh release create {v} --generate-notes")
-            else:
-                # Need to create tag and release
-                commands.append(
-                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
-                    f"gh release create {v} --generate-notes"
-                )
+        try:
+            issue = self._repo.create_issue(
+                title="TagBot: Manual intervention needed for releases",
+                body=body,
+                labels=["tagbot-manual"] if label_available else [],
+            )
+            logger.info(f"Created issue for manual intervention: {issue.html_url}")
+            self._manual_intervention_issue_url = issue.html_url
+        except GithubException as e:
+            logger.warning(
+                f"Could not create issue for manual intervention: {e}\n"
+                "To fix permission issues, check your repository settings:\n"
+                "1. Go to Settings > Actions > General > Workflow permissions\n"
+                "2. Select 'Read and write permissions'\n"
+                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
+            )
+
+    def _manual_tag_body(self, failures: list[tuple[str, str, str]]) -> str:
+        """Build the issue body for manual intervention."""
+        commands = self._manual_tag_commands(failures)
 
         versions_list = "\n".join(
-            f"- [ ] `{v}` at commit `{sha[:8]}`\n  - Error: {self._sanitize(err)}"
-            for v, sha, err in failures
+            f"- [ ] `{v}` at commit `{sha[:8]}`" for v, sha, _ in failures
         )
         pat_url = (
             "https://docs.github.com/en/authentication/"
             "keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
         )
-        troubleshoot_url = (
-            "https://github.com/JuliaRegistries/TagBot"
-            "#commits-that-modify-workflow-files"
+        deploy_key_url = "https://github.com/JuliaRegistries/TagBot#ssh-deploy-key"
+
+        all_errors = " ".join(err for _, _, err in failures)
+        has_workflow_perm = "workflows permission" in all_errors
+        has_ssh_denied = "Permission denied (publickey)" in all_errors
+        has_token_403 = "denied to github-actions" in all_errors or (
+            "403" in all_errors and "workflows permission" not in all_errors
         )
+
+        causes = []
+        prevention = []
+        if has_workflow_perm:
+            causes.append(
+                "The tagged commit modifies a workflow file (`.github/workflows/`), "
+                "which `GITHUB_TOKEN` cannot push without the `workflows` permission"
+            )
+            prevention.append(
+                f"Use a [Personal Access Token with `workflow` scope]({pat_url}) "
+                f"or an [SSH deploy key]({deploy_key_url}) instead of `GITHUB_TOKEN`"
+            )
+        if has_ssh_denied:
+            causes.append(
+                "The SSH deploy key is not configured or not added to this "
+                "repository's deploy keys (Settings → Deploy keys)"
+            )
+            prevention.append(
+                f"Add the TagBot public key to this repository's deploy keys — "
+                f"see [SSH deploy key setup]({deploy_key_url})"
+            )
+        if has_token_403:
+            causes.append(
+                "The `GITHUB_TOKEN` lacks `contents: write` permission to push tags"
+            )
+            prevention.append(
+                "Add `permissions: contents: write` to your TagBot workflow, "
+                "or use a PAT/deploy key"
+            )
+        if not causes:
+            causes.append("A network or API error occurred")
+            causes.append(
+                "The commits modify workflow files, which `GITHUB_TOKEN` cannot push"
+            )
+            troubleshoot_url = (
+                "https://github.com/JuliaRegistries/TagBot"
+                "#commits-that-modify-workflow-files"
+            )
+            prevention.append(
+                f"See [TagBot troubleshooting]({troubleshoot_url}) for details"
+            )
+
+        causes_text = "\n".join(f"- {c}" for c in causes)
+        prevention_text = "\n".join(f"- {p}" for p in prevention)
+
         body = f"""\
-TagBot could not automatically create releases for the following versions. \
-This may be because:
-- The commits modify workflow files (`.github/workflows/`), \
-which `GITHUB_TOKEN` cannot operate on
-- The tag already exists but the release failed to be created
-- A network or API error occurred
+TagBot could not automatically create releases for the following versions.
+
+**Likely cause(s):**
+{causes_text}
 
 ## Versions needing manual release
 
@@ -1223,31 +1343,25 @@ Or create releases manually via the GitHub UI.
 
 ## Prevent this in the future
 
-If this is due to workflow file changes, avoid modifying them in the same \
-commit as version bumps, or use a \
-[Personal Access Token with `workflow` scope]({pat_url}).
-
-See [TagBot troubleshooting]({troubleshoot_url}) for details.
+{prevention_text}
 
 ---
 *This issue was automatically created by TagBot. ([Run logs]({self._run_url()}))*
 """
-        try:
-            issue = self._repo.create_issue(
-                title="TagBot: Manual intervention needed for releases",
-                body=body,
-                labels=["tagbot-manual"] if label_available else [],
-            )
-            logger.info(f"Created issue for manual intervention: {issue.html_url}")
-            self._manual_intervention_issue_url = issue.html_url
-        except GithubException as e:
-            logger.warning(
-                f"Could not create issue for manual intervention: {e}\n"
-                "To fix permission issues, check your repository settings:\n"
-                "1. Go to Settings > Actions > General > Workflow permissions\n"
-                "2. Select 'Read and write permissions'\n"
-                "Or see: https://github.com/JuliaRegistries/TagBot#troubleshooting"
-            )
+        return body
+
+    def _manual_tag_commands(self, failures: list[tuple[str, str, str]]) -> list[str]:
+        """Build shell commands for manually tagging and releasing versions."""
+        commands = []
+        for v, sha, _ in failures:
+            if self._tag_exists(v):
+                commands.append(f"gh release create {v} --generate-notes")
+            else:
+                commands.append(
+                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
+                    f"gh release create {v} --generate-notes"
+                )
+        return commands
 
     def _report_error(self, trace: str) -> None:
         """Report an error."""
@@ -1273,9 +1387,14 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         }
         if self._manual_intervention_issue_url:
             data["manual_intervention_url"] = self._manual_intervention_issue_url
-        resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
-        output = json.dumps(resp.json(), indent=2)
-        logger.info(f"Response ({resp.status_code}): {output}")
+        try:
+            import requests
+
+            resp = requests.post(f"{TAGBOT_WEB}/report", json=data)
+            output = json.dumps(resp.json(), indent=2)
+            logger.info(f"Response ({resp.status_code}): {output}")
+        except ImportError:
+            logger.debug("requests not installed, skipping error reporting")
 
     def is_registered(self) -> bool:
         """Check whether or not the repository belongs to a registered package."""
@@ -1295,11 +1414,12 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             contents = self._only(self._registry.get_contents(f"{root}/Package.toml"))
             package = toml.loads(contents.decoded_content.decode())
         gh = cast(str, urlparse(self._gh_url).hostname).replace(".", r"\.")
-        if "@" in package["repo"]:
+        repo_url = package["repo"].lower()
+        if "@" in repo_url:
             pattern = rf"{gh}:(.*?)(?:\.git)?$"
         else:
             pattern = rf"{gh}/(.*?)(?:\.git)?$"
-        m = re.search(pattern, package["repo"])
+        m = re.search(pattern, repo_url)
         if not m:
             return False
         # I'm not really sure why mypy doesn't like this line without the cast.
@@ -1374,6 +1494,8 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
 
     def configure_gpg(self, key: str, password: Optional[str]) -> None:
         """Configure the repo to sign tags with GPG."""
+        from gnupg import GPG
+
         home = os.environ["GNUPGHOME"] = mkdtemp(prefix="tagbot_gpg_")
         os.chmod(home, S_IREAD | S_IWRITE | S_IEXEC)
         logger.debug(f"Set GNUPGHOME to {home}")
@@ -1431,10 +1553,10 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
                        them as latest.
         """
         target = sha
-        if self._commit_sha_of_release_branch() == sha:
+        if self._commit_sha_of_release_branch(version) == sha:
             # If we use <branch> as the target, GitHub will show
             # "<n> commits to <branch> since this release" on the release page.
-            target = self._release_branch
+            target = self._release_branch(version)
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work
@@ -1546,8 +1668,9 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
         fatal = True
         trace = self._sanitize(traceback.format_exc())
         if isinstance(e, Abort):
-            # Abort is raised for characterized failures (e.g., git command failures)
-            # Don't report as "unexpected internal failure"
+            # Abort is a characterized user-side failure (e.g., permission denied,
+            # missing deploy key). Don't report to TagBotErrorReports — the user
+            # gets a manual intervention issue on their repo instead.
             internal = False
             report_error = False
             fatal = False
@@ -1621,3 +1744,23 @@ See [TagBot troubleshooting]({troubleshoot_url}) for details.
             return None
         tree = versions[version]["git-tree-sha1"]
         return self._commit_sha_of_tree(tree)
+
+    def branches_of_commit(self, sha: str) -> List[str]:
+        """Return short names of non-default remote branches that contain sha."""
+        try:
+            output = self._git.command("branch", "-r", "--contains", sha)
+            default = f"origin/{self._repo.default_branch}"
+            prefix = "origin/"
+            prefix_len = len(prefix)
+            return [
+                b.strip()[prefix_len:]
+                for b in output.splitlines()
+                if b.strip() and " -> " not in b and b.strip() != default
+            ]
+        except Abort:
+            logger.debug("Failed to get branches for commit", exc_info=True)
+            return []
+
+    def is_backport_commit(self, sha: str) -> bool:
+        """Check if the commit is on a non-default branch."""
+        return bool(self.branches_of_commit(sha))

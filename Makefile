@@ -1,4 +1,12 @@
-.PHONY: test test-docker publish pytest black flake8 mypy
+.PHONY: test test-docker publish pytest black flake8 mypy build-ApiFunction build-ReportsFunction
+
+build-ApiFunction build-ReportsFunction:
+	test -f requirements.txt || poetry export --extras web --without-hashes --output requirements.txt
+	pip install -r requirements.txt -t $(ARTIFACTS_DIR)/ \
+		--platform manylinux2014_x86_64 --only-binary=:all: \
+		--python-version 3.12 --implementation cp
+	cp -r tagbot $(ARTIFACTS_DIR)/
+	cp pyproject.toml $(ARTIFACTS_DIR)/
 
 test:
 	./bin/test.sh
