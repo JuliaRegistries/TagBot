@@ -2,6 +2,7 @@ import json
 import os
 import re
 
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 import boto3
@@ -118,9 +119,13 @@ def _is_duplicate(a: str, b: str) -> bool:
     return ratio < 0.1
 
 
+_DUPLICATE_SEARCH_WINDOW = timedelta(days=60)
+
+
 def _find_duplicate(stacktrace: str) -> Optional[Issue]:
-    """Look for a duplicate error report."""
-    for issue in _get_issues_repo().get_issues(state="all"):
+    """Look for a duplicate error report updated within the search window."""
+    since = datetime.now(timezone.utc) - _DUPLICATE_SEARCH_WINDOW
+    for issue in _get_issues_repo().get_issues(state="all", since=since):
         m = re.search("(?s)```py\n(.*)\n```", issue.body)
         if not m:
             continue
