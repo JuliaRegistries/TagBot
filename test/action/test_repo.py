@@ -153,7 +153,9 @@ def test_project_subdir():
     )
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
-    r._repo.get_contents.assert_called_once_with("path/to/FooBar.jl", "Project.toml")
+    r._repo.get_contents.assert_called_once_with(
+        os.path.join("path/to/FooBar.jl", "Project.toml")
+    )
     r._repo.get_contents.side_effect = UnknownObjectException(404, "???", {})
     r._Repo__project = None
     with pytest.raises(InvalidProject):
@@ -974,7 +976,7 @@ def test_create_dispatch_event():
 @patch("tagbot.action.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
 @patch("os.chmod")
 @patch("subprocess.run")
-@patch("pexpect.spawn")
+@patch("pexpect.spawn", create=True)
 def test_configure_ssh(spawn, run, chmod, mkstemp):
     r = _repo(github="gh.com", repo="foo")
     r._repo = Mock(ssh_url="sshurl")

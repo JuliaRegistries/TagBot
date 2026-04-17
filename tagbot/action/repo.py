@@ -10,7 +10,6 @@ import traceback
 from importlib.metadata import version as pkg_version, PackageNotFoundError
 
 import toml
-from pexpect.popen_spawn import PopenSpawn
 
 from base64 import b64decode
 from datetime import datetime, timedelta
@@ -1707,15 +1706,15 @@ Or create releases manually via the GitHub UI.
                     internal = False
                     report_error = False
                 else:
-                logger.error(
-                    "GitHub returned a 403 error. This may indicate: "
-                    "1. Rate limiting - check the rate limit status above, "
-                    "2. Insufficient permissions - verify your token & repo access, "
-                    "3. Resource not accessible - see setup documentation"
-                )
-                internal = False
-                allowed = False
-        if not allowed:
+                    logger.error(
+                        "GitHub returned a 403 error. This may indicate: "
+                        "1. Rate limiting - check the rate limit status above, "
+                        "2. Insufficient permissions - verify your token & repo "
+                        "access, "
+                        "3. Resource not accessible - see setup documentation"
+                    )
+                    internal = False
+        if report_error:
             if internal:
                 logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
@@ -1724,8 +1723,8 @@ Or create releases manually via the GitHub UI.
             except Exception:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
-            if fatal and raise_abort:
-                raise Abort("Cannot continue due to internal failure")
+        if fatal and raise_abort:
+            raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
