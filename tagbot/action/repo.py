@@ -62,8 +62,10 @@ UnknownObjectExceptions: tuple[type[Exception], ...] = (UnknownObjectException,)
 if GitlabUnknown is not None:
     UnknownObjectExceptions = (UnknownObjectException, GitlabUnknown)
 
-RequestException = requests.RequestException
-PEXPECT_SPAWN = getattr(pexpect, "spawn", PopenSpawn)
+try:
+    from requests import RequestException
+except ImportError:
+    RequestException = OSError  # type: ignore[assignment,misc]
 
 # Maximum number of PRs to check when looking for registry PR
 # This prevents excessive API calls on large registries
@@ -1485,7 +1487,9 @@ Or create releases manually via the GitHub UI.
             for k, v in re.findall(r"\s*(.+)=(.+?);", proc.stdout):
                 logger.debug(f"Setting environment variable {k}={v}")
                 os.environ[k] = v
-            child = PEXPECT_SPAWN(f"ssh-add {priv}")
+            import pexpect
+
+            child = pexpect.spawn(f"ssh-add {priv}")
             child.expect("Enter passphrase")
             child.sendline(password)
             child.expect("Identity added")
@@ -1703,15 +1707,15 @@ Or create releases manually via the GitHub UI.
                     internal = False
                     report_error = False
                 else:
-                    logger.error(
-                        "GitHub returned a 403 error. This may indicate: "
-                        "1. Rate limiting - check the rate limit status above, "
-                        "2. Insufficient permissions - verify your token & repo "
-                        "access, "
-                        "3. Resource not accessible - see setup documentation"
-                    )
-                    internal = False
-        if report_error:
+                logger.error(
+                    "GitHub returned a 403 error. This may indicate: "
+                    "1. Rate limiting - check the rate limit status above, "
+                    "2. Insufficient permissions - verify your token & repo access, "
+                    "3. Resource not accessible - see setup documentation"
+                )
+                internal = False
+                allowed = False
+        if not allowed:
             if internal:
                 logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
@@ -1720,8 +1724,8 @@ Or create releases manually via the GitHub UI.
             except Exception:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
-        if fatal and raise_abort:
-            raise Abort("Cannot continue due to internal failure")
+            if fatal and raise_abort:
+                raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
