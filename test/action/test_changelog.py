@@ -416,7 +416,7 @@ def test_collect_data_backport():
 
 
 def test_collect_data_non_default_branch_not_backport():
-    """Commit on a non-default branch (e.g. Gitflow master) with no higher version tag."""
+    """Commit on non-default branch (Gitflow) with no higher tag."""
     c = _changelog()
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
