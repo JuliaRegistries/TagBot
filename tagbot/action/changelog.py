@@ -422,7 +422,7 @@ class Changelog:
         return {
             "compare_url": compare,
             "custom": self._custom_release_notes(version_tag),
-            "backport": self._is_backport(version_tag) or bool(release_branches),
+            "backport": self._is_backport(version_tag),
             "issues": [self._format_issue(i) for i in issues],
             "package": self._repo._project("name"),
             "previous_release": prev_tag,

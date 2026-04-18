@@ -415,6 +415,36 @@ def test_collect_data_backport():
     )
 
 
+def test_collect_data_non_default_branch_not_backport():
+    """Commit on non-default branch (Gitflow) with no higher tag."""
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=["master"])
+    semver_prev = Mock(
+        tag_name="v0.18.6", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    chrono_prev = Mock(
+        tag_name="v0.18.6", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    c._previous_release = Mock(return_value=semver_prev)
+    c._previous_release_chronological = Mock(return_value=chrono_prev)
+    c._is_backport = Mock(return_value=False)
+    commit_date = datetime(2023, 4, 1, tzinfo=timezone.utc)
+    commit = Mock(commit=Mock(author=Mock(date=commit_date)))
+    c._repo._repo.get_commit = Mock(return_value=commit)
+    c._issues = Mock(return_value=[])
+    c._pulls_on_branches = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value=None)
+
+    data = c._collect_data("v0.18.7", "abcdef")
+
+    assert data["backport"] is False
+    assert data["previous_release"] == "v0.18.6"
+    assert data["compare_url"] == "https://github.com/A/B.jl/compare/v0.18.6...v0.18.7"
+
+
 def test_pulls_on_branches():
     c = _changelog()
     pr_main = Mock(spec=PullRequest)
