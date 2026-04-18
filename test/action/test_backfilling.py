@@ -9,7 +9,9 @@ from unittest.mock import Mock, patch
 from tagbot.action.repo import Repo, _metrics
 
 
+@patch("tagbot.action.repo.Github")
 def _repo(
+    mock_github,
     *,
     repo="",
     registry="",
@@ -30,6 +32,9 @@ def _repo(
     subdir=None,
     tag_prefix=None,
 ):
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+    mock_gh_instance.get_repo.return_value = Mock()
     return Repo(
         repo=repo,
         registry=registry,

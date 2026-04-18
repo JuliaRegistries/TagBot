@@ -1627,7 +1627,7 @@ Or create releases manually via the GitHub UI.
             if e.status == 422 and _release_already_exists(e):
                 logger.info(f"Release for tag {version_tag} already exists, skipping")
                 return
-            elif e.status == 403 and "resource not accessible" in str(e).lower():
+            elif self._is_resource_not_accessible_error(e):
                 logger.error(
                     "Release creation blocked: token lacks required permissions. "
                     "Use a PAT with contents:write (and workflows if tagging "
@@ -1640,6 +1640,17 @@ Or create releases manually via the GitHub UI.
                 )
             raise
         logger.info(f"GitHub release {version_tag} created successfully")
+
+    @staticmethod
+    def _is_resource_not_accessible_error(exc: GithubException) -> bool:
+        """Identify GitHub's known 403 integration access error variant."""
+        if exc.status != 403:
+            return False
+        data = getattr(exc, "data", {}) or {}
+        message = str(data.get("message", "")) if isinstance(data, dict) else str(data)
+        if "resource not accessible" in message.lower():
+            return True
+        return "resource not accessible" in str(exc).lower()
 
     def _check_rate_limit(self) -> None:
         """Check and log GitHub API rate limit status."""
@@ -1655,43 +1666,55 @@ Or create releases manually via the GitHub UI.
 
     def handle_error(self, e: Exception, *, raise_abort: bool = True) -> None:
         """Handle an unexpected error."""
-        allowed = False
         internal = True
+        report_error = True
+        fatal = True
         trace = self._sanitize(traceback.format_exc())
         if isinstance(e, Abort):
             # Abort is a characterized user-side failure (e.g., permission denied,
             # missing deploy key). Don't report to TagBotErrorReports — the user
             # gets a manual intervention issue on their repo instead.
             internal = False
-            allowed = True
+            report_error = False
+            fatal = False
         elif isinstance(e, RequestException):
             logger.warning("TagBot encountered a likely transient HTTP exception")
             logger.info(trace)
-            allowed = True
+            report_error = False
+            fatal = False
         elif isinstance(e, GithubException):
             logger.info(e.headers)
             if 500 <= e.status < 600:
                 logger.warning("GitHub returned a 5xx error code")
                 logger.info(trace)
-                allowed = True
+                report_error = False
+                fatal = False
             elif e.status == 401:
                 logger.error(
                     "GitHub returned 401 Bad credentials. Verify that your token "
                     "is valid and has access to the repository and registry."
                 )
                 internal = False
-                allowed = False
             elif e.status == 403:
                 self._check_rate_limit()
-                logger.error(
-                    "GitHub returned a 403 error. This may indicate: "
-                    "1. Rate limiting - check the rate limit status above, "
-                    "2. Insufficient permissions - verify your token & repo access, "
-                    "3. Resource not accessible - see setup documentation"
-                )
-                internal = False
-                allowed = False
-        if not allowed:
+                if self._is_resource_not_accessible_error(e):
+                    logger.warning(
+                        "GitHub returned 403 Resource not accessible by integration; "
+                        "skipping internal error reporting for this known permissions "
+                        "scenario."
+                    )
+                    internal = False
+                    report_error = False
+                else:
+                    logger.error(
+                        "GitHub returned a 403 error. This may indicate: "
+                        "1. Rate limiting - check the rate limit status above, "
+                        "2. Insufficient permissions - verify your token & repo "
+                        "access, "
+                        "3. Resource not accessible - see setup documentation"
+                    )
+                    internal = False
+        if report_error:
             if internal:
                 logger.error("TagBot experienced an unexpected internal failure")
             logger.info(trace)
@@ -1700,8 +1723,8 @@ Or create releases manually via the GitHub UI.
             except Exception:
                 logger.error("Issue reporting failed")
                 logger.info(traceback.format_exc())
-            if raise_abort:
-                raise Abort("Cannot continue due to internal failure")
+        if fatal and raise_abort:
+            raise Abort("Cannot continue due to internal failure")
 
     def commit_sha_of_version(self, version: str) -> Optional[str]:
         """Get the commit SHA from a registered version."""
