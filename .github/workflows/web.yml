@@ -4,34 +4,30 @@ on:
     branches: [master]
     paths:
       - 'tagbot/web/**'
-      - 'serverless.yml'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'requirements.txt'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'Makefile'
       - '.github/workflows/web.yml'
   pull_request:
     paths:
       - 'tagbot/web/**'
-      - 'serverless.yml'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'requirements.txt'
+      - 'template.yaml'
+      - 'samconfig.toml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'Makefile'
       - '.github/workflows/web.yml'
 jobs:
   check:
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          node-version: '20'
-          cache: 'npm'
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-      - run: npm ci
-      - run: pip install -r requirements.txt
-      - name: Validate serverless config
-        run: npx serverless package --stage dev
-        env:
-          GITHUB_TOKEN: dummy
+          python-version: '3.12'
+      - run: pip install poetry poetry-plugin-export
+      - uses: aws-actions/setup-sam@d78e1a4a9656d3b223e59b80676a797f20093133 # v2
+      - run: sam validate --lint
+      - run: sam build

@@ -9,13 +9,16 @@ from unittest.mock import Mock, patch
 from tagbot.action.repo import Repo, _metrics
 
 
+@patch("tagbot.action.repo.Github")
 def _repo(
+    mock_github,
     *,
     repo="",
     registry="",
     github="",
-    github_api="",
+    github_api="https://api.github.com",
     token="x",
+    registry_token="",
     changelog="",
     ignore=[],
     changelog_format="custom",
@@ -29,12 +32,16 @@ def _repo(
     subdir=None,
     tag_prefix=None,
 ):
+    mock_gh_instance = Mock()
+    mock_github.return_value = mock_gh_instance
+    mock_gh_instance.get_repo.return_value = Mock()
     return Repo(
         repo=repo,
         registry=registry,
         github=github,
         github_api=github_api,
         token=token,
+        registry_token=registry_token,
         changelog=changelog,
         changelog_ignore=ignore,
         changelog_format=changelog_format,

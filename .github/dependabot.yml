@@ -4,6 +4,8 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 99
     groups:
       all-actions:
@@ -14,6 +16,8 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 99
     groups:
       all-pip-packages:
@@ -24,6 +28,8 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 99
     groups:
       all-javascript-packages:
@@ -34,6 +40,8 @@ updates:
     directory: '/'
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     groups:
       docker-updates:

@@ -46,11 +46,31 @@ def test_handle_report(
     kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
     reports._handle_report(**kwargs)
     create_issue.assert_called()
-    find_duplicate.return_value = Mock(html_url="dupe")
+    find_duplicate.return_value = Mock(html_url="dupe", state="open")
     reports._handle_report(**kwargs)
     add_duplicate_comment.assert_not_called()
     reports._handle_report(**kwargs)
     add_duplicate_comment.assert_called()
+
+
+@patch("tagbot.web.reports._find_duplicate")
+@patch("tagbot.web.reports._add_duplicate_comment")
+@patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
+def test_handle_report_closed_duplicate_creates_new_issue(
+    create_issue, add_duplicate_comment, find_duplicate
+):
+    find_duplicate.return_value = Mock(
+        number=42, state="closed", html_url="https://github.com/org/repo/issues/42"
+    )
+    kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
+    reports._handle_report(**kwargs)
+    add_duplicate_comment.assert_not_called()
+    create_issue.assert_called_with(
+        **kwargs,
+        version=None,
+        manual_intervention_url=None,
+        closed_duplicate_url="https://github.com/org/repo/issues/42",
+    )
 
 
 @patch("tagbot.web.reports._find_duplicate", return_value=None)
@@ -65,7 +85,7 @@ def test_handle_report_with_extras(create_issue, find_duplicate):
         "manual_intervention_url": "https://example.com/issues/1",
     }
     reports._handle_report(**kwargs)
-    create_issue.assert_called_with(**kwargs)
+    create_issue.assert_called_with(**kwargs, closed_duplicate_url=None)
 
 
 def test_already_commented():
@@ -87,13 +107,14 @@ def test_is_duplicate():
     assert not reports._is_duplicate("hello", "friend")
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_find_duplicate(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_find_duplicate(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     body = "foo\n```py\nstack\n```\nbar"
-    TAGBOT_ISSUES_REPO.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
+    repo.get_issues.return_value = [Mock(body="hello"), Mock(body=body)]
     assert not reports._find_duplicate("foo bar")
     assert not reports._find_duplicate("hello")
-    expected = TAGBOT_ISSUES_REPO.get_issues.return_value[1]
+    expected = repo.get_issues.return_value[1]
     assert reports._find_duplicate("stack") is expected
 
 
@@ -126,6 +147,27 @@ def test_report_body_with_extras():
     Image ID: img
     TagBot version: 1.2.3
     Manual intervention issue: https://example.com/issues/1
+    Stacktrace:
+    ```py
+    ow
+    ```
+    """
+    assert body == dedent(expected)
+
+
+def test_report_body_with_closed_duplicate():
+    body = reports._report_body(
+        image="img",
+        repo="Foo/Bar",
+        run="123",
+        stacktrace="ow",
+        closed_duplicate_url="https://github.com/org/repo/issues/42",
+    )
+    expected = """\
+    Repo: Foo/Bar
+    Run URL: 123
+    Image ID: img
+    Found a closed duplicate: https://github.com/org/repo/issues/42
     Stacktrace:
     ```py
     ow
@@ -178,8 +220,9 @@ def test_add_duplicate_comment_with_extras():
     issue.create_comment.assert_called_with(dedent(expected))
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_create_issue(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_create_issue(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     reports._create_issue(image="img", repo="Foo/Bar", run="123", stacktrace="ow")
     expected = """\
     Repo: Foo/Bar
@@ -190,13 +233,14 @@ def test_create_issue(TAGBOT_ISSUES_REPO):
     ow
     ```
     """
-    TAGBOT_ISSUES_REPO.create_issue.assert_called_with(
+    repo.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
     )
 
 
-@patch("tagbot.web.reports.TAGBOT_ISSUES_REPO")
-def test_create_issue_with_extras(TAGBOT_ISSUES_REPO):
+@patch("tagbot.web.reports._get_issues_repo")
+def test_create_issue_with_extras(_get_issues_repo):
+    repo = _get_issues_repo.return_value
     reports._create_issue(
         image="img",
         repo="Foo/Bar",
@@ -216,6 +260,6 @@ def test_create_issue_with_extras(TAGBOT_ISSUES_REPO):
     ow
     ```
     """
-    TAGBOT_ISSUES_REPO.create_issue.assert_called_with(
+    repo.create_issue.assert_called_with(
         "Automatic error report from Foo/Bar", dedent(expected)
     )

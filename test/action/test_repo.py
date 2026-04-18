@@ -23,8 +23,9 @@ def _repo(
     repo="",
     registry="",
     github="",
-    github_api="",
+    github_api="https://api.github.com",
     token="x",
+    registry_token="",
     changelog="",
     ignore=[],
     changelog_format="custom",
@@ -44,6 +45,7 @@ def _repo(
         github=github,
         github_api=github_api,
         token=token,
+        registry_token=registry_token,
         changelog=changelog,
         changelog_ignore=ignore,
         changelog_format=changelog_format,
@@ -81,6 +83,32 @@ def test_constructor(mock_github):
     assert r._gh_url == "https://github.com"
     assert r._gh_api == "https://api.github.com"
     assert r._git._github == "github.com"
+
+
+@patch("tagbot.action.repo.Github")
+def test_registry_token(mock_github):
+    """Test that registry_token creates a separate GitHub client for registry access."""
+    mock_gh_instance = Mock()
+    mock_registry_gh_instance = Mock()
+    mock_github.side_effect = [mock_gh_instance, mock_registry_gh_instance]
+    mock_gh_instance.get_repo.return_value = Mock()
+    mock_registry_gh_instance.get_repo.return_value = Mock()
+
+    r = _repo(
+        github="github.com",
+        github_api="api.github.com",
+        token="pkg_token",
+        registry_token="reg_token",
+        registry="test/registry",
+    )
+    # Should have created two Github instances
+    assert mock_github.call_count == 2
+    # Registry repo should be fetched from the second (registry) client
+    mock_registry_gh_instance.get_repo.assert_called_once_with("test/registry")
+    # Package repo should be fetched from the first (main) client
+    mock_gh_instance.get_repo.assert_called_once_with("", lazy=True)
+    # Both tokens should be sanitized
+    assert r._sanitize("pkg_token reg_token") == "*** ***"
 
 
 def test_project():
@@ -125,7 +153,9 @@ def test_project_subdir():
     )
     assert r._project("name") == "FooBar"
     assert r._project("uuid") == "abc-def"
-    r._repo.get_contents.assert_called_once_with("path/to/FooBar.jl/Project.toml")
+    r._repo.get_contents.assert_called_once_with(
+        os.path.join("path/to/FooBar.jl", "Project.toml")
+    )
     r._repo.get_contents.side_effect = UnknownObjectException(404, "???", {})
     r._Repo__project = None
     with pytest.raises(InvalidProject):
@@ -945,7 +975,7 @@ def test_create_dispatch_event():
 @patch("tagbot.action.repo.mkstemp", side_effect=[(0, "abc"), (0, "xyz")] * 3)
 @patch("os.chmod")
 @patch("subprocess.run")
-@patch("pexpect.spawn")
+@patch("pexpect.spawn", create=True)
 def test_configure_ssh(spawn, run, chmod, mkstemp):
     r = _repo(github="gh.com", repo="foo")
     r._repo = Mock(ssh_url="sshurl")
@@ -998,7 +1028,7 @@ def test_configure_ssh(spawn, run, chmod, mkstemp):
     spawn.return_value.assert_has_calls(calls)
 
 
-@patch("tagbot.action.repo.GPG")
+@patch("gnupg.GPG")
 @patch("tagbot.action.repo.mkdtemp", return_value="gpgdir")
 @patch("os.chmod")
 def test_configure_gpg(chmod, mkdtemp, GPG):
@@ -1345,6 +1375,8 @@ def test_handle_error(mock_logger, format_exc):
 @patch("tagbot.action.repo.logger")
 def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
     r = _repo()
+    r._token = ""
+    r._registry_token = ""
     r._report_error = Mock()
     r._check_rate_limit = Mock()
     try:
@@ -1353,6 +1385,33 @@ def test_handle_error_403_checks_rate_limit(mock_logger, format_exc):
         pass
     r._check_rate_limit.assert_called_once()
     assert any("403" in str(call) for call in mock_logger.error.call_args_list)
+
+
+@patch("traceback.format_exc", return_value="ahh")
+@patch("tagbot.action.repo.logger")
+def test_handle_error_403_resource_not_accessible_not_reported(mock_logger, format_exc):
+    r = _repo()
+    r._token = ""
+    r._registry_token = ""
+    r._report_error = Mock()
+    r._check_rate_limit = Mock()
+
+    # Known permissions issue should not be treated as an internal failure.
+    with pytest.raises(Abort):
+        r.handle_error(
+            GithubException(
+                403,
+                {"message": "Resource not accessible by integration"},
+                {},
+            )
+        )
+
+    r._check_rate_limit.assert_called_once()
+    r._report_error.assert_not_called()
+    assert any(
+        "Resource not accessible by integration" in str(call)
+        for call in mock_logger.warning.call_args_list
+    )
 
 
 def test_commit_sha_of_version():
@@ -1445,3 +1504,70 @@ def test_is_version_yanked(mock_github):
     # Empty cache (package not registered)
     r._Repo__versions_toml_cache = {}
     assert r.is_version_yanked("v1.0.0") is False
+
+
+def test_is_backport_commit():
+    """Test detection of backport commits based on branch containment."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Commit on default branch only
+    r._git.command.return_value = "  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+    # Commit on default branch and another branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on non-default branch only
+    r._git.command.return_value = "  origin/release-1.0\n"
+    assert r.is_backport_commit("abc123")
+
+    # Commit on multiple non-default branches
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert r.is_backport_commit("abc123")
+
+    # Git command fails
+    r._git.command.side_effect = Abort("git error")
+    assert not r.is_backport_commit("abc123")
+
+    # Empty output
+    r._git.command.side_effect = None
+    r._git.command.return_value = ""
+    assert not r.is_backport_commit("abc123")
+
+    # Only whitespace
+    r._git.command.return_value = "   \n  \n"
+    assert not r.is_backport_commit("abc123")
+
+    # HEAD symbolic ref line (origin/HEAD -> origin/main) must be filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert not r.is_backport_commit("abc123")
+
+
+def test_branches_of_commit():
+    """Test extracting non-default branch names containing a commit."""
+    r = _repo()
+    r._repo = Mock(default_branch="main")
+    r._git = Mock()
+
+    # Default branch only → empty
+    r._git.command.return_value = "  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # One non-default branch
+    r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.branches_of_commit("abc123") == ["release-1.0"]
+
+    # Multiple non-default branches, no default
+    r._git.command.return_value = "  origin/release-1.0\n  origin/hotfix\n"
+    assert sorted(r.branches_of_commit("abc123")) == ["hotfix", "release-1.0"]
+
+    # HEAD symbolic ref filtered out
+    r._git.command.return_value = "  origin/HEAD -> origin/main\n  origin/main\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # Git command fails → empty list
+    r._git.command.side_effect = Abort("git error")
+    assert r.branches_of_commit("abc123") == []

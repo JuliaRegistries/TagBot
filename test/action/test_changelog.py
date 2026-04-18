@@ -9,7 +9,7 @@ import yaml
 from github.Issue import Issue
 from github.PullRequest import PullRequest
 
-from tagbot.action.changelog import _ensure_utc
+from tagbot.action.changelog import _ensure_utc, _safe_created_at
 from tagbot.action.repo import Repo
 
 
@@ -23,8 +23,9 @@ def _changelog(mock_gh, *, template="", ignore=set(), subdir=None):
         repo="",
         registry="",
         github="",
-        github_api="",
+        github_api="https://api.github.com",
         token="x",
+        registry_token="",
         changelog=template,
         changelog_ignore=ignore,
         changelog_format="custom",
@@ -90,6 +91,45 @@ def test_previous_release_no_github_release():
     assert rel.tag_name == "v1.1.0"
     assert rel.created_at == mock_time
     c._repo._git.time_of_commit.assert_called_with("v1.1.0")
+
+
+def test_safe_created_at_normal():
+    """_safe_created_at returns the created_at datetime when accessible."""
+    release = Mock()
+    release.created_at = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) == datetime(2025, 6, 1, tzinfo=timezone.utc)
+
+
+def test_safe_created_at_naive():
+    """_safe_created_at normalizes naive datetimes to UTC."""
+    release = Mock()
+    release.created_at = datetime(2025, 6, 1)
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) == datetime(2025, 6, 1, tzinfo=timezone.utc)
+
+
+def test_safe_created_at_404():
+    """_safe_created_at returns None when the release is deleted (404)."""
+    from github import UnknownObjectException
+
+    class DeletedRelease:
+        tag_name = "v1.0.0"
+
+        @property
+        def created_at(self):
+            raise UnknownObjectException(404, "Not Found", {})
+
+    release = DeletedRelease()
+    assert _safe_created_at(release) is None
+
+
+def test_safe_created_at_none():
+    """_safe_created_at returns None when created_at is None."""
+    release = Mock()
+    release.created_at = None
+    release.tag_name = "v1.0.0"
+    assert _safe_created_at(release) is None
 
 
 def test_previous_release_subdir():
@@ -306,6 +346,7 @@ def test_collect_data():
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
     c._repo._project = Mock(return_value="B")
     c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=[])
     c._previous_release = Mock(
         side_effect=[
             Mock(tag_name="v1.2.2", created_at=datetime.now(timezone.utc)),
@@ -339,6 +380,98 @@ def test_collect_data():
     data = c._collect_data("v2.3.4", "bcdefa")
     assert data["compare_url"] is None
     assert data["previous_release"] is None
+
+
+def test_collect_data_backport():
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=["release-1.0"])
+    semver_prev = Mock(
+        tag_name="v1.0.0", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    chrono_prev = Mock(
+        tag_name="v2.0.0", created_at=datetime(2023, 3, 1, tzinfo=timezone.utc)
+    )
+    c._previous_release = Mock(return_value=semver_prev)
+    c._previous_release_chronological = Mock(return_value=chrono_prev)
+    c._is_backport = Mock(return_value=True)
+    commit_date = datetime(2023, 4, 1, tzinfo=timezone.utc)
+    commit = Mock(commit=Mock(author=Mock(date=commit_date)))
+    c._repo._repo.get_commit = Mock(return_value=commit)
+    c._issues = Mock(return_value=[])
+    c._pulls_on_branches = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value=None)
+
+    data = c._collect_data("v1.0.1", "abcdef")
+
+    # compare/previous_release come from SemVer predecessor
+    assert data["previous_release"] == "v1.0.0"
+    assert data["compare_url"] == "https://github.com/A/B.jl/compare/v1.0.0...v1.0.1"
+    assert data["backport"] is True
+
+    end = commit_date + timedelta(minutes=1)
+    # Issues windowed from chronological predecessor
+    c._issues.assert_called_once_with(datetime(2023, 3, 1, tzinfo=timezone.utc), end)
+    # PRs filtered to release branches, windowed from SemVer predecessor
+    c._pulls_on_branches.assert_called_once_with(
+        datetime(2023, 1, 1, tzinfo=timezone.utc), end, ["release-1.0"]
+    )
+
+
+def test_collect_data_non_default_branch_not_backport():
+    """Commit on non-default branch (Gitflow) with no higher tag."""
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=["master"])
+    semver_prev = Mock(
+        tag_name="v0.18.6", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    chrono_prev = Mock(
+        tag_name="v0.18.6", created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+    )
+    c._previous_release = Mock(return_value=semver_prev)
+    c._previous_release_chronological = Mock(return_value=chrono_prev)
+    c._is_backport = Mock(return_value=False)
+    commit_date = datetime(2023, 4, 1, tzinfo=timezone.utc)
+    commit = Mock(commit=Mock(author=Mock(date=commit_date)))
+    c._repo._repo.get_commit = Mock(return_value=commit)
+    c._issues = Mock(return_value=[])
+    c._pulls_on_branches = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value=None)
+
+    data = c._collect_data("v0.18.7", "abcdef")
+
+    assert data["backport"] is False
+    assert data["previous_release"] == "v0.18.6"
+    assert data["compare_url"] == "https://github.com/A/B.jl/compare/v0.18.6...v0.18.7"
+
+
+def test_pulls_on_branches():
+    c = _changelog()
+    pr_main = Mock(spec=PullRequest)
+    pr_main.base = Mock(ref="main")
+    pr_release = Mock(spec=PullRequest)
+    pr_release.base = Mock(ref="release-1.0")
+    pr_other = Mock(spec=PullRequest)
+    pr_other.base = Mock(ref="release-2.0")
+    issue = Mock(spec=Issue)
+    c._issues_and_pulls = Mock(return_value=[pr_main, pr_release, pr_other, issue])
+
+    start = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2023, 12, 1, tzinfo=timezone.utc)
+
+    result = c._pulls_on_branches(start, end, ["release-1.0"])
+    assert result == [pr_release]
+    c._issues_and_pulls.assert_called_once_with(start, end)
+
+    # Multiple branches
+    c._issues_and_pulls.reset_mock()
+    result = c._pulls_on_branches(start, end, ["release-1.0", "release-2.0"])
+    assert result == [pr_release, pr_other]
 
 
 def test_is_backport():
@@ -491,3 +624,46 @@ def test_get():
     c._collect_data = Mock(return_value={"version": "Foo-v1.2.3"})
     assert c.get("Foo-v1.2.3", "abc") == "Foo-v1.2.3"
     c._collect_data.assert_called_once_with("Foo-v1.2.3", "abc")
+
+
+def test_previous_release_chronological():
+    """Test finding chronologically previous releases."""
+    c = _changelog()
+    c._repo.get_all_tags = Mock(return_value=["v1.0.0", "v2.0.0", "v1.5.0"])
+    c._repo._repo.get_release = Mock()
+    c._repo._git.time_of_commit = Mock()
+
+    # Mock releases with different dates
+    early_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    middle_date = datetime(2023, 6, 1, tzinfo=timezone.utc)
+    late_date = datetime(2023, 12, 1, tzinfo=timezone.utc)
+
+    # v1.0.0 released early
+    rel1 = Mock()
+    rel1.created_at = early_date
+    # v1.5.0 released middle
+    rel2 = Mock()
+    rel2.created_at = middle_date
+
+    # For v2.0.0, should find v1.5.0 (latest before late_date)
+    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
+    result = c._previous_release_chronological("v2.0.0", late_date)
+    assert result.tag_name == "v1.5.0"
+    assert result.created_at == middle_date
+
+    # No previous release before commit_date
+    early_commit = datetime(2022, 1, 1, tzinfo=timezone.utc)
+    c._repo._repo.get_release.side_effect = [rel1]  # only v1.0.0 < v1.5.0
+    result = c._previous_release_chronological("v1.5.0", early_commit)
+    assert result is None
+
+    # Skip versions >= current (no get_release calls expected)
+    c._repo._repo.get_release.side_effect = []
+    result = c._previous_release_chronological("v1.0.0", late_date)
+    assert result is None
+
+    # Handle prerelease versions (should be skipped)
+    c._repo.get_all_tags.return_value = ["v1.0.0", "v1.5.0-alpha", "v1.5.0"]
+    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
+    result = c._previous_release_chronological("v2.0.0", late_date)
+    assert result.tag_name == "v1.5.0"  # Should skip v1.5.0-alpha

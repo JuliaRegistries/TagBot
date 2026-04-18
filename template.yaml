@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: TagBot Web Service
+
+Parameters:
+  GithubTokenParam:
+    Type: String
+    Default: /tagbot/github-token
+    Description: SSM parameter name for the GitHub token (SecureString)
+  TagbotRepo:
+    Type: String
+    Default: JuliaRegistries/TagBot
+  TagbotIssuesRepo:
+    Type: String
+    Default: JuliaRegistries/TagBotErrorReports
+  TagbotCommit:
+    Type: String
+    Default: unknown
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Environment:
+      Variables:
+        TAGBOT_REPO: !Ref TagbotRepo
+        TAGBOT_ISSUES_REPO: !Ref TagbotIssuesRepo
+        TAGBOT_COMMIT: !Ref TagbotCommit
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: tagbot.web.lambda_handler.handler
+      CodeUri: .
+      Timeout: 10
+      Events:
+        Root:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          REPORTS_FUNCTION: !Ref ReportsFunction
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ReportsFunction
+
+  ReportsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: tagbot.web.reports.handler
+      CodeUri: .
+      Timeout: 30
+      Environment:
+        Variables:
+          GITHUB_TOKEN_PARAM: !Ref GithubTokenParam
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GithubTokenParam}
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/

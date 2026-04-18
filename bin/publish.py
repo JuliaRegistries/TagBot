@@ -9,8 +9,7 @@ from subprocess import DEVNULL
 from tempfile import mkstemp
 from typing import List, Optional
 
-from github import Github, GithubException
-from github.PullRequest import PullRequest
+from github import Auth, Github, GithubException
 from github.Repository import Repository
 from semver import VersionInfo
 
@@ -19,7 +18,7 @@ WORKSPACE = os.environ["GITHUB_WORKSPACE"]
 DOCKER_IMAGE = os.environ["DOCKER_IMAGE"]
 DOCKER_USERNAME = os.environ["DOCKER_USERNAME"]
 DOCKER_PASSWORD = os.environ["DOCKER_PASSWORD"]
-GH = Github(os.environ["GITHUB_TOKEN"])
+GH = Github(auth=Auth.Token(os.environ["GITHUB_TOKEN"]))
 
 
 def configure_ssh() -> None:
@@ -44,21 +43,27 @@ def on_workflow_dispatch(version: str) -> None:
     if semver.build is not None or semver.prerelease is not None:
         raise ValueError("Only major, minor, and patch components should be set")
     update_pyproject_toml(semver)
-    update_action_yml(semver)
-    branch = git_push(semver)
+    digest = build_and_push_versioned_image(semver)
+    update_action_yml(semver, digest)
+    release_sha = git_commit(semver)
     repo = GH.get_repo(REPO)
-    msg = f"Release {semver}"
-    repo.create_pull(title=msg, body=msg, head=branch, base="master")
-
-
-def on_pull_request(number: int) -> None:
-    repo = GH.get_repo(REPO)
-    pr = repo.get_pull(number)
-    if not pr.merged or not pr.head.ref.startswith("release/"):
-        return
-    update_tags(pr.merge_commit_sha)
-    create_release(repo, pr)
-    update_docker_images()
+    update_tags(release_sha)
+    create_release(repo, release_sha)
+    # Pin refs AFTER release creation: this commit modifies
+    # .github/workflows/tagbot.yml, and pushing workflow file changes to the
+    # default branch can cause GitHub to invalidate the running GITHUB_TOKEN.
+    update_action_ref_pins(semver, release_sha)
+    git("add", "--all")
+    has_changes = (
+        subprocess.run(
+            ["git", "-C", WORKSPACE, "diff", "--cached", "--quiet"], check=False
+        ).returncode
+        != 0
+    )
+    if has_changes:
+        git("commit", "--message", f"Pin action refs to v{semver}")
+        git("push", "origin", "master")
+    push_floating_tags()
 
 
 def git(*args: str) -> None:
@@ -94,24 +99,31 @@ def update_pyproject_toml(version: VersionInfo) -> None:
         f.write(updated)
 
 
-def update_action_yml(version: VersionInfo) -> None:
+def update_action_yml(version: VersionInfo, digest: str) -> None:
     path = repo_file("action.yml")
     with open(path) as f:
         action = f.read()
-    updated = re.sub(f"{DOCKER_IMAGE}:.*", f"{DOCKER_IMAGE}:{version}", action, count=1)
+    updated = re.sub(
+        r"image: docker://\S+",
+        f"image: docker://{DOCKER_IMAGE}:{version}@sha256:{digest}",
+        action,
+        count=1,
+    )
     with open(path, "w") as f:
         f.write(updated)
 
 
-def git_push(version: VersionInfo) -> str:
-    branch = f"release/{version}"
-    msg = f"Release {version}"
-    git("checkout", "-B", branch)
-    git("config", "user.name", "GitHub Actions")
-    git("config", "user.email", "actions@github.com")
-    git("commit", "--all", "--message", msg)
-    git("push", "origin", "--force", branch)
-    return branch
+def git_commit(version: VersionInfo) -> str:
+    """Commit the release changes to master and return the commit SHA."""
+    git("commit", "--all", "--message", f"Release {version}")
+    git("push", "origin", "master")
+    result = subprocess.run(
+        ["git", "-C", WORKSPACE, "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 def update_tags(commit: str) -> None:
@@ -131,15 +143,32 @@ def expand_versions(*, v: bool) -> List[str]:
     ]
 
 
-def create_release(repo: Repository, pr: PullRequest) -> None:
-    notes = get_release_notes(pr)
+def update_action_ref_pins(version: VersionInfo, sha: str) -> None:
+    files = [
+        repo_file("example.yml"),
+        repo_file(".github", "workflows", "tagbot.yml"),
+        repo_file("README.md"),
+    ]
+    for path in files:
+        with open(path) as f:
+            content = f.read()
+        updated = re.sub(
+            r"uses: JuliaRegistries/TagBot@[^\s#]+(?:\s*#[^\n]*)?",
+            f"uses: JuliaRegistries/TagBot@{sha} # v{version}",
+            content,
+        )
+        with open(path, "w") as f:
+            f.write(updated)
+
+
+def create_release(repo: Repository, commit: str) -> None:
     release = "v" + str(current_version())
     try:
         repo.create_git_release(
             tag=release,
             name=release,
-            message=notes,
-            target_commitish=pr.merge_commit_sha,
+            message="",
+            target_commitish=commit,
             generate_release_notes=True,
         )
     except GithubException as e:
@@ -149,16 +178,8 @@ def create_release(repo: Repository, pr: PullRequest) -> None:
             raise
 
 
-def get_release_notes(pr: PullRequest) -> str:
-    for comment in pr.get_issue_comments():
-        m = re.search("(?si)Release notes:(.*)", comment.body)
-        if m:
-            return m[1].strip()
-    return ""
-
-
-def update_docker_images() -> None:
-    docker("build", "--tag", DOCKER_IMAGE, WORKSPACE)
+def build_and_push_versioned_image(version: VersionInfo) -> str:
+    tag = f"{DOCKER_IMAGE}:{version}"
     server = [DOCKER_IMAGE.split("/")[0]] if DOCKER_IMAGE.count("/") > 1 else []
     docker(
         "login",
@@ -168,9 +189,42 @@ def update_docker_images() -> None:
         *server,
         stdin=DOCKER_PASSWORD,
     )
-    for version in expand_versions(v=False):
-        tag = f"{DOCKER_IMAGE}:{version}"
-        docker("tag", DOCKER_IMAGE, tag)
+    docker("build", "--tag", tag, WORKSPACE)
+    docker("push", tag)
+    result = subprocess.run(
+        ["docker", "inspect", "--format={{index .RepoDigests 0}}", tag],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    ref = result.stdout.strip()
+    if "@sha256:" not in ref:
+        raise RuntimeError(
+            f"Could not determine digest for {tag}: docker inspect returned {ref!r}"
+        )
+    return ref.split("@sha256:")[1]
+
+
+def push_floating_tags() -> None:
+    version = current_version()
+    versioned_tag = f"{DOCKER_IMAGE}:{version}"
+    server = [DOCKER_IMAGE.split("/")[0]] if DOCKER_IMAGE.count("/") > 1 else []
+    docker(
+        "login",
+        "--username",
+        DOCKER_USERNAME,
+        "--password-stdin",
+        *server,
+        stdin=DOCKER_PASSWORD,
+    )
+    docker("pull", versioned_tag)
+    for float_version in [
+        str(version.major),
+        f"{version.major}.{version.minor}",
+        "latest",
+    ]:
+        tag = f"{DOCKER_IMAGE}:{float_version}"
+        docker("tag", versioned_tag, tag)
         docker("push", tag)
 
 
@@ -185,5 +239,3 @@ if __name__ == "__main__":
         event = json.load(f)
     if name == "workflow_dispatch":
         on_workflow_dispatch(event["inputs"]["bump"])
-    elif name == "pull_request":
-        on_pull_request(event["pull_request"]["number"])
