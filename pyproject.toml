@@ -22,7 +22,7 @@ requires-plugins = {poetry-plugin-export = ">=1.8"}
 [tool.poetry.dependencies]
 python = "^3.12"
 Jinja2 = "^3"
-PyGithub = "^2.9.0"
+PyGithub = "^2.9.1"
 semver = "^3.0.4"
 toml = "^0.10.0"
 # Optional: only needed when using SSH key passwords
@@ -44,13 +44,13 @@ python-gitlab = { version = "^8.2.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 black = "^26.3"
-boto3 = "^1.42.83"
+boto3 = "^1.42.95"
 flake8 = "^7"
 mypy = "^1.20"
 pytest-cov = "^7.1.0"
 types-requests = "^2.33.0"
 types-toml = "^0.10.8"
-types-PyYAML = "6.0.12.20250915"
+types-PyYAML = "6.0.12.20260408"
 
 [tool.black]
 line-length = 88
