@@ -445,6 +445,27 @@ def test_collect_data_non_default_branch_not_backport():
     assert data["compare_url"] == "https://github.com/A/B.jl/compare/v0.18.6...v0.18.7"
 
 
+def test_collect_data_default_branch_not_backport_even_with_higher_tag():
+    """Default-branch releases should not be hidden just because newer tags exist."""
+    c = _changelog()
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="B")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=[])
+    c._previous_release = Mock(return_value=None)
+    c._is_backport = Mock(return_value=True)
+    commit_date = datetime(2023, 4, 1, tzinfo=timezone.utc)
+    commit = Mock(commit=Mock(author=Mock(date=commit_date)))
+    c._repo._repo.get_commit = Mock(return_value=commit)
+    c._issues = Mock(return_value=[])
+    c._pulls = Mock(return_value=[])
+    c._custom_release_notes = Mock(return_value=None)
+
+    data = c._collect_data("v0.18.7", "abcdef")
+
+    assert data["backport"] is False
+
+
 def test_pulls_on_branches():
     c = _changelog()
     pr_main = Mock(spec=PullRequest)
