@@ -1,6 +1,8 @@
 from textwrap import dedent
 from unittest.mock import Mock, patch
 
+from github import GithubException
+
 from tagbot.web import reports
 
 
@@ -36,12 +38,13 @@ def test_handler(handle_report):
     )
 
 
+@patch("tagbot.web.reports._verify_run", return_value=True)
 @patch("tagbot.web.reports._find_duplicate", return_value=None)
 @patch("tagbot.web.reports._already_commented", side_effect=[True, False])
 @patch("tagbot.web.reports._add_duplicate_comment")
 @patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
 def test_handle_report(
-    create_issue, add_duplicate_comment, already_commented, find_duplicate
+    create_issue, add_duplicate_comment, already_commented, find_duplicate, verify_run
 ):
     kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
     reports._handle_report(**kwargs)
@@ -53,11 +56,12 @@ def test_handle_report(
     add_duplicate_comment.assert_called()
 
 
+@patch("tagbot.web.reports._verify_run", return_value=True)
 @patch("tagbot.web.reports._find_duplicate")
 @patch("tagbot.web.reports._add_duplicate_comment")
 @patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
 def test_handle_report_closed_duplicate_creates_new_issue(
-    create_issue, add_duplicate_comment, find_duplicate
+    create_issue, add_duplicate_comment, find_duplicate, verify_run
 ):
     find_duplicate.return_value = Mock(
         number=42, state="closed", html_url="https://github.com/org/repo/issues/42"
@@ -73,9 +77,10 @@ def test_handle_report_closed_duplicate_creates_new_issue(
     )
 
 
+@patch("tagbot.web.reports._verify_run", return_value=True)
 @patch("tagbot.web.reports._find_duplicate", return_value=None)
 @patch("tagbot.web.reports._create_issue", return_value=Mock(html_url="new"))
-def test_handle_report_with_extras(create_issue, find_duplicate):
+def test_handle_report_with_extras(create_issue, find_duplicate, verify_run):
     kwargs = {
         "image": "img",
         "repo": "Foo/Bar",
@@ -86,6 +91,72 @@ def test_handle_report_with_extras(create_issue, find_duplicate):
     }
     reports._handle_report(**kwargs)
     create_issue.assert_called_with(**kwargs, closed_duplicate_url=None)
+
+
+@patch("tagbot.web.reports._verify_run", return_value=False)
+@patch("tagbot.web.reports._find_duplicate")
+@patch("tagbot.web.reports._create_issue")
+def test_handle_report_rejects_unverifiable(create_issue, find_duplicate, verify_run):
+    kwargs = {"image": "img", "repo": "Foo/Bar", "run": "123", "stacktrace": "ow"}
+    reports._handle_report(**kwargs)
+    verify_run.assert_called_with("Foo/Bar", "123")
+    find_duplicate.assert_not_called()
+    create_issue.assert_not_called()
+
+
+RUN_URL = "https://github.com/Foo/Bar/actions/runs/123"
+
+
+@patch("tagbot.web.reports._get_gh")
+def test_verify_run(_get_gh):
+    wf_run = _get_gh.return_value.get_repo.return_value.get_workflow_run.return_value
+    wf_run.repository.full_name = "Foo/Bar"
+    wf_run.status = "in_progress"
+    assert reports._verify_run("Foo/Bar", RUN_URL)
+    # Case-insensitive repo matching.
+    assert reports._verify_run("foo/bar", RUN_URL)
+
+
+def test_verify_run_bad_url():
+    assert not reports._verify_run("Foo/Bar", "")
+    assert not reports._verify_run("Foo/Bar", "https://example.com")
+    assert not reports._verify_run("Foo/Bar", "Foo/Bar/actions")
+
+
+def test_verify_run_url_repo_mismatch():
+    assert not reports._verify_run("Other/Repo", RUN_URL)
+
+
+@patch("tagbot.web.reports._get_gh")
+def test_verify_run_repository_mismatch(_get_gh):
+    wf_run = _get_gh.return_value.get_repo.return_value.get_workflow_run.return_value
+    wf_run.repository.full_name = "Evil/Repo"
+    wf_run.status = "in_progress"
+    assert not reports._verify_run("Foo/Bar", RUN_URL)
+
+
+@patch("tagbot.web.reports._get_gh")
+def test_verify_run_not_active(_get_gh):
+    wf_run = _get_gh.return_value.get_repo.return_value.get_workflow_run.return_value
+    wf_run.repository.full_name = "Foo/Bar"
+    wf_run.status = "completed"
+    assert not reports._verify_run("Foo/Bar", RUN_URL)
+
+
+@patch("tagbot.web.reports._get_gh")
+def test_verify_run_github_exception(_get_gh):
+    _get_gh.return_value.get_repo.return_value.get_workflow_run.side_effect = (
+        GithubException(404, "Not Found", None)
+    )
+    assert not reports._verify_run("Foo/Bar", RUN_URL)
+
+
+@patch("tagbot.web.reports._get_gh")
+def test_verify_run_unexpected_error(_get_gh):
+    _get_gh.return_value.get_repo.return_value.get_workflow_run.side_effect = (
+        RuntimeError("boom")
+    )
+    assert not reports._verify_run("Foo/Bar", RUN_URL)
 
 
 def test_already_commented():

@@ -7,7 +7,7 @@ from typing import Dict, Optional
 
 import boto3
 
-from github import Github
+from github import Github, GithubException
 from github.Issue import Issue
 from github.IssueComment import IssueComment
 from github.Repository import Repository
@@ -36,6 +36,55 @@ def _get_issues_repo() -> Repository:
     return _get_gh().get_repo(TAGBOT_ISSUES_REPO_NAME, lazy=True)
 
 
+_RUN_URL_RE = re.compile(
+    r"^https://github\.com/(?P<repo>[^/]+/[^/]+)/actions/runs/(?P<run_id>\d+)"
+)
+
+# Workflow run statuses that indicate the run is still active. Reports are sent
+# while TagBot is mid-run, so a legitimate report's run is never yet completed.
+_ACTIVE_RUN_STATUSES = {"queued", "in_progress", "requested", "waiting", "pending"}
+
+
+def _verify_run(repo: str, run: str) -> bool:
+    """Verify that a report corresponds to a real, active TagBot run.
+
+    The client only reports public repositories running in GitHub Actions, so the
+    web service can independently confirm each report using its own GitHub token:
+    it looks up the workflow run named in the report and checks that the run
+    belongs to the claimed repository and is still active.
+
+    Fails closed: if the run cannot be positively confirmed (private repo,
+    nonexistent repo, mismatched or completed run, API error), the report is
+    rejected. Private-repo runs are invisible to the token and never reported by
+    the client, so they correctly never reach this point.
+    """
+    m = _RUN_URL_RE.match(run or "")
+    if not m:
+        logger.warning("Run URL did not match the expected format; rejecting")
+        return False
+    if m["repo"].casefold() != repo.casefold():
+        logger.warning("Run URL repo does not match the reported repo; rejecting")
+        return False
+    run_id = int(m["run_id"])
+    try:
+        wf_run = _get_gh().get_repo(repo, lazy=True).get_workflow_run(run_id)
+        full_name = wf_run.repository.full_name
+        status = wf_run.status
+    except GithubException as e:
+        logger.warning(f"Could not verify workflow run (status {e.status}); rejecting")
+        return False
+    except Exception:
+        logger.warning("Unexpected error verifying workflow run; rejecting")
+        return False
+    if not full_name or full_name.casefold() != repo.casefold():
+        logger.warning("Workflow run repository mismatch; rejecting")
+        return False
+    if status not in _ACTIVE_RUN_STATUSES:
+        logger.warning(f"Workflow run is not active (status {status}); rejecting")
+        return False
+    return True
+
+
 def handler(event: Dict[str, str], ctx: object = None) -> None:
     """Lambda event handler."""
     logger.info(f"Event: {json.dumps(event, indent=2)}")
@@ -59,6 +108,9 @@ def _handle_report(
     manual_intervention_url: Optional[str] = None,
 ) -> None:
     """Report an error."""
+    if not _verify_run(repo, run):
+        logger.warning(f"Rejecting unverifiable report for {repo}")
+        return
     duplicate = _find_duplicate(stacktrace)
     if duplicate and duplicate.state == "open":
         logger.info(f"Found a duplicate (#{duplicate.number})")
