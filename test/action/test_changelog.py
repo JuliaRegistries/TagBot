@@ -646,40 +646,57 @@ def test_previous_release_chronological():
     """Test finding chronologically previous releases."""
     c = _changelog()
     c._repo.get_all_tags = Mock(return_value=["v1.0.0", "v2.0.0", "v1.5.0"])
-    c._repo._repo.get_release = Mock()
-    c._repo._git.time_of_commit = Mock()
 
     # Mock releases with different dates
     early_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
     middle_date = datetime(2023, 6, 1, tzinfo=timezone.utc)
     late_date = datetime(2023, 12, 1, tzinfo=timezone.utc)
 
-    # v1.0.0 released early
-    rel1 = Mock()
-    rel1.created_at = early_date
-    # v1.5.0 released middle
-    rel2 = Mock()
-    rel2.created_at = middle_date
+    c._repo._git.commit_times_of_tags = Mock(
+        return_value={"v1.0.0": early_date, "v1.5.0": middle_date}
+    )
 
     # For v2.0.0, should find v1.5.0 (latest before late_date)
-    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
     result = c._previous_release_chronological("v2.0.0", late_date)
     assert result.tag_name == "v1.5.0"
     assert result.created_at == middle_date
 
     # No previous release before commit_date
     early_commit = datetime(2022, 1, 1, tzinfo=timezone.utc)
-    c._repo._repo.get_release.side_effect = [rel1]  # only v1.0.0 < v1.5.0
     result = c._previous_release_chronological("v1.5.0", early_commit)
     assert result is None
 
-    # Skip versions >= current (no get_release calls expected)
-    c._repo._repo.get_release.side_effect = []
+    # Skip versions >= current
     result = c._previous_release_chronological("v1.0.0", late_date)
     assert result is None
 
     # Handle prerelease versions (should be skipped)
     c._repo.get_all_tags.return_value = ["v1.0.0", "v1.5.0-alpha", "v1.5.0"]
-    c._repo._repo.get_release.side_effect = [rel1, rel2]  # v1.0.0, v1.5.0
     result = c._previous_release_chronological("v2.0.0", late_date)
     assert result.tag_name == "v1.5.0"  # Should skip v1.5.0-alpha
+
+
+def test_previous_release_chronological_single_git_call():
+    """Regression for #578: resolve tag times in one batch git call.
+
+    Large registries must not trigger a per-tag get_release / time_of_commit
+    lookup, which made historical releases take minutes to generate.
+    """
+    c = _changelog()
+    many_tags = [f"v1.0.{i}" for i in range(50)]
+    c._repo.get_all_tags = Mock(return_value=many_tags)
+    base = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    times = {tag: base + timedelta(days=i) for i, tag in enumerate(many_tags)}
+    c._repo._git.commit_times_of_tags = Mock(return_value=times)
+    c._repo._repo.get_release = Mock(side_effect=AssertionError("get_release called"))
+    c._repo._git.time_of_commit = Mock(
+        side_effect=AssertionError("time_of_commit called")
+    )
+
+    commit_date = base + timedelta(days=100)
+    result = c._previous_release_chronological("v1.0.49", commit_date)
+
+    c._repo._git.commit_times_of_tags.assert_called_once_with()
+    assert result is not None
+    # The newest tag strictly older than the current version (v1.0.49).
+    assert result.tag_name == "v1.0.48"

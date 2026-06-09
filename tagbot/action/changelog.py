@@ -113,6 +113,10 @@ class Changelog:
         prev_rel = None
         latest_time = datetime.min.replace(tzinfo=timezone.utc)
         tags = self._repo.get_all_tags()
+        # Resolve every tag's commit time in a single git call instead of one
+        # API/subprocess round-trip per tag, which is O(tags) slow on large
+        # registries (see issue #578).
+        tag_times = self._repo._git.commit_times_of_tags()
 
         for tag_name in tags:
             if not tag_name.startswith(tag_prefix):
@@ -126,11 +130,12 @@ class Changelog:
             if ver > cur_ver or ver == cur_ver:
                 continue
             # Get the release time
-            try:
-                rel = self._repo._repo.get_release(tag_name)
-                rel_time = _ensure_utc(rel.created_at)
-            except UnknownObjectException:
-                rel_time = _ensure_utc(self._repo._git.time_of_commit(tag_name))
+            commit_time = tag_times.get(tag_name)
+            if commit_time is None:
+                # Missing from the batch lookup (e.g. a just-created tag); fall
+                # back to a single-tag git query.
+                commit_time = self._repo._git.time_of_commit(tag_name)
+            rel_time = _ensure_utc(commit_time)
             if rel_time < commit_date and rel_time > latest_time:
                 prev_rel = type(
                     "obj",
