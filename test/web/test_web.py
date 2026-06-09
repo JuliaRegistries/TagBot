@@ -69,4 +69,6 @@ def test_report(LAMBDA, REPORTS, client):
     assert resp.status_code == 200
     assert resp.is_json
     assert resp.json == {"status": "Submitted error report"}
-    LAMBDA.invoke.assert_called_with(FunctionName=REPORTS, Payload=json.dumps(payload))
+    LAMBDA.invoke.assert_called_with(
+        FunctionName=REPORTS, InvocationType="Event", Payload=json.dumps(payload)
+    )

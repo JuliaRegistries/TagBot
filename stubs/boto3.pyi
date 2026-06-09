@@ -1,7 +1,9 @@
 from typing import Any, Dict, Literal, Union, overload
 
 class Lambda:
-    def invoke(self, *, FunctionName: str, Payload: str) -> object: ...
+    def invoke(
+        self, *, FunctionName: str, Payload: str, InvocationType: str = ...
+    ) -> object: ...
 
 class SSM:
     def get_parameter(
