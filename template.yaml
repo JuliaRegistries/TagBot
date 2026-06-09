@@ -25,6 +25,15 @@ Globals:
         TAGBOT_REPO: !Ref TagbotRepo
         TAGBOT_ISSUES_REPO: !Ref TagbotIssuesRepo
         TAGBOT_COMMIT: !Ref TagbotCommit
+  Api:
+    # Stage-level throttling. The endpoint is intentionally keyless (TagBot runs
+    # cannot carry API keys), so this caps the request rate for all callers and
+    # bounds the GitHub API work a flood can trigger against the shared token.
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
 
 Resources:
   ApiFunction:

@@ -102,5 +102,9 @@ def report() -> JSON:
             payload["manual_intervention_url"] = request.json["manual_intervention_url"]
     else:
         payload = {}
-    LAMBDA.invoke(FunctionName=REPORTS_FUNCTION_NAME, Payload=json.dumps(payload))
+    LAMBDA.invoke(
+        FunctionName=REPORTS_FUNCTION_NAME,
+        InvocationType="Event",
+        Payload=json.dumps(payload),
+    )
     return {"status": "Submitted error report"}, 200
