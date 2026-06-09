@@ -167,6 +167,29 @@ def test_time_of_commit():
     g.command.assert_called_with("log", "-1", "--format=%cI", "a^{commit}", repo="")
 
 
+def test_commit_times_of_tags():
+    output = (
+        "v1.0.0\t2023-01-01T00:00:00+00:00\t\n"
+        # Annotated tag: direct date is the tag date, deref date is the commit.
+        "v1.1.0\t2023-06-02T00:00:00+00:00\t2023-06-01T00:00:00+00:00\n"
+        "\n"
+        "bad-line\n"
+    )
+    g = _git(command=output)
+    times = g.commit_times_of_tags()
+    assert times == {
+        "v1.0.0": datetime(2023, 1, 1),
+        "v1.1.0": datetime(2023, 6, 1),
+    }
+    g.command.assert_called_with(
+        "for-each-ref",
+        "--format=%(refname:short)%09%(committerdate:iso-strict)"
+        "%09%(*committerdate:iso-strict)",
+        "refs/tags",
+        repo="",
+    )
+
+
 @patch("subprocess.run")
 def test_command_includes_hint(run):
     g = Git("", "Foo/Bar", "", "user", "email")

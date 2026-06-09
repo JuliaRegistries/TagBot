@@ -3,7 +3,7 @@ import subprocess
 
 from datetime import datetime, timezone
 from tempfile import mkdtemp
-from typing import Optional, cast
+from typing import Dict, Optional, cast
 from urllib.parse import urlparse
 
 from .. import logger
@@ -261,3 +261,31 @@ class Git:
             )
             return datetime.now(timezone.utc).replace(tzinfo=None)
         return parsed
+
+    def commit_times_of_tags(self, repo: str = "") -> Dict[str, datetime]:
+        """Return a map of tag name to its underlying commit's datetime.
+
+        Uses a single ``git for-each-ref`` call rather than one lookup per tag,
+        which matters for repositories with many tags (see issue #578).
+        """
+        # For annotated tags the dereferenced (``*``) committer date is the
+        # underlying commit's date; for lightweight tags the direct committer
+        # date already points at the commit. Exactly one is populated per tag.
+        fmt = (
+            "%(refname:short)%09%(committerdate:iso-strict)"
+            "%09%(*committerdate:iso-strict)"
+        )
+        output = self.command("for-each-ref", f"--format={fmt}", "refs/tags", repo=repo)
+        times: Dict[str, datetime] = {}
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            name = parts[0]
+            deref = parts[2] if len(parts) > 2 else ""
+            parsed = parse_git_datetime(deref or parts[1])
+            if parsed:
+                times[name] = parsed
+        return times
