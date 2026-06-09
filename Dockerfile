@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS builder
+FROM python:3.14.5-slim AS builder
 
 RUN pip install --no-cache-dir poetry poetry-plugin-export
 
@@ -6,7 +6,7 @@ COPY pyproject.toml .
 COPY poetry.lock .
 RUN poetry export --all-extras --format requirements.txt --output /root/requirements.txt
 
-FROM python:3.14-slim
+FROM python:3.14.5-slim
 LABEL org.opencontainers.image.source="https://github.com/JuliaRegistries/TagBot"
 RUN apt-get update && apt-get install -y git gnupg make openssh-client
 COPY --from=builder /root/requirements.txt /root/requirements.txt
