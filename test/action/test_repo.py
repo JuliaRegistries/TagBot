@@ -1517,9 +1517,10 @@ def test_is_backport_commit():
     r._git.command.return_value = "  origin/main\n"
     assert not r.is_backport_commit("abc123")
 
-    # Commit on default branch and another branch
+    # Commit on default branch and another branch → mainline, not a backport
+    # (e.g. a feature branch based on the release commit; issue #574)
     r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
-    assert r.is_backport_commit("abc123")
+    assert not r.is_backport_commit("abc123")
 
     # Commit on non-default branch only
     r._git.command.return_value = "  origin/release-1.0\n"
@@ -1557,8 +1558,12 @@ def test_branches_of_commit():
     r._git.command.return_value = "  origin/main\n"
     assert r.branches_of_commit("abc123") == []
 
-    # One non-default branch
+    # Default branch plus other branches → mainline, so empty (issue #574)
     r._git.command.return_value = "  origin/main\n  origin/release-1.0\n"
+    assert r.branches_of_commit("abc123") == []
+
+    # One non-default branch
+    r._git.command.return_value = "  origin/release-1.0\n"
     assert r.branches_of_commit("abc123") == ["release-1.0"]
 
     # Multiple non-default branches, no default
