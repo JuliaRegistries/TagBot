@@ -635,12 +635,8 @@ class Repo:
         if self.__subdir_tree_to_commit_cache is None:
             logger.debug("Building subdir tree→commit cache")
             subdir_cache: Dict[str, str] = {}
-            for line in self._git.command(
-                "log", "--all", "--format=%H"
-            ).splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(
-                    line, suppress_abort=True
-                )
+            for line in self._git.command("log", "--all", "--format=%H").splitlines():
+                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
                 if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
                     subdir_cache[subdir_tree_hash] = line
             logger.debug(

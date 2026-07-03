@@ -724,8 +724,14 @@ def test_commit_sha_of_tree_subdir_caches_are_separate():
     with patch.object(r, "_subdir_tree_hash", side_effect=["dir_a", "dir_b"]):
         assert r._commit_sha_of_tree("dir_b") == "def456"
         # Both caches exist independently
-        assert r._Repo__subdir_tree_to_commit_cache == {"dir_a": "abc123", "dir_b": "def456"}
-        assert r._Repo__tree_to_commit_cache == {"root_tree": "abc123", "other_tree": "def456"}
+        assert r._Repo__subdir_tree_to_commit_cache == {
+            "dir_a": "abc123",
+            "dir_b": "def456",
+        }
+        assert r._Repo__tree_to_commit_cache == {
+            "root_tree": "abc123",
+            "other_tree": "def456",
+        }
 
 
 def test_commit_sha_of_tag():
@@ -936,9 +942,7 @@ def test_filter_map_versions_subdir():
     # Post-subdir version found via tree resolver
     r._commit_sha_of_tree.return_value = "subdir_sha"
     r._commit_sha_from_registry_pr.reset_mock()
-    assert r._filter_map_versions({"2.0.0": "subdir_tree"}) == {
-        "v2.0.0": "subdir_sha"
-    }
+    assert r._filter_map_versions({"2.0.0": "subdir_tree"}) == {"v2.0.0": "subdir_sha"}
     r._commit_sha_from_registry_pr.assert_not_called()
 
     # Tag exists - skip
