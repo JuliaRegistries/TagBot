@@ -234,6 +234,10 @@ class Repo:
         self.__existing_tags_cache: Optional[Dict[str, str]] = None
         # Cache for tree SHA → commit SHA mapping (for non-PR registries)
         self.__tree_to_commit_cache: Optional[Dict[str, str]] = None
+        # Separate cache for subdirectory tree SHA → commit SHA mapping.
+        # Kept separate from __tree_to_commit_cache to allow fallback from
+        # subdir trees to root-level trees (for pre-subdir-restructure versions).
+        self.__subdir_tree_to_commit_cache: Optional[Dict[str, str]] = None
         # Track manual intervention issue URL for error reporting
         self._manual_intervention_issue_url: Optional[str] = None
 
@@ -564,15 +568,21 @@ class Repo:
             return None
         commit = self._repo.get_commit(m[1])
         # Handle special case of tagging packages in a repo subdirectory, in which
-        # case the Julia package tree hash does not match the git commit tree hash
+        # case the Julia package tree hash does not match the git commit tree hash.
+        # For versions registered after the subdir move, we compare the subdirectory
+        # tree hash. For versions registered before the move, we fall back to the
+        # root tree hash.
         if self.__subdir:
-            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=False)
-            if subdir_tree_hash == tree:
+            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=True)
+            if subdir_tree_hash and subdir_tree_hash == tree:
                 return cast(str, commit.sha)
-            else:
-                msg = "Subdir tree SHA of commit from registry PR does not match"
-                logger.warning(msg)
-                return None
+            # Fallback: check if tree matches the root commit tree SHA
+            # (for versions registered before the subdir restructure)
+            if commit.commit.tree.sha == tree:
+                return cast(str, commit.sha)
+            msg = "Tree SHA of commit from registry PR does not match (subdir or root)"
+            logger.warning(msg)
+            return None
         # Handle regular case (subdir is not set)
         if commit.commit.tree.sha == tree:
             return cast(str, commit.sha)
@@ -620,20 +630,33 @@ class Repo:
             return None
 
         # For subdirectories, we need to check the subdirectory tree hash.
-        # Build a cache of subdir tree hashes from commits.
-        if self.__tree_to_commit_cache is None:
+        # Build a cache of subdir tree hashes from commits, stored separately
+        # from the full-tree cache to avoid one overwriting the other.
+        if self.__subdir_tree_to_commit_cache is None:
             logger.debug("Building subdir tree→commit cache")
             subdir_cache: Dict[str, str] = {}
-            for line in self._git.command("log", "--all", "--format=%H").splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
+            for line in self._git.command(
+                "log", "--all", "--format=%H"
+            ).splitlines():
+                subdir_tree_hash = self._subdir_tree_hash(
+                    line, suppress_abort=True
+                )
                 if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
                     subdir_cache[subdir_tree_hash] = line
             logger.debug(
                 f"Subdir tree→commit cache built with {len(subdir_cache)} entries"
             )
-            self.__tree_to_commit_cache = subdir_cache
+            self.__subdir_tree_to_commit_cache = subdir_cache
 
-        return self.__tree_to_commit_cache.get(tree)
+        # Check the subdir cache first
+        result = self.__subdir_tree_to_commit_cache.get(tree)
+        if result:
+            return result
+
+        # Fallback: check the full tree cache for trees registered before the
+        # subdir restructure (where the registry stored the root tree SHA).
+        full_cache = self._build_tree_to_commit_cache()
+        return full_cache.get(tree)
 
     def _subdir_tree_hash(
         self, commit_sha: str, *, suppress_abort: bool
