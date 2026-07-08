@@ -248,6 +248,11 @@ make pytest black flake8 mypy
 
 **Test locations**: `test/action/`, `test/web/`, `test/test_tagbot.py`
 
+> **Warning**: `poetry run pytest` can silently run against a stale copy of
+> tagbot installed in the venv's site-packages instead of the local sources,
+> making test results not reflect your edits. Use `poetry run python -m pytest`
+> (or `make pytest`), which puts the repo root first on `sys.path`.
+
 ### What NOT to Do
 
 - ❌ Print statements (use logger)
