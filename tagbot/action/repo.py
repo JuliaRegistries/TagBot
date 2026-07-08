@@ -1749,21 +1749,28 @@ Or create releases manually via the GitHub UI.
         return self._commit_sha_of_tree(tree)
 
     def branches_of_commit(self, sha: str) -> List[str]:
-        """Return short names of non-default remote branches that contain sha."""
+        """Return short names of non-default remote branches that contain sha.
+
+        Returns an empty list if the default branch contains the commit: a
+        commit reachable from the default branch is a mainline release, even
+        if other branches (e.g. feature branches based on it) also contain it
+        (see issue #574).
+        """
         try:
             output = self._git.command("branch", "-r", "--contains", sha)
             default = f"origin/{self._repo.default_branch}"
             prefix = "origin/"
             prefix_len = len(prefix)
-            return [
-                b.strip()[prefix_len:]
-                for b in output.splitlines()
-                if b.strip() and " -> " not in b and b.strip() != default
+            branches = [
+                b.strip() for b in output.splitlines() if b.strip() and " -> " not in b
             ]
+            if default in branches:
+                return []
+            return [b[prefix_len:] for b in branches]
         except Abort:
             logger.debug("Failed to get branches for commit", exc_info=True)
             return []
 
     def is_backport_commit(self, sha: str) -> bool:
-        """Check if the commit is on a non-default branch."""
+        """Check if the commit is only reachable from non-default branches."""
         return bool(self.branches_of_commit(sha))
