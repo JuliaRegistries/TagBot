@@ -574,23 +574,27 @@ def test_commit_sha_from_registry_pr_subdir_neither_matches(logger):
     with patch.object(r, "_subdir_tree_hash", return_value="wrong_hash"):
         assert r._commit_sha_from_registry_pr("v1.0.0", "neither_match") is None
         logger.warning.assert_called_with(
-            "Tree SHA of commit from registry PR does not match (subdir or root)"
+            "Tree SHA of commit from registry PR does not match"
         )
 
 
 def test_commit_sha_from_registry_pr_subdir_no_crash_on_missing_subdir():
     """When the subdir doesn't exist in the commit (e.g. pre-move),
-    suppress_abort=True prevents an Abort crash, and we fall through to
-    the root tree check."""
+    suppress_abort=True prevents an Abort crash and the lookup returns None.
+
+    Pre-move versions whose root tree matches never reach the subdir check:
+    the root tree is compared first."""
     r = _repo(subdir="path/to/Foo.jl")
     r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {'a' * 32}"))
     r._repo.get_commit = Mock()
     r._repo.get_commit.return_value.sha = "sha"
     r._repo.get_commit.return_value.commit.tree.sha = "root_tree"
-    # _subdir_tree_hash returns None (suppressed Abort) when subdir doesn't exist
+    # Root tree matches: resolved without consulting the subdir at all
     with patch.object(r, "_subdir_tree_hash", return_value=None):
-        # Falls through to root tree check and matches
         assert r._commit_sha_from_registry_pr("v1.0.0", "root_tree") == "sha"
+        r._subdir_tree_hash.assert_not_called()
+        # Root tree mismatch + missing subdir (suppressed Abort): returns None
+        assert r._commit_sha_from_registry_pr("v1.0.0", "no_match") is None
 
 
 @patch("tagbot.action.repo.logger")
@@ -644,14 +648,14 @@ def test_commit_sha_of_tree():
 def test_commit_sha_of_tree_subdir_fallback():
     """Test subdirectory tree→commit cache."""
     r = _repo(subdir="path/to/package")
-    # git log returns commit SHAs
-    r._git.command = Mock(return_value="abc123\ndef456\nghi789")
+    # One git log pass provides commit and root tree SHAs for both caches
+    r._git.command = Mock(return_value="abc123 t1\ndef456 t2\nghi789 t3")
     # _subdir_tree_hash called for each commit, match on second
     with patch.object(
         r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]
     ):
         assert r._commit_sha_of_tree("tree_hash") == "def456"
-        r._git.command.assert_called_once_with("log", "--all", "--format=%H")
+        r._git.command.assert_called_once_with("log", "--all", "--format=%H %T")
         # Cache is built, so subsequent lookups don't call git again
         assert r._commit_sha_of_tree("other") == "abc123"
         assert r._git.command.call_count == 1
@@ -660,7 +664,7 @@ def test_commit_sha_of_tree_subdir_fallback():
 def test_commit_sha_of_tree_subdir_fallback_no_match():
     """Test subdirectory cache returns None when no match found."""
     r = _repo(subdir="path/to/package")
-    r._git.command = Mock(return_value="abc123\ndef456")
+    r._git.command = Mock(return_value="abc123 t1\ndef456 t2")
     # No matching subdir tree hash
     with patch.object(r, "_subdir_tree_hash", return_value="other_tree"):
         assert r._commit_sha_of_tree("tree_hash") is None
@@ -675,54 +679,48 @@ def test_commit_sha_of_tree_subdir_falls_back_to_full_cache():
     subdirectory tree SHA.
     """
     r = _repo(subdir="path/to/package")
-    # git log --format=%H returns commit SHAs for subdir cache
-    r._git.command = Mock(return_value="abc123\ndef456")
-    with patch.object(r, "_subdir_tree_hash", return_value="dir_tree"):
-        # Build subdir cache
-        assert r._commit_sha_of_tree("dir_tree") == "abc123"
-    # Lookup a tree that isn't in the subdir cache but would be in the
-    # full cache (simulates a pre-subdir version registered at root level).
-    # Change mock to return full git log format with tree SHAs.
-    r._git.command.return_value = (
-        "abc123 root_tree_1\ndef456 root_tree_2\nghi789 root_tree_3"
+    r._git.command = Mock(
+        return_value="abc123 root_tree_1\ndef456 root_tree_2\nghi789 root_tree_3"
     )
-    assert r._commit_sha_of_tree("root_tree_2") == "def456"
-
-
-def test_commit_sha_of_tree_subdir_prefers_subdir_cache():
-    """The subdir cache is checked first; if the tree exists there, the
-    full cache fallback is not consulted."""
-    r = _repo(subdir="path/to/package")
-    r._git.command = Mock(return_value="abc123\ndef456")
-    with patch.object(r, "_subdir_tree_hash", side_effect=["sub_tree", "other"]):
-        # Build subdir cache and find match
-        assert r._commit_sha_of_tree("sub_tree") == "abc123"
-        # Even if the full cache would also match a different tree,
-        # subsequent lookups go through the subdir cache first
-        r._git.command.return_value = "abc123 root_tree\ndef456 other"
-        assert r._commit_sha_of_tree("other") == "def456"
-        # subdir cache found this — no additional calls to _build_tree_to_commit_cache
+    with patch.object(r, "_subdir_tree_hash", return_value="dir_tree"):
+        # Post-move version resolves via the subdir cache
+        assert r._commit_sha_of_tree("dir_tree") == "abc123"
+        # Pre-subdir version registered at root level resolves via the
+        # full cache, with no additional git log pass
+        assert r._commit_sha_of_tree("root_tree_2") == "def456"
         assert r._git.command.call_count == 1
+
+
+def test_commit_sha_of_tree_subdir_ambiguous_defers_to_registry_pr():
+    """A tree that is both a subdir tree and a root tree (content-preserving
+    move into the subdirectory) is ambiguous: either cache may point at the
+    wrong commit, so return None and let the caller use the registry PR,
+    which pins the exact registered commit."""
+    r = _repo(subdir="path/to/package")
+    # shared_tree is the root tree of abc123 AND the subdir tree of def456
+    r._git.command = Mock(return_value="def456 t_move\nabc123 shared_tree")
+    with patch.object(r, "_subdir_tree_hash", side_effect=["shared_tree", None]):
+        assert r._commit_sha_of_tree("shared_tree") is None
 
 
 def test_commit_sha_of_tree_subdir_caches_are_separate():
     """The subdir tree cache and the full tree cache are stored separately
     and do not interfere.  Building one does not invalidate the other."""
     r = _repo(subdir="path/to/package")
-    r._git.command = Mock(return_value="abc123\ndef456")
 
     # Build the full cache via _build_tree_to_commit_cache first
-    r._git.command.return_value = "abc123 root_tree\ndef456 other_tree"
+    r._git.command = Mock(return_value="abc123 root_tree\ndef456 other_tree")
     full_cache = r._build_tree_to_commit_cache()
     assert full_cache == {"root_tree": "abc123", "other_tree": "def456"}
     assert r._Repo__tree_to_commit_cache is not None
     # The subdir cache should still be None (not yet built)
     assert r._Repo__subdir_tree_to_commit_cache is None
 
-    # Now build the subdir cache via _commit_sha_of_tree
-    r._git.command.return_value = "abc123\ndef456"
+    # Now build the subdir cache via _commit_sha_of_tree; it derives from
+    # the already-built full cache without another git log pass
     with patch.object(r, "_subdir_tree_hash", side_effect=["dir_a", "dir_b"]):
         assert r._commit_sha_of_tree("dir_b") == "def456"
+        assert r._git.command.call_count == 1
         # Both caches exist independently
         assert r._Repo__subdir_tree_to_commit_cache == {
             "dir_a": "abc123",
@@ -954,6 +952,23 @@ def test_filter_map_versions_subdir():
     r._commit_sha_of_tree.return_value = None
     r._commit_sha_from_registry_pr.return_value = "pr_sha"
     assert r._filter_map_versions({"5.0.0": "tree5"}) == {"v5.0.0": "pr_sha"}
+
+
+def test_filter_map_versions_subdir_skips_versions_tagged_unprefixed():
+    """A pre-subdir-move version already tagged under the un-prefixed name
+    (from when the package lived at the repo root) is not re-tagged with
+    the subdir prefix on the same commit."""
+    r = _repo(subdir="path/to/SubPkgA")
+    r._project = Mock(return_value="SubPkgA")
+    r._commit_sha_of_tree = Mock(return_value="pre_move_sha")
+
+    # Commit already tagged as v1.0.0 → no duplicate SubPkgA-v1.0.0
+    r._build_tags_cache = Mock(return_value={"v1.0.0": "pre_move_sha"})
+    assert not r._filter_map_versions({"1.0.0": "root_tree"})
+
+    # Un-prefixed tag exists but points at a different commit → still tagged
+    r._build_tags_cache.return_value = {"v1.0.0": "unrelated_sha"}
+    assert r._filter_map_versions({"1.0.0": "root_tree"}) == {"v1.0.0": "pre_move_sha"}
 
 
 @patch("tagbot.action.repo.logger")
