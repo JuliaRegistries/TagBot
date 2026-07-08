@@ -234,6 +234,10 @@ class Repo:
         self.__existing_tags_cache: Optional[Dict[str, str]] = None
         # Cache for tree SHA → commit SHA mapping (for non-PR registries)
         self.__tree_to_commit_cache: Optional[Dict[str, str]] = None
+        # Separate cache for subdirectory tree SHA → commit SHA mapping.
+        # Kept separate from __tree_to_commit_cache to allow fallback from
+        # subdir trees to root-level trees (for pre-subdir-restructure versions).
+        self.__subdir_tree_to_commit_cache: Optional[Dict[str, str]] = None
         # Track manual intervention issue URL for error reporting
         self._manual_intervention_issue_url: Optional[str] = None
 
@@ -563,22 +567,21 @@ class Repo:
             logger.info("Registry PR body did not match")
             return None
         commit = self._repo.get_commit(m[1])
-        # Handle special case of tagging packages in a repo subdirectory, in which
-        # case the Julia package tree hash does not match the git commit tree hash
-        if self.__subdir:
-            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=False)
-            if subdir_tree_hash == tree:
-                return cast(str, commit.sha)
-            else:
-                msg = "Subdir tree SHA of commit from registry PR does not match"
-                logger.warning(msg)
-                return None
-        # Handle regular case (subdir is not set)
+        # The registered tree matches the root commit tree for regular packages,
+        # and for subdir packages whose version was registered before the package
+        # moved into the subdirectory. Check it first since the data is already
+        # in hand from the API.
         if commit.commit.tree.sha == tree:
             return cast(str, commit.sha)
-        else:
-            logger.warning("Tree SHA of commit from registry PR does not match")
-            return None
+        # Handle special case of tagging packages in a repo subdirectory, in which
+        # case the Julia package tree hash matches the subdirectory tree hash
+        # rather than the git commit tree hash.
+        if self.__subdir:
+            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=True)
+            if subdir_tree_hash and subdir_tree_hash == tree:
+                return cast(str, commit.sha)
+        logger.warning("Tree SHA of commit from registry PR does not match")
+        return None
 
     def _build_tree_to_commit_cache(self) -> Dict[str, str]:
         """Build a cache mapping tree SHAs to commit SHAs.
@@ -608,6 +611,27 @@ class Repo:
         self.__tree_to_commit_cache = cache
         return cache
 
+    def _build_subdir_tree_to_commit_cache(self) -> Dict[str, str]:
+        """Build a cache mapping subdirectory tree SHAs to commit SHAs.
+
+        Derived from the full tree→commit cache: commits sharing a root tree
+        have identical content and therefore identical subdirectory trees, so
+        one representative commit per root tree covers every distinct subdir
+        tree without a second pass over the history.
+        """
+        if self.__subdir_tree_to_commit_cache is not None:
+            return self.__subdir_tree_to_commit_cache
+
+        logger.debug("Building subdir tree→commit cache")
+        subdir_cache: Dict[str, str] = {}
+        for commit_sha in self._build_tree_to_commit_cache().values():
+            subdir_tree_hash = self._subdir_tree_hash(commit_sha, suppress_abort=True)
+            if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
+                subdir_cache[subdir_tree_hash] = commit_sha
+        logger.debug(f"Subdir tree→commit cache built with {len(subdir_cache)} entries")
+        self.__subdir_tree_to_commit_cache = subdir_cache
+        return subdir_cache
+
     def _commit_sha_of_tree(self, tree: str) -> Optional[str]:
         """Look up the commit SHA of a tree with the given SHA."""
         # Fast path: use pre-built tree→commit cache (built from git log)
@@ -619,21 +643,23 @@ class Repo:
             # Tree not found in any commit
             return None
 
-        # For subdirectories, we need to check the subdirectory tree hash.
-        # Build a cache of subdir tree hashes from commits.
-        if self.__tree_to_commit_cache is None:
-            logger.debug("Building subdir tree→commit cache")
-            subdir_cache: Dict[str, str] = {}
-            for line in self._git.command("log", "--all", "--format=%H").splitlines():
-                subdir_tree_hash = self._subdir_tree_hash(line, suppress_abort=True)
-                if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
-                    subdir_cache[subdir_tree_hash] = line
-            logger.debug(
-                f"Subdir tree→commit cache built with {len(subdir_cache)} entries"
-            )
-            self.__tree_to_commit_cache = subdir_cache
-
-        return self.__tree_to_commit_cache.get(tree)
+        # For subdirectories, check the subdirectory tree hash.
+        subdir_cache = self._build_subdir_tree_to_commit_cache()
+        full_cache = self._build_tree_to_commit_cache()
+        if tree in subdir_cache:
+            if tree in full_cache:
+                # Ambiguous: the tree is both the subdirectory tree of
+                # post-move commits and the root tree of a pre-move commit
+                # (a content-preserving move into the subdirectory). Either
+                # cache may point at the wrong commit, so return None and let
+                # the caller fall back to the registry PR, which pins the
+                # exact registered commit.
+                logger.debug(f"Tree {tree} matches both subdir and root trees")
+                return None
+            return subdir_cache[tree]
+        # Fallback: trees registered before the subdir restructure are root
+        # tree SHAs.
+        return full_cache.get(tree)
 
     def _subdir_tree_hash(
         self, commit_sha: str, *, suppress_abort: bool
@@ -909,6 +935,19 @@ class Repo:
                     f"Skipping {version}: no matching tree or registry PR found"
                 )
                 continue
+
+            # Versions registered before the package moved into a subdirectory
+            # may already be tagged under the un-prefixed name (e.g. "v1.0.0"
+            # from when the package lived at the repo root). Don't create a
+            # duplicate prefixed tag for the same version on the same commit.
+            if version_tag != version and self._commit_sha_of_tag(version) == expected:
+                logger.info(
+                    f"Skipping {version}: commit {expected} is already tagged "
+                    f"as {version}"
+                )
+                skipped_existing += 1
+                continue
+
             valid[version] = expected
 
         if skipped_existing > 0:
