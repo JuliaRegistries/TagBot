@@ -1772,5 +1772,5 @@ Or create releases manually via the GitHub UI.
             return []
 
     def is_backport_commit(self, sha: str) -> bool:
-        """Check if the commit is on a non-default branch."""
+        """Check if the commit is only reachable from non-default branches."""
         return bool(self.branches_of_commit(sha))
