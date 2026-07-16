@@ -1399,7 +1399,7 @@ Or create releases manually via the GitHub UI.
             else:
                 commands.append(
                     f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
-                    f"gh release create {v} --generate-notes"
+                    f"gh release create {v} --target {sha} --generate-notes"
                 )
         return commands
 
