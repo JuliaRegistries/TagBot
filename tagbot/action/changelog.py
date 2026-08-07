@@ -440,7 +440,8 @@ class Changelog:
 
     def _render(self, data: Dict[str, object]) -> str:
         """Render the template."""
-        return self._template.render(data).strip()
+        rendered: str = self._template.render(data)
+        return rendered.strip()
 
     def get(self, version_tag: str, sha: str) -> str:
         """Get the changelog for a specific version."""
