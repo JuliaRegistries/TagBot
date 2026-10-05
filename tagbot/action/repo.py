@@ -382,10 +382,11 @@ class Repo:
         try:
             return b64decode(key).decode()
         except Exception as e:
-            raise ValueError(
-                "SSH key does not appear to be a valid private key. "
+            raise Abort(
+                "Key does not appear to be a valid private key. "
                 "Expected either a PEM-formatted key (starting with "
                 "'-----BEGIN ... PRIVATE KEY-----') or a valid Base64-encoded key. "
+                "Make sure the secret holds the private key, not the public key. "
                 f"Decoding error: {e}"
             ) from e
 
@@ -493,8 +494,10 @@ class Repo:
                     f"(stopped at {MAX_PRS_TO_CHECK} PR limit)"
                 )
                 break
-            # Only cache merged PRs (not closed without merging)
-            if pr.merged:
+            # Only cache merged PRs (not closed without merging).
+            # The list response has merged_at but not merged, which would cost
+            # one extra request per PR.
+            if pr.merged_at is not None:
                 cache[pr.head.ref] = pr
 
         if prs_fetched < MAX_PRS_TO_CHECK:
@@ -1723,8 +1726,15 @@ Or create releases manually via the GitHub UI.
             fatal = False
         elif isinstance(e, GithubException):
             logger.info(e.headers)
-            if 500 <= e.status < 600:
-                logger.warning("GitHub returned a 5xx error code")
+            if 500 <= e.status < 600 or e.status == 429:
+                logger.warning(f"GitHub returned a {e.status} error code")
+                logger.info(trace)
+                report_error = False
+                fatal = False
+            elif e.status == 400 and "<html" in str(e.data):
+                # An HTML error page instead of JSON comes from GitHub's front
+                # end, not the API, and goes away on retry.
+                logger.warning("GitHub returned a 400 error page")
                 logger.info(trace)
                 report_error = False
                 fatal = False
@@ -1734,6 +1744,7 @@ Or create releases manually via the GitHub UI.
                     "is valid and has access to the repository and registry."
                 )
                 internal = False
+                report_error = False
             elif e.status == 403:
                 self._check_rate_limit()
                 if self._is_resource_not_accessible_error(e):

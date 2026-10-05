@@ -281,15 +281,15 @@ def test_build_registry_prs_cache():
 
     # Create mock PRs
     pr1 = Mock()
-    pr1.merged = True
+    pr1.merged_at = datetime.now(timezone.utc)
     pr1.head.ref = "registrator-pkg-uuid1234-v1.0.0-hash12345"
 
     pr2 = Mock()
-    pr2.merged = True
+    pr2.merged_at = datetime.now(timezone.utc)
     pr2.head.ref = "registrator-pkg-uuid1234-v1.1.0-hash12345"
 
     pr3 = Mock()
-    pr3.merged = False  # Not merged, should be excluded
+    pr3.merged_at = None  # Not merged, should be excluded
     pr3.head.ref = "registrator-pkg-uuid1234-v1.2.0-hash12345"
 
     r._registry = Mock()

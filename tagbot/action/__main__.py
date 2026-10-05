@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from datetime import timedelta
 
 from .. import logger
+from . import Abort
 from .changelog import Changelog
 from .repo import Repo, _metrics
 
@@ -150,6 +151,9 @@ try:
         _metrics.log_summary()
         sys.exit(1)
     _metrics.log_summary()
+except Abort as e:
+    logger.error(str(e))
+    sys.exit(1)
 except Exception as e:
     try:
         repo.handle_error(e)

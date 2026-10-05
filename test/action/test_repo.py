@@ -360,7 +360,7 @@ def test_maybe_decode_private_key():
 
 def test_maybe_decode_private_key_invalid():
     r = _repo()
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(Abort) as exc_info:
         r._maybe_decode_private_key("not valid base64 or key!!!")
     assert "does not appear to be a valid private key" in str(exc_info.value)
 
@@ -492,7 +492,7 @@ def test_registry_pr():
     # Test finding PR in cache (now the only lookup path)
     good_pr = Mock(
         closed_at=now,
-        merged=True,
+        merged_at=now,
         head=Mock(ref="registrator-pkgname-abcdef01-v1.2.3-d745cc13b3"),
     )
     r._registry.get_pulls.return_value = [good_pr]
@@ -1541,6 +1541,21 @@ def test_handle_error(mock_logger, format_exc):
         assert False
     r._report_error.assert_called_with("ahh")
     mock_logger.error.assert_called_with("Issue reporting failed")
+
+
+@patch("traceback.format_exc", return_value="ahh")
+@patch("tagbot.action.repo.logger")
+def test_handle_error_not_reported(mock_logger, format_exc):
+    r = _repo()
+    r._report_error = Mock()
+    r.handle_error(GithubException(429, "Too Many Requests", {}))
+    r.handle_error(GithubException(400, "\r\n<html>\r\n<title>Bad request</title>", {}))
+    with pytest.raises(Abort):
+        r.handle_error(GithubException(401, {"message": "Bad credentials"}, {}))
+    r._report_error.assert_not_called()
+    with pytest.raises(Abort):
+        r.handle_error(GithubException(400, {"message": "Bad request"}, {}))
+    r._report_error.assert_called_once()
 
 
 @patch("traceback.format_exc", return_value="ahh")
