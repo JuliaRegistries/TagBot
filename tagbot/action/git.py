@@ -187,7 +187,9 @@ class Git:
         """Check if a tag exists on the remote."""
         # Use ls-remote to check if the tag exists on origin
         try:
-            output = self.command("ls-remote", "--tags", "origin", version)
+            output = self.command(
+                "ls-remote", "--tags", "origin", f"refs/tags/{version}"
+            )
             return bool(output.strip())
         except Abort:
             return False
