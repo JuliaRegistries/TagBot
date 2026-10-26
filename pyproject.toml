@@ -43,7 +43,7 @@ pyyaml = { version = "^6", optional = true }
 python-gitlab = { version = "^8.5.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
-black = "^26.5"
+black = "^26.10"
 boto3 = "^1.43.101"
 flake8 = "^7"
 mypy = "^2.3"
