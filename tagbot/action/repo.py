@@ -591,15 +591,27 @@ class Repo:
 
         Uses git log to get all commit:tree pairs in one command,
         enabling O(1) lookups instead of iterating through commits.
+
+        With a configured release branch, its history is read first, so that
+        where several commits share a tree, such as a release's merge commit
+        and a later merge of it into another branch, the commit on the
+        release branch is chosen, as the `branch` input documents.
         """
         if self.__tree_to_commit_cache is not None:
             return self.__tree_to_commit_cache
 
         logger.debug("Building tree→commit cache")
         cache: Dict[str, str] = {}
-        try:
-            # Get all commit:tree pairs in one git command
-            output = self._git.command("log", "--all", "--format=%H %T")
+        revisions = ["--all"]
+        if self.__release_branch:
+            revisions.insert(0, f"origin/{self.__release_branch}")
+        for revision in revisions:
+            try:
+                # Get all commit:tree pairs in one git command
+                output = self._git.command("log", revision, "--format=%H %T")
+            except Exception as e:
+                logger.warning(f"Failed to read {revision} for tree→commit cache: {e}")
+                continue
             for line in output.splitlines():
                 parts = line.split()
                 if len(parts) == 2:
@@ -607,9 +619,7 @@ class Repo:
                     # Only keep first occurrence (most recent commit for that tree)
                     if tree_sha not in cache:
                         cache[tree_sha] = commit_sha
-            logger.debug(f"Tree→commit cache built with {len(cache)} entries")
-        except Exception as e:
-            logger.warning(f"Failed to build tree→commit cache: {e}")
+        logger.debug(f"Tree→commit cache built with {len(cache)} entries")
 
         self.__tree_to_commit_cache = cache
         return cache
