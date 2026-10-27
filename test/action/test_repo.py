@@ -645,6 +645,57 @@ def test_commit_sha_of_tree():
     assert r._commit_sha_of_tree("nonexistent") is None
 
 
+def test_commit_sha_of_tree_prefers_release_branch():
+    """With a release branch, a tree that several commits share resolves to the
+    commit on that branch, such as a release's merge commit rather than a later
+    merge of it into another branch."""
+    r = _repo(branch="master")
+
+    def log(*args):
+        if args[1] == "origin/master":
+            return "merge_sha shared_tree\nold_sha old_tree"
+        return "backmerge_sha shared_tree\nmerge_sha shared_tree\nold_sha old_tree"
+
+    r._git.command = Mock(side_effect=log)
+    assert r._commit_sha_of_tree("shared_tree") == "merge_sha"
+    assert r._git.command.call_args_list == [
+        call("log", "origin/master", "--format=%H %T"),
+        call("log", "--all", "--format=%H %T"),
+    ]
+    # Commits on other branches still resolve, from the full history
+    r = _repo(branch="master")
+    r._git.command = Mock(side_effect=log)
+    assert r._commit_sha_of_tree("old_tree") == "old_sha"
+
+
+def test_commit_sha_of_tree_subdir_prefers_release_branch():
+    """The subdirectory cache, derived from the full cache, also prefers the
+    commit on the release branch."""
+    r = _repo(branch="master", subdir="path/to/package")
+
+    def log(*args):
+        if args[1] == "origin/master":
+            return "merge_sha root_tree"
+        return "backmerge_sha root_tree\nmerge_sha root_tree"
+
+    r._git.command = Mock(side_effect=log)
+    with patch.object(r, "_subdir_tree_hash", return_value="dir_tree"):
+        assert r._commit_sha_of_tree("dir_tree") == "merge_sha"
+
+
+def test_commit_sha_of_tree_missing_release_branch():
+    """A release branch that can't be read leaves the full history."""
+    r = _repo(branch="gone")
+
+    def log(*args):
+        if args[1] == "origin/gone":
+            raise Abort("unknown revision")
+        return "sha1 tree1"
+
+    r._git.command = Mock(side_effect=log)
+    assert r._commit_sha_of_tree("tree1") == "sha1"
+
+
 def test_commit_sha_of_tree_subdir_fallback():
     """Test subdirectory tree→commit cache."""
     r = _repo(subdir="path/to/package")
