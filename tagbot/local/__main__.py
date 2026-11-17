@@ -27,6 +27,9 @@ with (Path(__file__).parent.parent.parent / "action.yml").open() as f:
 @click.option("--draft", default=DRAFT, help="Create a draft release", is_flag=True)
 @click.option("--subdir", default=None, help="Subdirectory path in repo")
 @click.option("--tag-prefix", default=None, help="Prefix for version tag")
+@click.option(
+    "--release/--no-release", default=True, help="Create a GitHub release for the tag"
+)
 def main(
     repo: str,
     version: str,
@@ -38,6 +41,7 @@ def main(
     draft: bool,
     subdir: str,
     tag_prefix: str,
+    release: bool,
 ) -> None:
     r = Repo(
         repo=repo,
@@ -57,6 +61,7 @@ def main(
         branch=None,
         subdir=subdir,
         tag_prefix=tag_prefix,
+        release=release,
     )
     version = version if version.startswith("v") else f"v{version}"
     sha = r.commit_sha_of_version(version)

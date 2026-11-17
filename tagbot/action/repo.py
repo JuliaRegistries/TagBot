@@ -136,7 +136,10 @@ class Repo:
         lookback: Optional[int] = None,
         tag_prefix: Optional[str] = None,
         github_kwargs: Optional[Dict[str, object]] = None,
+        release: bool = True,
     ) -> None:
+        if draft and not release:
+            raise Abort("`draft: true` requires `release: true`")
         if github_kwargs is None:
             github_kwargs = {}
         if lookback is not None:
@@ -211,12 +214,13 @@ class Repo:
         # Only initialize Changelog if using custom format
         self._changelog = (
             None
-            if changelog_format in ["github", "conventional"]
+            if not release or changelog_format in ["github", "conventional"]
             else Changelog(self, changelog, changelog_ignore)
         )
         self._ssh = ssh
         self._gpg = gpg
         self._draft = draft
+        self._release = release
         self._user = user
         self._email = email
         self._git = Git(self._gh_url, repo, token, user, email)
@@ -1412,14 +1416,21 @@ class Repo:
 
         causes_text = "\n".join(f"- {c}" for c in causes)
         prevention_text = "\n".join(f"- {p}" for p in prevention)
+        what = "releases" if self._release else "tags"
+        action = "release" if self._release else "tagging"
+        ui_hint = (
+            "Or create releases manually via the GitHub UI.\n\n"
+            if self._release
+            else ""
+        )
 
         body = f"""\
-TagBot could not automatically create releases for the following versions.
+TagBot could not automatically create {what} for the following versions.
 
 **Likely cause(s):**
 {causes_text}
 
-## Versions needing manual release
+## Versions needing manual {action}
 
 {versions_list}
 
@@ -1431,9 +1442,7 @@ Run these commands locally:
 {chr(10).join(commands)}
 ```
 
-Or create releases manually via the GitHub UI.
-
-## Prevent this in the future
+{ui_hint}## Prevent this in the future
 
 {prevention_text}
 
@@ -1446,7 +1455,9 @@ Or create releases manually via the GitHub UI.
         """Build shell commands for manually tagging and releasing versions."""
         commands = []
         for v, sha, _ in failures:
-            if self._tag_exists(v):
+            if not self._release:
+                commands.append(f"git tag -a {v} {sha} -m '{v}' && git push origin {v}")
+            elif self._tag_exists(v):
                 commands.append(f"gh release create {v} --generate-notes")
             else:
                 commands.append(
@@ -1637,7 +1648,7 @@ Or create releases manually via the GitHub UI.
             self._create_release_branch_pr(version_tag, branch)
 
     def create_release(self, version: str, sha: str, is_latest: bool = True) -> None:
-        """Create a GitHub release.
+        """Create a Git tag and, unless disabled, a GitHub release.
 
         Args:
             version: The version string (e.g., "v1.2.3")
@@ -1646,6 +1657,11 @@ Or create releases manually via the GitHub UI.
                        Set to False when backfilling old releases to avoid marking
                        them as latest.
         """
+        if not self._release:
+            version_tag = self._get_version_tag(version)
+            logger.info(f"Creating tag {version_tag} at {sha} without a release")
+            self._git.create_tag(version_tag, sha, version_tag)
+            return
         target = sha
         if self._commit_sha_of_release_branch(version) == sha:
             # If we use <branch> as the target, GitHub will show
