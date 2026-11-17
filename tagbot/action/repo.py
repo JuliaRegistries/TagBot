@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -248,6 +249,13 @@ class Repo:
         if self._registry_token:
             text = text.replace(self._registry_token, "***")
         return text
+
+    def _subdir(self) -> Optional[str]:
+        """Get the package's directory relative to the repository root, if any."""
+        if not self.__subdir:
+            return None
+        path = posixpath.normpath(self.__subdir)
+        return None if path == "." else path
 
     def _project(self, k: str) -> str:
         """Get a value from the Project.toml."""

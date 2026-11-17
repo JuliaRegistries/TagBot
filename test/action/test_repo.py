@@ -111,6 +111,12 @@ def test_registry_token(mock_github):
     assert r._sanitize("pkg_token reg_token") == "*** ***"
 
 
+def test_subdir():
+    assert _repo()._subdir() is None
+    assert _repo(subdir=".")._subdir() is None
+    assert _repo(subdir="./lib/Foo/")._subdir() == "lib/Foo"
+
+
 def test_project():
     r = _repo()
     r._repo.get_contents = Mock(

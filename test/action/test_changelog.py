@@ -377,6 +377,58 @@ def test_collect_data():
     assert data["previous_release"] is None
 
 
+def test_collect_data_subdir():
+    c = _changelog(subdir="./lib/Foo/")
+    c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")
+    c._repo._project = Mock(return_value="Foo")
+    c._repo.is_version_yanked = Mock(return_value=False)
+    c._repo.branches_of_commit = Mock(return_value=[])
+    c._previous_release = Mock(return_value=None)
+    c._is_backport = Mock(return_value=False)
+    commit = Mock(author=Mock(date=datetime.now(timezone.utc)))
+    c._repo._repo.get_commit = Mock(return_value=Mock(commit=commit))
+    c._custom_release_notes = Mock(return_value=None)
+    c._issues = Mock(return_value=[Mock(spec=Issue)])
+    inside = Mock(number=1, title="inside")
+    inside.get_files.return_value = [Mock(filename="lib/Foo/src/Foo.jl")]
+    outside = Mock(number=2, title="outside", changed_files=1)
+    outside.get_files.return_value = [Mock(filename="src/B.jl", previous_filename=None)]
+    c._pulls = Mock(return_value=[inside, outside])
+    c._format_pull = lambda p: p.title
+    data = c._collect_data("Foo-v1.2.3", "abcdef")
+    assert data["pulls"] == ["inside"]
+    assert data["issues"] == []
+
+
+def test_touches_subdir():
+    c = _changelog(subdir="lib/Foo")
+
+    def pull(number, *files, changed_files=1):
+        p = Mock(number=number, changed_files=changed_files)
+        p.get_files.return_value = [
+            Mock(filename=f, previous_filename=prev) for f, prev in files
+        ]
+        return p
+
+    assert c._touches_subdir(pull(1, ("lib/Foo/src/Foo.jl", None)), "lib/Foo")
+    assert not c._touches_subdir(pull(2, ("lib/FooBar/src/a.jl", None)), "lib/Foo")
+    # Moving a file out of the directory changes the package too.
+    assert c._touches_subdir(pull(3, ("src/a.jl", "lib/Foo/src/a.jl")), "lib/Foo")
+    # GitHub lists at most 3000 files, so a pull request beyond that is kept.
+    assert c._touches_subdir(pull(4, ("x", None), changed_files=3001), "lib/Foo")
+    # Results are cached, and files are only listed up to the first match.
+    p = pull(5)
+    p.get_files.return_value = iter([Mock(filename="lib/Foo/a.jl")])
+    assert c._touches_subdir(p, "lib/Foo")
+    assert c._touches_subdir(p, "lib/Foo")
+    p.get_files.assert_called_once()
+    p = pull(6)
+    files = iter([Mock(filename="lib/Foo/a.jl"), Mock(filename="lib/Foo/b.jl")])
+    p.get_files.return_value = files
+    assert c._touches_subdir(p, "lib/Foo")
+    assert next(files).filename == "lib/Foo/b.jl"
+
+
 def test_collect_data_backport():
     c = _changelog()
     c._repo._repo = Mock(full_name="A/B.jl", html_url="https://github.com/A/B.jl")

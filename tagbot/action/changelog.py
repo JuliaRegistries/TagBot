@@ -62,6 +62,7 @@ class Changelog:
         self._ignore = set(self._slug(s) for s in ignore)
         self.__range: Optional[Tuple[datetime, datetime]] = None
         self.__issues_and_pulls: Optional[List[Union[Issue, PullRequest]]] = None
+        self.__touches_subdir: Dict[int, bool] = {}
 
     def _slug(self, s: str) -> str:
         """Return a version of the string that's easy to compare."""
@@ -284,6 +285,26 @@ class Changelog:
             if isinstance(p, PullRequest) and p.base.ref in branch_set
         ]
 
+    def _touches_subdir(self, pull: PullRequest, subdir: str) -> bool:
+        """Determine whether a pull request changed files in the given directory."""
+        if pull.number in self.__touches_subdir:
+            return self.__touches_subdir[pull.number]
+        prefix = subdir + "/"
+        touches = any(
+            f.filename.startswith(prefix)
+            or (f.previous_filename or "").startswith(prefix)
+            for f in pull.get_files()
+        )
+        # GitHub lists at most 3000 files of a pull request.
+        if not touches and pull.changed_files > 3000:
+            logger.warning(
+                f"Pull request #{pull.number} changes too many files to tell "
+                f"whether it touches {subdir}; including it"
+            )
+            touches = True
+        self.__touches_subdir[pull.number] = touches
+        return touches
+
     def _custom_release_notes(self, version_tag: str) -> Optional[str]:
         """Look up a version's custom release notes."""
         logger.debug("Looking up custom release notes")
@@ -422,6 +443,13 @@ class Changelog:
             logger.debug(f"End date: {end}")
             issues = self._issues(start, end)
             pulls = self._pulls(start, end)
+
+        subdir = self._repo._subdir()
+        if subdir:
+            # A subpackage's notes only list the pull requests that changed it.
+            # Issues can't be attributed to a subpackage, so they are left out.
+            pulls = [p for p in pulls if self._touches_subdir(p, subdir)]
+            issues = []
 
         is_yanked = self._repo.is_version_yanked(version_tag)
         return {
