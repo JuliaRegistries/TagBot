@@ -502,6 +502,8 @@ If you want to disable tag prefixes for subdirectory packages altogether, you ca
 `tag_prefix` to `NO_PREFIX`. Note that this is only recommended if you only have a single
 Julia package in the repository.
 
+If the repository root is itself a package, subpackage releases are not marked as the repository's latest release, so that badge stays with the top-level package.
+
 **:information_source: Monorepo-specific changelog behavior**
 
   A subpackage's changelog only lists the pull requests that changed files in its directory.

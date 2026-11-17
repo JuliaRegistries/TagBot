@@ -278,6 +278,22 @@ class Repo:
             raise InvalidProject(f"Failed to parse Project.toml (encoding error): {e}")
         return str(self.__project[k])
 
+    def _root_is_package(self, sha: str) -> bool:
+        """Determine whether the repository root holds a package at a commit."""
+        names = self._git.command(
+            "ls-tree", "--name-only", sha, "--", "Project.toml", "JuliaProject.toml"
+        ).splitlines()
+        # Julia prefers JuliaProject.toml over Project.toml.
+        for name in ["JuliaProject.toml", "Project.toml"]:
+            if name in names:
+                try:
+                    project = toml.loads(self._git.command("show", f"{sha}:{name}"))
+                except toml.TomlDecodeError:
+                    return False
+                # A project without a name and UUID is an environment, not a package.
+                return "name" in project and "uuid" in project
+        return False
+
     @property
     def _registry_clone_dir(self) -> str:
         if self.__registry_clone_dir is not None:
@@ -1669,6 +1685,10 @@ Or create releases manually via the GitHub UI.
             if self.__existing_tags_cache is not None:
                 self.__existing_tags_cache[version_tag] = sha
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
+        if is_latest and self.__subdir and self._root_is_package(sha):
+            # The top-level package owns the repository's "Latest" release.
+            logger.info(f"Not marking {version_tag} as latest: the root is a package")
+            is_latest = False
         # Use make_latest=False for backfilled old releases to avoid marking them
         # as the "Latest" release on GitHub
         make_latest_str = "true" if is_latest else "false"
