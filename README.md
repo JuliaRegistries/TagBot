@@ -506,6 +506,8 @@ Julia package in the repository.
 
   A subpackage's changelog only lists the pull requests that changed files in its directory.
   Issues are left out, since they can't be attributed to a subpackage.
+  With `changelog_format: conventional`, it only lists the commits that changed that directory.
+  GitHub's generated release notes (`changelog_format: github`) are not filtered.
 
 ## Local Usage
 

@@ -70,39 +70,21 @@ class Changelog:
 
     def _previous_release(self, version_tag: str) -> Optional[GitRelease]:
         """Get the release previous to the current one (according to SemVer)."""
-        tag_prefix = self._repo._tag_prefix()
-        i_start = len(tag_prefix)
-        cur_ver = VersionInfo.parse(version_tag[i_start:])
-        prev_ver = VersionInfo(0)
-        prev_rel = None
-        tags = self._repo.get_all_tags()
-
-        for tag_name in tags:
-            if not tag_name.startswith(tag_prefix):
-                continue
-            try:
-                ver = VersionInfo.parse(tag_name[i_start:])
-            except ValueError:
-                continue
-            if ver.prerelease or ver.build:
-                continue
-            # Get the highest version that is not greater than the current one.
-            # That means if we're creating a backport v1.1, an already existing v2.0,
-            # despite being newer than v1.0, will not be selected.
-            if ver < cur_ver and ver > prev_ver:
-                # Get the GitHub release for this tag if it exists
-                try:
-                    prev_rel = self._repo._repo.get_release(tag_name)
-                except UnknownObjectException:
-                    # Release doesn't exist - get commit datetime from the tag
-                    commit_time = self._repo._git.time_of_commit(tag_name)
-                    prev_rel = type(
-                        "obj",
-                        (object,),
-                        {"tag_name": tag_name, "created_at": commit_time},
-                    )()
-                prev_ver = ver
-        return prev_rel
+        tag_name = self._repo._previous_version_tag(version_tag)
+        if tag_name is None:
+            return None
+        release: Optional[GitRelease]
+        try:
+            release = self._repo._repo.get_release(tag_name)
+        except UnknownObjectException:
+            # Release doesn't exist - get commit datetime from the tag
+            commit_time = self._repo._git.time_of_commit(tag_name)
+            release = type(
+                "obj",
+                (object,),
+                {"tag_name": tag_name, "created_at": commit_time},
+            )()
+        return release
 
     def _previous_release_chronological(
         self, version_tag: str, commit_date: datetime

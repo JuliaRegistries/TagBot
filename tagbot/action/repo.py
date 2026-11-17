@@ -791,6 +791,29 @@ class Repo:
 
         return highest
 
+    def _previous_version_tag(self, version_tag: str) -> Optional[str]:
+        """Get the package's highest version tag below the given one.
+
+        Prereleases and builds are ignored. For a backport such as v1.1.1, this
+        is v1.1.0 even if v2.0.0 exists.
+        """
+        tag_prefix = self._tag_prefix()
+        i_start = len(tag_prefix)
+        cur_ver = VersionInfo.parse(version_tag[i_start:])
+        previous: Optional[Tuple[VersionInfo, str]] = None
+        for tag_name in self.get_all_tags():
+            if not tag_name.startswith(tag_prefix):
+                continue
+            try:
+                ver = VersionInfo.parse(tag_name[i_start:])
+            except ValueError:
+                continue
+            if ver.prerelease or ver.build:
+                continue
+            if ver < cur_ver and (previous is None or ver > previous[0]):
+                previous = (ver, tag_name)
+        return previous[1] if previous else None
+
     def get_all_tags(self) -> List[str]:
         """Get all Git tag names in the repository.
 
@@ -1129,11 +1152,13 @@ class Repo:
 
         # Get commit messages
         try:
+            subdir = self._subdir()
             log_output = self._git.command(
                 "log",
                 commit_range,
                 "--format=%s|%h|%an",
                 "--no-merges",
+                *(["--", subdir] if subdir else []),
             )
         except Exception as e:
             logger.warning(f"Could not get commits for conventional changelog: {e}")
@@ -1613,11 +1638,8 @@ Or create releases manually via the GitHub UI.
         version_tag = self._get_version_tag(version)
         logger.debug(f"Release {version_tag} target: {target}")
         # Check if a release for this tag already exists before doing work
-        # Also fetch releases list for later use in changelog generation
-        releases = []
         try:
-            releases = list(self._repo.get_releases())
-            for release in releases:
+            for release in self._repo.get_releases():
                 if release.tag_name == version_tag:
                     logger.info(
                         f"Release for tag {version_tag} already exists, skipping"
@@ -1631,15 +1653,7 @@ Or create releases manually via the GitHub UI.
             log = ""  # Empty body triggers GitHub to auto-generate notes
             logger.info("Using GitHub auto-generated release notes")
         elif self._changelog_format == "conventional":
-            # Find previous release for conventional changelog
-            previous_tag = None
-            if releases:
-                # Find the most recent release before this one
-                for release in releases:
-                    if release.tag_name != version_tag:
-                        previous_tag = release.tag_name
-                        break
-
+            previous_tag = self._previous_version_tag(version_tag)
             logger.info("Generating conventional commits changelog")
             log = self._generate_conventional_changelog(version_tag, sha, previous_tag)
         else:  # custom format
@@ -1651,6 +1665,9 @@ Or create releases manually via the GitHub UI.
             # commit on a branch.
             # https://github.com/JuliaRegistries/TagBot/issues/239#issuecomment-2246021651
             self._git.create_tag(version_tag, sha, log)
+            # Later versions in this run look up their predecessor in the cache.
+            if self.__existing_tags_cache is not None:
+                self.__existing_tags_cache[version_tag] = sha
         logger.info(f"Creating GitHub release {version_tag} at {sha}")
         # Use make_latest=False for backfilled old releases to avoid marking them
         # as the "Latest" release on GitHub
