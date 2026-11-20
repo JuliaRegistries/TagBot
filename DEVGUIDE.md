@@ -202,7 +202,7 @@ aws lambda update-function-configuration --profile julia_tagbot --region us-east
 
 | Item | Value |
 |------|-------|
-| Language | Python 3.12+ (Docker uses 3.14, Lambda uses 3.12) |
+| Language | Python 3.12+ (Docker uses 3.15, Lambda uses 3.12) |
 | Formatter | black |
 | Linter | flake8 |
 | Type Checker | mypy (stubs in `stubs/`) |
