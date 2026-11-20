@@ -111,6 +111,23 @@ def test_registry_token(mock_github):
     assert r._sanitize("pkg_token reg_token") == "*** ***"
 
 
+def test_subdir():
+    assert _repo()._subdir() is None
+    assert _repo(subdir=".")._subdir() is None
+    assert _repo(subdir="./lib/Foo/")._subdir() == "lib/Foo"
+
+
+def test_previous_version_tag():
+    r = _repo()
+    r.get_all_tags = Mock(
+        return_value=["v0.0.0", "v1.0.0", "v1.1.0-rc1", "v2.0.0", "Foo-v1.0.5", "x"]
+    )
+    assert r._previous_version_tag("v0.0.0") is None
+    assert r._previous_version_tag("v0.1.0") == "v0.0.0"
+    assert r._previous_version_tag("v1.1.0") == "v1.0.0"
+    assert r._previous_version_tag("v3.0.0") == "v2.0.0"
+
+
 def test_project():
     r = _repo()
     r._repo.get_contents = Mock(

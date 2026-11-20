@@ -26,7 +26,7 @@ def _repo(
     subdir=None,
     tag_prefix=None,
 ):
-    return Repo(
+    r = Repo(
         repo=repo,
         registry=registry,
         github=github,
@@ -46,6 +46,8 @@ def _repo(
         subdir=subdir,
         tag_prefix=tag_prefix,
     )
+    r.get_all_tags = Mock(return_value=[])
+    return r
 
 
 @patch("tagbot.action.repo.Github")
@@ -333,14 +335,12 @@ def test_conventional_changelog_no_commits_since_previous(mock_github):
     mock_repo.create_git_release = Mock()
     mock_repo.full_name = "test/repo"
 
-    # Mock a previous release
-    mock_previous_release = Mock()
-    mock_previous_release.tag_name = "v1.0.0"
-    mock_repo.get_releases.return_value = [mock_previous_release]
+    mock_repo.get_releases.return_value = []
 
     r = _repo(
         repo="test/repo", registry="test/registry", changelog_format="conventional"
     )
+    r.get_all_tags = Mock(return_value=["v1.0.0"])
     r._git = Mock()
     r._git.create_tag = Mock()
     # Simulate no commits found between v1.0.0 and v1.1.0
@@ -358,3 +358,67 @@ def test_conventional_changelog_no_commits_since_previous(mock_github):
     # Should have version header and no new commits message
     assert "## v1.1.0" in changelog
     assert "No new commits since the previous release" in changelog
+
+
+@patch("tagbot.action.repo.Github")
+def test_conventional_changelog_subdir(mock_github):
+    """A subpackage's conventional changelog covers its own tags and directory."""
+    mock_repo = Mock(full_name="test/repo")
+    mock_github.return_value.get_repo.return_value = mock_repo
+    mock_repo.get_releases.return_value = []
+    mock_repo.get_contents.return_value.decoded_content = b'name = "Foo"\n'
+    r = _repo(
+        repo="test/repo",
+        registry="test/registry",
+        changelog_format="conventional",
+        subdir="lib/Foo",
+    )
+    r.get_all_tags = Mock(
+        return_value=["v3.0.0", "Foo-v1.0.0", "Foo-v1.1.0", "Foo-v2.0.0"]
+    )
+    r._git = Mock()
+    r._git.command = Mock(return_value="fix: a bug|abc123|dev")
+
+    r.create_release("v1.1.1", "abc123")
+
+    r._git.command.assert_any_call(
+        "log",
+        "Foo-v1.1.0..abc123",
+        "--format=%s|%h|%an",
+        "--no-merges",
+        "--",
+        "lib/Foo",
+    )
+
+
+@patch("tagbot.action.repo.Github")
+def test_conventional_changelog_sees_tags_from_same_run(mock_github):
+    """When backfilling, each release starts from the one created before it."""
+    mock_repo = Mock(full_name="test/repo")
+    mock_github.return_value.get_repo.return_value = mock_repo
+    mock_repo.get_releases.return_value = []
+    mock_repo.get_git_matching_refs.return_value = []
+    r = Repo(
+        repo="test/repo",
+        registry="test/registry",
+        github="",
+        github_api="https://api.github.com",
+        token="x",
+        changelog="",
+        changelog_ignore=[],
+        changelog_format="conventional",
+        ssh=False,
+        gpg=False,
+        draft=False,
+        registry_ssh="",
+        user="",
+        email="",
+        branch=None,
+    )
+    r._git = Mock()
+    r._git.command = Mock(return_value="")
+
+    r.create_release("v1.0.0", "aaa")
+    r.create_release("v1.1.0", "bbb")
+
+    assert r._git.command.call_args.args[1] == "v1.0.0..bbb"

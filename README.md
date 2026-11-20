@@ -504,7 +504,10 @@ Julia package in the repository.
 
 **:information_source: Monorepo-specific changelog behavior**
 
-  Each subpackage will include all issues and pull requests in its changelogs, such that a single issue will be duplicated up in all of the repository's subpackages' release notes. Careful [`changelog_ignore` and/or custom changelog settings](#changelogs) on a per-subpackage basis can mitigate this duplication.
+  A subpackage's changelog only lists the pull requests that changed files in its directory.
+  Issues are left out, since they can't be attributed to a subpackage.
+  With `changelog_format: conventional`, it only lists the commits that changed that directory.
+  GitHub's generated release notes (`changelog_format: github`) are not filtered.
 
 ## Local Usage
 
