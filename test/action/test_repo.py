@@ -63,6 +63,59 @@ def _repo(
     )
 
 
+class _Clone:
+    """A real Git repository standing in for TagBot's clone of the package."""
+
+    def __init__(self, path):
+        self.path = str(path)
+        self._time = 1_700_000_000
+        self.run("init", "-q", "-b", "main")
+
+    def run(self, *args):
+        # Distinct timestamps keep `git log --all` ordering deterministic.
+        self._time += 60
+        date = f"@{self._time} +0000"
+        env = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
+        return subprocess.run(
+            ["git", "-C", self.path, "-c", "user.name=T", "-c", "user.email=t@t.t"]
+            + ["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args],
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    def commit(self, files, branch="main", base=None):
+        """Commit files (None deletes one) to a branch, created from base if given."""
+        if base is not None:
+            self.run("checkout", "-q", "-b", branch, base)
+        elif self.run("symbolic-ref", "--short", "HEAD") != branch:
+            self.run("checkout", "-q", branch)
+        for name, content in files.items():
+            path = os.path.join(self.path, name)
+            if content is None:
+                os.remove(path)
+                continue
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                f.write(content)
+        self.run("add", "-A")
+        self.run("commit", "-q", "-m", "c")
+        sha = self.run("rev-parse", "HEAD")
+        # TagBot reads the remote-tracking branches of its clone.
+        self.run("update-ref", f"refs/remotes/origin/{branch}", sha)
+        return sha
+
+    def tree(self, rev, path=""):
+        return self.run("rev-parse", f"{rev}:{path}")
+
+    def repo(self, **kwargs):
+        r = _repo(**kwargs)
+        r._git._Git__dir = self.path
+        r._repo = Mock(default_branch="main")
+        return r
+
+
 @patch("tagbot.action.repo.Github")
 def test_constructor(mock_github):
     # Mock the Github instance and its get_repo method
@@ -530,6 +583,36 @@ def test_registry_pr():
     assert r2._registry_pr("v2.3.4") is None
     # Only one call to build the cache
     assert r2._registry.get_pulls.call_count == 1
+    # The GitLab wrapper can't list merged merge requests
+    r3 = _repo()
+    r3._is_gitlab = True
+    r3._registry = Mock()
+    assert r3._registry_pr("v1.2.3") is None
+    r3._registry.get_pulls.assert_not_called()
+    # A token that can't list pull requests leaves the Git history
+    r4 = _repo()
+    r4._Repo__project = {"name": "PkgName", "uuid": "abcdef0123456789"}
+    r4._Repo__registry_url = "https://github.com/Org/pkgname.jl.git"
+    r4._registry = Mock()
+
+    def denied():
+        raise GithubException(403, {"message": "Resource not accessible"}, {})
+        yield
+
+    r4._registry.get_pulls.return_value = denied()
+    assert r4._registry_pr("v1.2.3") is None
+    assert r4._registry_pr("v2.3.4") is None
+    r4._registry.get_pulls.assert_called_once()
+    # Other errors still surface
+    r4._Repo__registry_prs_cache = None
+
+    def failing():
+        raise GithubException(500, {"message": "Server Error"}, {})
+        yield
+
+    r4._registry.get_pulls.return_value = failing()
+    with pytest.raises(GithubException):
+        r4._registry_pr("v1.2.3")
 
 
 @patch("tagbot.action.repo.logger")
@@ -553,67 +636,25 @@ def test_commit_sha_from_registry_pr(logger):
     assert r._commit_sha_from_registry_pr("v4.5.6", "def") == "sha"
 
 
-def test_commit_sha_from_registry_pr_subdir_matches_subdir_hash():
-    """With subdir set, the subdir tree hash is matched first."""
-    r = _repo(subdir="path/to/Foo.jl")
-    r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {'a' * 32}"))
-    r._repo.get_commit = Mock()
-    r._repo.get_commit.return_value.sha = "sha"
-    r._repo.get_commit.return_value.commit.tree.sha = "root_tree"
-    # The subdir tree hash matches the expected tree
-    with patch.object(r, "_subdir_tree_hash", return_value="foo_tree"):
-        assert r._commit_sha_from_registry_pr("v1.0.0", "foo_tree") == "sha"
-        r._subdir_tree_hash.assert_called_with("sha", suppress_abort=True)
+def test_commit_sha_from_registry_pr_subdir(tmp_path):
+    """For a subdirectory, the registry PR's commit is checked in the clone,
+    against its subdirectory tree or, for a version registered before the
+    package moved into the subdirectory, its root tree."""
+    clone = _Clone(tmp_path)
+    at_root = clone.commit({"Project.toml": "version = 1"})
+    moved = clone.commit({"Project.toml": None, "Sub/Project.toml": "version = 2"})
+    r = clone.repo(subdir="Sub")
+    r._repo.get_commit.side_effect = AssertionError("uses the API")
 
+    def lookup(sha, tree):
+        r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {sha}"))
+        return r._commit_sha_from_registry_pr("v1.0.0", tree)
 
-def test_commit_sha_from_registry_pr_subdir_falls_back_to_root_tree():
-    """When subdir tree hash doesn't match, fall back to root commit tree SHA.
-
-    This handles versions registered *before* the package was moved into the
-    subdirectory — the registry stores the root tree SHA at that point.
-    """
-    r = _repo(subdir="path/to/Foo.jl")
-    r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {'a' * 32}"))
-    r._repo.get_commit = Mock()
-    r._repo.get_commit.return_value.sha = "sha"
-    r._repo.get_commit.return_value.commit.tree.sha = "root_tree"
-    # Subdir tree hash does NOT match, but root tree does
-    with patch.object(r, "_subdir_tree_hash", return_value="wrong_hash"):
-        assert r._commit_sha_from_registry_pr("v1.0.0", "root_tree") == "sha"
-
-
-@patch("tagbot.action.repo.logger")
-def test_commit_sha_from_registry_pr_subdir_neither_matches(logger):
-    """When neither subdir nor root tree hash matches, return None."""
-    r = _repo(subdir="path/to/Foo.jl")
-    r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {'a' * 32}"))
-    r._repo.get_commit = Mock()
-    r._repo.get_commit.return_value.sha = "sha"
-    r._repo.get_commit.return_value.commit.tree.sha = "root_tree"
-    with patch.object(r, "_subdir_tree_hash", return_value="wrong_hash"):
-        assert r._commit_sha_from_registry_pr("v1.0.0", "neither_match") is None
-        logger.warning.assert_called_with(
-            "Tree SHA of commit from registry PR does not match"
-        )
-
-
-def test_commit_sha_from_registry_pr_subdir_no_crash_on_missing_subdir():
-    """When the subdir doesn't exist in the commit (e.g. pre-move),
-    suppress_abort=True prevents an Abort crash and the lookup returns None.
-
-    Pre-move versions whose root tree matches never reach the subdir check:
-    the root tree is compared first."""
-    r = _repo(subdir="path/to/Foo.jl")
-    r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {'a' * 32}"))
-    r._repo.get_commit = Mock()
-    r._repo.get_commit.return_value.sha = "sha"
-    r._repo.get_commit.return_value.commit.tree.sha = "root_tree"
-    # Root tree matches: resolved without consulting the subdir at all
-    with patch.object(r, "_subdir_tree_hash", return_value=None):
-        assert r._commit_sha_from_registry_pr("v1.0.0", "root_tree") == "sha"
-        r._subdir_tree_hash.assert_not_called()
-        # Root tree mismatch + missing subdir (suppressed Abort): returns None
-        assert r._commit_sha_from_registry_pr("v1.0.0", "no_match") is None
+    assert lookup(moved, clone.tree(moved, "Sub")) == moved
+    assert lookup(at_root, clone.tree(at_root)) == at_root
+    assert lookup(moved, clone.tree(at_root)) is None
+    # A registered commit that is not in the clone, e.g. after a force-push
+    assert lookup("a" * 40, clone.tree(moved, "Sub")) is None
 
 
 @patch("tagbot.action.repo.logger")
@@ -687,21 +728,6 @@ def test_commit_sha_of_tree_prefers_release_branch():
     assert r._commit_sha_of_tree("old_tree") == "old_sha"
 
 
-def test_commit_sha_of_tree_subdir_prefers_release_branch():
-    """The subdirectory cache, derived from the full cache, also prefers the
-    commit on the release branch."""
-    r = _repo(branch="master", subdir="path/to/package")
-
-    def log(*args):
-        if args[1] == "origin/master":
-            return "merge_sha root_tree"
-        return "backmerge_sha root_tree\nmerge_sha root_tree"
-
-    r._git.command = Mock(side_effect=log)
-    with patch.object(r, "_subdir_tree_hash", return_value="dir_tree"):
-        assert r._commit_sha_of_tree("dir_tree") == "merge_sha"
-
-
 def test_commit_sha_of_tree_missing_release_branch():
     """A release branch that can't be read leaves the full history."""
     r = _repo(branch="gone")
@@ -715,91 +741,92 @@ def test_commit_sha_of_tree_missing_release_branch():
     assert r._commit_sha_of_tree("tree1") == "sha1"
 
 
-def test_commit_sha_of_tree_subdir_fallback():
-    """Test subdirectory tree→commit cache."""
-    r = _repo(subdir="path/to/package")
-    # One git log pass provides commit and root tree SHAs for both caches
-    r._git.command = Mock(return_value="abc123 t1\ndef456 t2\nghi789 t3")
-    # _subdir_tree_hash called for each commit, match on second
-    with patch.object(
-        r, "_subdir_tree_hash", side_effect=["other", "tree_hash", "another"]
-    ):
-        assert r._commit_sha_of_tree("tree_hash") == "def456"
-        r._git.command.assert_called_once_with("log", "--all", "--format=%H %T")
-        # Cache is built, so subsequent lookups don't call git again
-        assert r._commit_sha_of_tree("other") == "abc123"
-        assert r._git.command.call_count == 1
+def test_commit_sha_of_tree_subdir(tmp_path):
+    """A subdirectory tree maps to the earliest commit on the default branch
+    that has it, not to a later commit on any branch that left it untouched."""
+    clone = _Clone(tmp_path)
+    bump = clone.commit({"README": "a", "Sub/Project.toml": "version = 1"})
+    clone.commit({"README": "b"})
+    # A newer commit on an unmerged branch shares the subdirectory tree.
+    clone.commit({"README": "c"}, branch="feature", base="main")
+    # Content only found on another branch still resolves.
+    other = clone.commit({"Sub/Project.toml": "version = 2"}, branch="feature")
+    r = clone.repo(subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(bump, "Sub")) == bump
+    assert r._commit_sha_of_tree(clone.tree(other, "Sub")) == other
+    assert r._commit_sha_of_tree("0" * 40) is None
 
 
-def test_commit_sha_of_tree_subdir_fallback_no_match():
-    """Test subdirectory cache returns None when no match found."""
-    r = _repo(subdir="path/to/package")
-    r._git.command = Mock(return_value="abc123 t1\ndef456 t2")
-    # No matching subdir tree hash
-    with patch.object(r, "_subdir_tree_hash", return_value="other_tree"):
-        assert r._commit_sha_of_tree("tree_hash") is None
-        assert r._subdir_tree_hash.call_count == 2
+def test_commit_sha_of_tree_subdir_follows_first_parent(tmp_path):
+    """A change merged into the default branch maps to its merge commit."""
+    clone = _Clone(tmp_path)
+    clone.commit({"Sub/Project.toml": "version = 1"})
+    clone.commit({"Sub/Project.toml": "version = 2"}, branch="feature", base="main")
+    clone.run("checkout", "-q", "main")
+    clone.run("merge", "-q", "--no-ff", "-m", "merge", "feature")
+    merge = clone.run("rev-parse", "HEAD")
+    clone.run("update-ref", "refs/remotes/origin/main", merge)
+    r = clone.repo(subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(merge, "Sub")) == merge
 
 
-def test_commit_sha_of_tree_subdir_falls_back_to_full_cache():
-    """When subdir cache misses, fall back to full tree→commit cache.
-
-    This handles versions registered *before* the package was moved into
-    a subdirectory — those registrations store the root tree SHA, not the
-    subdirectory tree SHA.
-    """
-    r = _repo(subdir="path/to/package")
-    r._git.command = Mock(
-        return_value="abc123 root_tree_1\ndef456 root_tree_2\nghi789 root_tree_3"
+def test_commit_sha_of_tree_subdir_merged_away(tmp_path):
+    """A tree from a deleted branch, reachable only through a merge that kept
+    the other side's subdirectory, still resolves."""
+    clone = _Clone(tmp_path)
+    base = clone.commit({"Sub/Project.toml": "version = 1"})
+    backport = clone.commit(
+        {"Sub/Project.toml": "version = 1.1"}, branch="backport", base=base
     )
-    with patch.object(r, "_subdir_tree_hash", return_value="dir_tree"):
-        # Post-move version resolves via the subdir cache
-        assert r._commit_sha_of_tree("dir_tree") == "abc123"
-        # Pre-subdir version registered at root level resolves via the
-        # full cache, with no additional git log pass
-        assert r._commit_sha_of_tree("root_tree_2") == "def456"
-        assert r._git.command.call_count == 1
+    clone.run("checkout", "-q", "main")
+    clone.commit({"Sub/Project.toml": "version = 2"})
+    clone.run("merge", "-q", "-s", "ours", "-m", "merge", "backport")
+    clone.run("update-ref", "refs/remotes/origin/main", "HEAD")
+    clone.run("branch", "-q", "-D", "backport")
+    clone.run("update-ref", "-d", "refs/remotes/origin/backport")
+    r = clone.repo(subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(backport, "Sub")) == backport
 
 
-def test_commit_sha_of_tree_subdir_ambiguous_defers_to_registry_pr():
+def test_commit_sha_of_tree_subdir_prefers_release_branch(tmp_path):
+    """With a release branch, the subdirectory tree maps to its commit there."""
+    clone = _Clone(tmp_path)
+    base = clone.commit({"Sub/Project.toml": "version = 1"})
+    on_main = clone.commit({"Sub/Project.toml": "version = 2"})
+    on_release = clone.commit(
+        {"Sub/Project.toml": "version = 2"}, branch="release", base=base
+    )
+    tree = clone.tree(on_main, "Sub")
+    assert clone.repo(subdir="Sub")._commit_sha_of_tree(tree) == on_main
+    r = clone.repo(subdir="Sub", branch="release")
+    assert r._commit_sha_of_tree(tree) == on_release
+    # A release branch that can't be read leaves the other branches.
+    r = clone.repo(subdir="Sub", branch="gone")
+    assert r._commit_sha_of_tree(tree) == on_main
+
+
+def test_commit_sha_of_tree_subdir_moved_package(tmp_path):
+    """Versions registered before the package moved into the subdirectory
+    have root trees."""
+    clone = _Clone(tmp_path)
+    at_root = clone.commit({"Project.toml": "version = 1", "README": "a"})
+    moved = clone.commit(
+        {"Project.toml": None, "README": None, "Sub/Project.toml": "version = 2"}
+    )
+    r = clone.repo(subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(at_root)) == at_root
+    assert r._commit_sha_of_tree(clone.tree(moved, "Sub")) == moved
+
+
+def test_commit_sha_of_tree_subdir_ambiguous(tmp_path):
     """A tree that is both a subdir tree and a root tree (content-preserving
-    move into the subdirectory) is ambiguous: either cache may point at the
-    wrong commit, so return None and let the caller use the registry PR,
-    which pins the exact registered commit."""
-    r = _repo(subdir="path/to/package")
-    # shared_tree is the root tree of abc123 AND the subdir tree of def456
-    r._git.command = Mock(return_value="def456 t_move\nabc123 shared_tree")
-    with patch.object(r, "_subdir_tree_hash", side_effect=["shared_tree", None]):
-        assert r._commit_sha_of_tree("shared_tree") is None
-
-
-def test_commit_sha_of_tree_subdir_caches_are_separate():
-    """The subdir tree cache and the full tree cache are stored separately
-    and do not interfere.  Building one does not invalidate the other."""
-    r = _repo(subdir="path/to/package")
-
-    # Build the full cache via _build_tree_to_commit_cache first
-    r._git.command = Mock(return_value="abc123 root_tree\ndef456 other_tree")
-    full_cache = r._build_tree_to_commit_cache()
-    assert full_cache == {"root_tree": "abc123", "other_tree": "def456"}
-    assert r._Repo__tree_to_commit_cache is not None
-    # The subdir cache should still be None (not yet built)
-    assert r._Repo__subdir_tree_to_commit_cache is None
-
-    # Now build the subdir cache via _commit_sha_of_tree; it derives from
-    # the already-built full cache without another git log pass
-    with patch.object(r, "_subdir_tree_hash", side_effect=["dir_a", "dir_b"]):
-        assert r._commit_sha_of_tree("dir_b") == "def456"
-        assert r._git.command.call_count == 1
-        # Both caches exist independently
-        assert r._Repo__subdir_tree_to_commit_cache == {
-            "dir_a": "abc123",
-            "dir_b": "def456",
-        }
-        assert r._Repo__tree_to_commit_cache == {
-            "root_tree": "abc123",
-            "other_tree": "def456",
-        }
+    move into the subdirectory) is ambiguous: either commit could have been
+    registered, so only the registry PR can tell."""
+    clone = _Clone(tmp_path)
+    at_root = clone.commit({"Project.toml": "version = 1"})
+    clone.commit({"Project.toml": None, "Sub/Project.toml": "version = 1"})
+    r = clone.repo(subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(at_root)) is None
 
 
 def test_commit_sha_of_tag():
@@ -995,50 +1022,77 @@ def test_filter_map_versions(logger):
 
 
 def test_filter_map_versions_subdir():
-    """_filter_map_versions with subdir resolves pre- and post-move versions."""
+    """For a subdirectory, the registry PR commit is preferred over the tree
+    lookup, since many commits share a subdirectory tree."""
     r = _repo(subdir="path/to/SubPkgA")
     r._build_tags_cache = Mock(return_value={})
-    r._commit_sha_from_registry_pr = Mock(return_value=None)
-    r._commit_sha_of_tree = Mock(return_value=None)
+    r._commit_sha_from_registry_pr = Mock(return_value="pr_sha")
+    r._commit_sha_of_tree = Mock(return_value="tree_sha")
     r._project = Mock(return_value="SubPkgA")
 
-    # Both pre-subdir (root tree) and post-subdir (subdir tree) lookups fail
-    assert not r._filter_map_versions({"1.0.0": "root_tree"})
-    r._commit_sha_of_tree.assert_called_with("root_tree")
-    r._commit_sha_from_registry_pr.assert_called_with("v1.0.0", "root_tree")
+    assert r._filter_map_versions({"1.0.0": "tree1"}) == {"v1.0.0": "pr_sha"}
+    r._commit_sha_from_registry_pr.assert_called_with("v1.0.0", "tree1")
+    r._commit_sha_of_tree.assert_not_called()
 
-    # Post-subdir version found via tree resolver
-    r._commit_sha_of_tree.return_value = "subdir_sha"
-    r._commit_sha_from_registry_pr.reset_mock()
-    assert r._filter_map_versions({"2.0.0": "subdir_tree"}) == {"v2.0.0": "subdir_sha"}
-    r._commit_sha_from_registry_pr.assert_not_called()
+    # Without a registry PR, fall back to the tree lookup
+    r._commit_sha_from_registry_pr.return_value = None
+    assert r._filter_map_versions({"2.0.0": "tree2"}) == {"v2.0.0": "tree_sha"}
+    r._commit_sha_of_tree.assert_called_with("tree2")
 
-    # Tag exists - skip
-    r._build_tags_cache.return_value = {"SubPkgA-v3.0.0": "existing"}
+    # Neither finds a commit
+    r._commit_sha_of_tree.return_value = None
     assert not r._filter_map_versions({"3.0.0": "tree3"})
 
-    # Fallback to registry PR works when tree not found
-    r._build_tags_cache.return_value = {}
-    r._commit_sha_of_tree.return_value = None
-    r._commit_sha_from_registry_pr.return_value = "pr_sha"
-    assert r._filter_map_versions({"5.0.0": "tree5"}) == {"v5.0.0": "pr_sha"}
+    # Tag exists - skip without looking for a commit
+    r._build_tags_cache.return_value = {"SubPkgA-v4.0.0": "existing"}
+    r._commit_sha_from_registry_pr.reset_mock()
+    r._commit_sha_of_tree.reset_mock()
+    assert not r._filter_map_versions({"4.0.0": "tree4"})
+    r._commit_sha_from_registry_pr.assert_not_called()
+    r._commit_sha_of_tree.assert_not_called()
 
 
-def test_filter_map_versions_subdir_skips_versions_tagged_unprefixed():
-    """A pre-subdir-move version already tagged under the un-prefixed name
-    (from when the package lived at the repo root) is not re-tagged with
-    the subdir prefix on the same commit."""
-    r = _repo(subdir="path/to/SubPkgA")
-    r._project = Mock(return_value="SubPkgA")
-    r._commit_sha_of_tree = Mock(return_value="pre_move_sha")
+def test_filter_map_versions_subdir_registered_commit(tmp_path):
+    """The registered commit is tagged even when an earlier commit already
+    had the same subdirectory content."""
+    clone = _Clone(tmp_path)
+    bump = clone.commit({"Sub/Project.toml": "version = 1"})
+    registered = clone.commit({"README": "a"})
+    r = clone.repo(subdir="Sub")
+    r._project = Mock(return_value="Sub")
+    r._build_tags_cache = Mock(return_value={})
+    versions = {"1.0.0": clone.tree(bump, "Sub")}
 
-    # Commit already tagged as v1.0.0 → no duplicate SubPkgA-v1.0.0
-    r._build_tags_cache = Mock(return_value={"v1.0.0": "pre_move_sha"})
-    assert not r._filter_map_versions({"1.0.0": "root_tree"})
+    r._registry_pr = Mock(return_value=None)
+    assert r._filter_map_versions(versions) == {"v1.0.0": bump}
+    r._registry_pr = Mock(return_value=Mock(body=f"- Commit: {registered}"))
+    assert r._filter_map_versions(versions) == {"v1.0.0": registered}
 
-    # Un-prefixed tag exists but points at a different commit → still tagged
-    r._build_tags_cache.return_value = {"v1.0.0": "unrelated_sha"}
-    assert r._filter_map_versions({"1.0.0": "root_tree"}) == {"v1.0.0": "pre_move_sha"}
+
+def test_filter_map_versions_subdir_unprefixed_tags(tmp_path):
+    """A version registered while the package lived at the repository root may
+    already be tagged without the prefix, and isn't tagged again. In a monorepo
+    released in lockstep, the un-prefixed tag on the same commit belongs to the
+    root package, so the subpackage still gets its own tag."""
+    clone = _Clone(tmp_path)
+    at_root = clone.commit({"Project.toml": 'version = "1.0.0"'})
+    lockstep = clone.commit(
+        {"Project.toml": 'version = "2.0.0"', "Sub/Project.toml": 'version = "2.0.0"'}
+    )
+    r = clone.repo(subdir="Sub")
+    r._project = Mock(return_value="Sub")
+    r._commit_sha_from_registry_pr = Mock(return_value=None)
+    versions = {"1.0.0": clone.tree(at_root), "2.0.0": clone.tree(lockstep, "Sub")}
+
+    r._build_tags_cache = Mock(return_value={"v1.0.0": at_root, "v2.0.0": lockstep})
+    assert r._filter_map_versions(versions) == {"v2.0.0": lockstep}
+
+    # An un-prefixed tag on another commit doesn't count
+    r._build_tags_cache.return_value = {"v1.0.0": lockstep}
+    assert r._filter_map_versions(versions) == {
+        "v1.0.0": at_root,
+        "v2.0.0": lockstep,
+    }
 
 
 @patch("tagbot.action.repo.logger")

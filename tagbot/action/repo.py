@@ -24,6 +24,7 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -160,6 +161,7 @@ class Repo:
         is_gitlab = (gh_url_host and "gitlab" in gh_url_host) or (
             gh_api_host and "gitlab" in gh_api_host
         )
+        self._is_gitlab = bool(is_gitlab)
         if is_gitlab:
             if GitlabClient is None:
                 raise Abort("GitLab support requires python-gitlab to be installed")
@@ -513,25 +515,31 @@ class Repo:
         prs = registry.get_pulls(state="closed", sort="updated", direction="desc")
 
         prs_fetched = 0
-        for pr in prs:
-            _metrics.prs_checked += 1
-            prs_fetched += 1
-            if prs_fetched >= MAX_PRS_TO_CHECK:
-                logger.info(
-                    f"PR cache built with {len(cache)} merged PRs "
-                    f"(stopped at {MAX_PRS_TO_CHECK} PR limit)"
+        try:
+            for pr in prs:
+                _metrics.prs_checked += 1
+                prs_fetched += 1
+                if prs_fetched >= MAX_PRS_TO_CHECK:
+                    logger.info(
+                        f"PR cache built with {len(cache)} merged PRs "
+                        f"(stopped at {MAX_PRS_TO_CHECK} PR limit)"
+                    )
+                    break
+                # Only cache merged PRs (not closed without merging).
+                # The list response has merged_at but not merged, which would cost
+                # one extra request per PR.
+                if pr.merged_at is not None:
+                    cache[pr.head.ref] = pr
+        except GithubException as e:
+            # A registry token may be allowed to read files but not pull requests.
+            if e.status not in (403, 404):
+                raise
+            logger.warning(f"Could not list registry pull requests ({e.status})")
+        else:
+            if prs_fetched < MAX_PRS_TO_CHECK:
+                logger.debug(
+                    f"PR cache built with {len(cache)} merged PRs (all PRs checked)"
                 )
-                break
-            # Only cache merged PRs (not closed without merging).
-            # The list response has merged_at but not merged, which would cost
-            # one extra request per PR.
-            if pr.merged_at is not None:
-                cache[pr.head.ref] = pr
-
-        if prs_fetched < MAX_PRS_TO_CHECK:
-            logger.debug(
-                f"PR cache built with {len(cache)} merged PRs (all PRs checked)"
-            )
 
         self.__registry_prs_cache = cache
         return cache
@@ -540,6 +548,9 @@ class Repo:
         """Look up a merged registry pull request for this version."""
         if self._clone_registry:
             # I think this is actually possible, but it looks pretty complicated.
+            return None
+        if self._is_gitlab:
+            # The GitLab wrapper can't list merged merge requests this way.
             return None
         name = self._project("name")
         uuid = self._project("uuid").lower()
@@ -593,23 +604,30 @@ class Repo:
         if pr.body is None:
             logger.info("Registry PR body is empty")
             return None
-        m = re.search("- Commit: ([a-f0-9]{32})", pr.body)
+        m = re.search("- Commit: ([a-f0-9]{32,40})", pr.body)
         if not m:
             logger.info("Registry PR body did not match")
             return None
-        commit = self._repo.get_commit(m[1])
-        # The registered tree matches the root commit tree for regular packages,
-        # and for subdir packages whose version was registered before the package
-        # moved into the subdirectory. Check it first since the data is already
-        # in hand from the API.
-        if commit.commit.tree.sha == tree:
-            return cast(str, commit.sha)
-        # Handle special case of tagging packages in a repo subdirectory, in which
-        # case the Julia package tree hash matches the subdirectory tree hash
-        # rather than the git commit tree hash.
         if self.__subdir:
-            subdir_tree_hash = self._subdir_tree_hash(commit.sha, suppress_abort=True)
-            if subdir_tree_hash and subdir_tree_hash == tree:
+            # Check the commit in the clone, where it gets tagged. If the commit
+            # is gone, the caller falls back to searching the history by tree.
+            try:
+                sha = self._git.command(
+                    "rev-parse", "--verify", "--quiet", f"{m[1]}^{{commit}}"
+                )
+            except Abort:
+                logger.info("Commit from registry PR is not in the repository")
+                return None
+            # The registered tree is the subdirectory tree, or the root tree for
+            # a version registered before the package moved into the subdirectory.
+            if (
+                self._git.command("rev-parse", f"{sha}^{{tree}}") == tree
+                or self._subdir_tree_hash(sha, suppress_abort=True) == tree
+            ):
+                return sha
+        else:
+            commit = self._repo.get_commit(m[1])
+            if commit.commit.tree.sha == tree:
                 return cast(str, commit.sha)
         logger.warning("Tree SHA of commit from registry PR does not match")
         return None
@@ -655,20 +673,47 @@ class Repo:
     def _build_subdir_tree_to_commit_cache(self) -> Dict[str, str]:
         """Build a cache mapping subdirectory tree SHAs to commit SHAs.
 
-        Derived from the full tree→commit cache: commits sharing a root tree
-        have identical content and therefore identical subdirectory trees, so
-        one representative commit per root tree covers every distinct subdir
-        tree without a second pass over the history.
+        Most commits leave a subdirectory untouched, so many commits share its
+        tree. Each tree maps to the earliest commit that has it, which is
+        usually the one that bumped the version and was registered. Later
+        commits sharing the tree may sit on unmerged branches, and keep
+        changing as new commits are pushed.
+
+        The release branch, or the default branch, is searched first, along
+        its first parents, so that a merged change maps to the commit where
+        that branch took it. Other branches are only searched for trees not
+        found there.
         """
         if self.__subdir_tree_to_commit_cache is not None:
             return self.__subdir_tree_to_commit_cache
 
         logger.debug("Building subdir tree→commit cache")
         subdir_cache: Dict[str, str] = {}
-        for commit_sha in self._build_tree_to_commit_cache().values():
-            subdir_tree_hash = self._subdir_tree_hash(commit_sha, suppress_abort=True)
-            if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
-                subdir_cache[subdir_tree_hash] = commit_sha
+        branch = self.__release_branch or self._repo.default_branch
+        inspected: Set[str] = set()
+        # Without --full-history, a merge that kept its first parent's version
+        # of the subdirectory would hide the commits from its other parents.
+        for revision in [
+            [f"origin/{branch}", "--first-parent"],
+            ["--all", "--full-history"],
+        ]:
+            try:
+                # Only commits that change the subdirectory can introduce a tree.
+                output = self._git.command(
+                    "log", *revision, "--format=%H", "--", cast(str, self.__subdir)
+                )
+            except Abort as e:
+                logger.warning(f"Failed to read {revision[0]} for subdir cache: {e}")
+                continue
+            for commit_sha in reversed(output.splitlines()):
+                if commit_sha in inspected:
+                    continue
+                inspected.add(commit_sha)
+                subdir_tree_hash = self._subdir_tree_hash(
+                    commit_sha, suppress_abort=True
+                )
+                if subdir_tree_hash and subdir_tree_hash not in subdir_cache:
+                    subdir_cache[subdir_tree_hash] = commit_sha
         logger.debug(f"Subdir tree→commit cache built with {len(subdir_cache)} entries")
         self.__subdir_tree_to_commit_cache = subdir_cache
         return subdir_cache
@@ -692,9 +737,8 @@ class Repo:
                 # Ambiguous: the tree is both the subdirectory tree of
                 # post-move commits and the root tree of a pre-move commit
                 # (a content-preserving move into the subdirectory). Either
-                # cache may point at the wrong commit, so return None and let
-                # the caller fall back to the registry PR, which pins the
-                # exact registered commit.
+                # cache may point at the wrong commit, so return None rather
+                # than guess: only the registry PR pins the registered commit.
                 logger.debug(f"Tree {tree} matches both subdir and root trees")
                 return None
             return subdir_cache[tree]
@@ -986,14 +1030,21 @@ class Repo:
                 continue
 
             # Tag doesn't exist - need to find expected commit SHA
-            # Try git log first (fast - O(1) cache lookup)
-            expected = self._commit_sha_of_tree(tree)
-            if not expected:
-                # Fall back to registry PR lookup (slower - requires API calls)
-                logger.debug(
-                    f"No matching tree for {version}, falling back to registry PR"
-                )
-                expected = self._commit_sha_from_registry_pr(version, tree)
+            if self.__subdir:
+                # Many commits share a subdirectory tree, so prefer the commit
+                # recorded in the registry PR.
+                expected = self._commit_sha_from_registry_pr(
+                    version, tree
+                ) or self._commit_sha_of_tree(tree)
+            else:
+                # Try git log first (fast - O(1) cache lookup)
+                expected = self._commit_sha_of_tree(tree)
+                if not expected:
+                    # Fall back to registry PR lookup (slower - requires API calls)
+                    logger.debug(
+                        f"No matching tree for {version}, falling back to registry PR"
+                    )
+                    expected = self._commit_sha_from_registry_pr(version, tree)
             if not expected:
                 logger.debug(
                     f"Skipping {version}: no matching tree or registry PR found"
@@ -1004,7 +1055,13 @@ class Repo:
             # may already be tagged under the un-prefixed name (e.g. "v1.0.0"
             # from when the package lived at the repo root). Don't create a
             # duplicate prefixed tag for the same version on the same commit.
-            if version_tag != version and self._commit_sha_of_tag(version) == expected:
+            # Such a version was registered with the commit's root tree; in a
+            # monorepo, a "v1.0.0" tag on the same commit is the root package's.
+            if (
+                version_tag != version
+                and self._commit_sha_of_tag(version) == expected
+                and self._git.command("rev-parse", f"{expected}^{{tree}}") == tree
+            ):
                 logger.info(
                     f"Skipping {version}: commit {expected} is already tagged "
                     f"as {version}"
