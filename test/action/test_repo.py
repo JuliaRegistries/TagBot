@@ -829,6 +829,19 @@ def test_commit_sha_of_tree_subdir_ambiguous(tmp_path):
     assert r._commit_sha_of_tree(clone.tree(at_root)) is None
 
 
+def test_subdir_tree_hash_missing_subdir_logs_no_error(tmp_path, caplog):
+    """Commits predating the subdirectory are expected; they are not errors."""
+    clone = _Clone(tmp_path)
+    before = clone.commit({"README": "a"})
+    after = clone.commit({"Sub/Project.toml": ""})
+    r = clone.repo(subdir="Sub")
+    assert r._subdir_tree_hash(after, suppress_abort=True) == clone.tree(after, "Sub")
+    assert r._subdir_tree_hash(before, suppress_abort=True) is None
+    with pytest.raises(Abort):
+        r._subdir_tree_hash(before, suppress_abort=False)
+    assert not [rec for rec in caplog.records if rec.levelname == "ERROR"]
+
+
 def test_commit_sha_of_tag():
     r = _repo()
     # Mock get_git_matching_refs to return tags (used by _build_tags_cache)

@@ -754,7 +754,9 @@ class Repo:
             return None
         arg = f"{commit_sha}:{self.__subdir}"
         try:
-            return self._git.command("rev-parse", arg)
+            # Commits predating the subdirectory don't have it: with --quiet,
+            # git reports that through the exit code alone, not as an error.
+            return self._git.command("rev-parse", "--verify", "--quiet", arg)
         except Abort:
             if suppress_abort:
                 logger.debug("rev-parse failed while inspecting %s", arg)
