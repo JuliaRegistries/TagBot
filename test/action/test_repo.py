@@ -716,6 +716,7 @@ def test_commit_sha_of_tree_prefers_release_branch():
             return "merge_sha shared_tree\nold_sha old_tree"
         return "backmerge_sha shared_tree\nmerge_sha shared_tree\nold_sha old_tree"
 
+    r._git.check = Mock(return_value=True)
     r._git.command = Mock(side_effect=log)
     assert r._commit_sha_of_tree("shared_tree") == "merge_sha"
     assert r._git.command.call_args_list == [
@@ -724,6 +725,7 @@ def test_commit_sha_of_tree_prefers_release_branch():
     ]
     # Commits on other branches still resolve, from the full history
     r = _repo(branch="master")
+    r._git.check = Mock(return_value=True)
     r._git.command = Mock(side_effect=log)
     assert r._commit_sha_of_tree("old_tree") == "old_sha"
 
@@ -731,14 +733,13 @@ def test_commit_sha_of_tree_prefers_release_branch():
 def test_commit_sha_of_tree_missing_release_branch():
     """A release branch that can't be read leaves the full history."""
     r = _repo(branch="gone")
-
-    def log(*args):
-        if args[1] == "origin/gone":
-            raise Abort("unknown revision")
-        return "sha1 tree1"
-
-    r._git.command = Mock(side_effect=log)
+    r._git.check = Mock(return_value=False)
+    r._git.command = Mock(return_value="sha1 tree1")
     assert r._commit_sha_of_tree("tree1") == "sha1"
+    r._git.check.assert_called_once_with(
+        "rev-parse", "--verify", "--quiet", "origin/gone"
+    )
+    r._git.command.assert_called_once_with("log", "--all", "--format=%H %T")
 
 
 def test_commit_sha_of_tree_subdir(tmp_path):
@@ -827,6 +828,35 @@ def test_commit_sha_of_tree_subdir_ambiguous(tmp_path):
     clone.commit({"Project.toml": None, "Sub/Project.toml": "version = 1"})
     r = clone.repo(subdir="Sub")
     assert r._commit_sha_of_tree(clone.tree(at_root)) is None
+
+
+def test_subdir_tree_hash_missing_subdir_logs_no_error(tmp_path, caplog):
+    """Commits predating the subdirectory are expected; they are not errors."""
+    clone = _Clone(tmp_path)
+    before = clone.commit({"README": "a"})
+    after = clone.commit({"Sub/Project.toml": ""})
+    r = clone.repo(subdir="Sub")
+    assert r._subdir_tree_hash(after, suppress_abort=True) == clone.tree(after, "Sub")
+    assert r._subdir_tree_hash(before, suppress_abort=True) is None
+    with pytest.raises(Abort):
+        r._subdir_tree_hash(before, suppress_abort=False)
+    assert not [rec for rec in caplog.records if rec.levelname == "ERROR"]
+
+
+def test_commit_sha_of_tree_missing_release_branch_logs_no_error(tmp_path, caplog):
+    """A release branch missing from the remote leaves the full history,
+    with a warning rather than git's error output."""
+    clone = _Clone(tmp_path)
+    clone.commit({"README": "a"})
+    after = clone.commit({"Sub/Project.toml": ""})
+    r = clone.repo(branch="gone", subdir="Sub")
+    assert r._commit_sha_of_tree(clone.tree(after, "Sub")) == after
+    assert not [rec for rec in caplog.records if rec.levelname == "ERROR"]
+    assert [
+        rec
+        for rec in caplog.records
+        if rec.levelname == "WARNING" and "origin/gone" in rec.getMessage()
+    ]
 
 
 def test_commit_sha_of_tag():
