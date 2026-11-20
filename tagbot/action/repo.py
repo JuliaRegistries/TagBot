@@ -1358,7 +1358,8 @@ class Repo:
         commands = self._manual_tag_commands(failures)
 
         versions_list = "\n".join(
-            f"- [ ] `{v}` at commit `{sha[:8]}`" for v, sha, _ in failures
+            f"- [ ] `{self._get_version_tag(v)}` at commit `{sha[:8]}`"
+            for v, sha, _ in failures
         )
         pat_url = (
             "https://docs.github.com/en/authentication/"
@@ -1455,14 +1456,17 @@ Run these commands locally:
         """Build shell commands for manually tagging and releasing versions."""
         commands = []
         for v, sha, _ in failures:
+            tag = self._get_version_tag(v)
             if not self._release:
-                commands.append(f"git tag -a {v} {sha} -m '{v}' && git push origin {v}")
-            elif self._tag_exists(v):
-                commands.append(f"gh release create {v} --generate-notes")
+                commands.append(
+                    f"git tag -a {tag} {sha} -m '{tag}' && git push origin {tag}"
+                )
+            elif self._tag_exists(tag):
+                commands.append(f"gh release create {tag} --generate-notes")
             else:
                 commands.append(
-                    f"git tag -a {v} {sha} -m '{v}' && git push origin {v} && "
-                    f"gh release create {v} --target {sha} --generate-notes"
+                    f"git tag -a {tag} {sha} -m '{tag}' && git push origin {tag} && "
+                    f"gh release create {tag} --target {sha} --generate-notes"
                 )
         return commands
 

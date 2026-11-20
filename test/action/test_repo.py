@@ -1508,6 +1508,29 @@ def test_draft_requires_release():
         _repo(draft=True, release=False)
 
 
+def test_manual_tag_body_subdir():
+    r = _repo(subdir="path/to/Foo.jl")
+    r._repo = Mock()
+    r._repo.get_contents.return_value.decoded_content = b'name = "Foo"\n'
+
+    def get_git_ref(ref):
+        if ref != "tags/Foo-v1.0.0":
+            raise UnknownObjectException(404, "Not Found", {})
+        return Mock()
+
+    r._repo.get_git_ref.side_effect = get_git_ref
+    r._run_url = Mock(return_value="url")
+    body = r._manual_tag_body(
+        [("v1.0.0", "abcdef12", "error"), ("v1.1.0", "bcdef123", "error")]
+    )
+    assert "`Foo-v1.0.0` at commit" in body
+    assert "gh release create Foo-v1.0.0 --generate-notes" in body
+    assert (
+        "git tag -a Foo-v1.1.0 bcdef123 -m 'Foo-v1.1.0' && git push origin Foo-v1.1.0"
+        " && gh release create Foo-v1.1.0 --target bcdef123 --generate-notes"
+    ) in body
+
+
 @patch("tagbot.action.repo.logger")
 def test_create_release_handles_403_error(logger):
     """Test that 403 permission error logs appropriate message and re-raises."""
