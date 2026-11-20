@@ -650,7 +650,11 @@ class Repo:
         cache: Dict[str, str] = {}
         revisions = ["--all"]
         if self.__release_branch:
-            revisions.insert(0, f"origin/{self.__release_branch}")
+            release_ref = f"origin/{self.__release_branch}"
+            if self._git.check("rev-parse", "--verify", "--quiet", release_ref):
+                revisions.insert(0, release_ref)
+            else:
+                logger.warning(f"Release branch {release_ref} not found")
         for revision in revisions:
             try:
                 # Get all commit:tree pairs in one git command
@@ -689,14 +693,15 @@ class Repo:
 
         logger.debug("Building subdir tree→commit cache")
         subdir_cache: Dict[str, str] = {}
-        branch = self.__release_branch or self._repo.default_branch
+        branch = f"origin/{self.__release_branch or self._repo.default_branch}"
         inspected: Set[str] = set()
         # Without --full-history, a merge that kept its first parent's version
         # of the subdirectory would hide the commits from its other parents.
-        for revision in [
-            [f"origin/{branch}", "--first-parent"],
-            ["--all", "--full-history"],
-        ]:
+        revisions = [["--all", "--full-history"]]
+        # A missing release branch is reported by _build_tree_to_commit_cache.
+        if self._git.check("rev-parse", "--verify", "--quiet", branch):
+            revisions.insert(0, [branch, "--first-parent"])
+        for revision in revisions:
             try:
                 # Only commits that change the subdirectory can introduce a tree.
                 output = self._git.command(
