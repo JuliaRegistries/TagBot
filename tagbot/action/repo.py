@@ -1055,7 +1055,13 @@ class Repo:
             # may already be tagged under the un-prefixed name (e.g. "v1.0.0"
             # from when the package lived at the repo root). Don't create a
             # duplicate prefixed tag for the same version on the same commit.
-            if version_tag != version and self._commit_sha_of_tag(version) == expected:
+            # Such a version was registered with the commit's root tree; in a
+            # monorepo, a "v1.0.0" tag on the same commit is the root package's.
+            if (
+                version_tag != version
+                and self._commit_sha_of_tag(version) == expected
+                and self._git.command("rev-parse", f"{expected}^{{tree}}") == tree
+            ):
                 logger.info(
                     f"Skipping {version}: commit {expected} is already tagged "
                     f"as {version}"

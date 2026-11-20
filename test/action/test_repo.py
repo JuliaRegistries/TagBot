@@ -1069,22 +1069,30 @@ def test_filter_map_versions_subdir_registered_commit(tmp_path):
     assert r._filter_map_versions(versions) == {"v1.0.0": registered}
 
 
-def test_filter_map_versions_subdir_skips_versions_tagged_unprefixed():
-    """A pre-subdir-move version already tagged under the un-prefixed name
-    (from when the package lived at the repo root) is not re-tagged with
-    the subdir prefix on the same commit."""
-    r = _repo(subdir="path/to/SubPkgA")
-    r._project = Mock(return_value="SubPkgA")
+def test_filter_map_versions_subdir_unprefixed_tags(tmp_path):
+    """A version registered while the package lived at the repository root may
+    already be tagged without the prefix, and isn't tagged again. In a monorepo
+    released in lockstep, the un-prefixed tag on the same commit belongs to the
+    root package, so the subpackage still gets its own tag."""
+    clone = _Clone(tmp_path)
+    at_root = clone.commit({"Project.toml": 'version = "1.0.0"'})
+    lockstep = clone.commit(
+        {"Project.toml": 'version = "2.0.0"', "Sub/Project.toml": 'version = "2.0.0"'}
+    )
+    r = clone.repo(subdir="Sub")
+    r._project = Mock(return_value="Sub")
     r._commit_sha_from_registry_pr = Mock(return_value=None)
-    r._commit_sha_of_tree = Mock(return_value="pre_move_sha")
+    versions = {"1.0.0": clone.tree(at_root), "2.0.0": clone.tree(lockstep, "Sub")}
 
-    # Commit already tagged as v1.0.0 → no duplicate SubPkgA-v1.0.0
-    r._build_tags_cache = Mock(return_value={"v1.0.0": "pre_move_sha"})
-    assert not r._filter_map_versions({"1.0.0": "root_tree"})
+    r._build_tags_cache = Mock(return_value={"v1.0.0": at_root, "v2.0.0": lockstep})
+    assert r._filter_map_versions(versions) == {"v2.0.0": lockstep}
 
-    # Un-prefixed tag exists but points at a different commit → still tagged
-    r._build_tags_cache.return_value = {"v1.0.0": "unrelated_sha"}
-    assert r._filter_map_versions({"1.0.0": "root_tree"}) == {"v1.0.0": "pre_move_sha"}
+    # An un-prefixed tag on another commit doesn't count
+    r._build_tags_cache.return_value = {"v1.0.0": lockstep}
+    assert r._filter_map_versions(versions) == {
+        "v1.0.0": at_root,
+        "v2.0.0": lockstep,
+    }
 
 
 @patch("tagbot.action.repo.logger")
