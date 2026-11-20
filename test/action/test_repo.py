@@ -1410,6 +1410,7 @@ def test_create_release_subdir():
     r._repo.create_git_tag.return_value.sha = "t"
     r._repo.get_releases = Mock(return_value=[])
     r._changelog.get = Mock(return_value="l")
+    r._root_is_package = Mock(return_value=False)
     r.create_release("v1", "a")
     r._git.create_tag.assert_called_with("Foo-v1", "a", "l")
     r._repo.create_git_release.assert_called_with(
@@ -1446,6 +1447,36 @@ def test_create_release_subdir():
         make_latest="true",
         generate_release_notes=False,
     )
+    # A top-level package keeps the "Latest" release for itself.
+    r._draft = False
+    r._root_is_package.return_value = True
+    r.create_release("v2", "e")
+    assert r._repo.create_git_release.call_args.kwargs["make_latest"] == "false"
+    r._root_is_package.assert_called_with("e")
+
+
+def test_root_is_package():
+    r = _repo()
+    files = {}
+
+    def command(*args):
+        if args[0] == "ls-tree":
+            assert args[2] == "a"
+            return "\n".join(files)
+        sha, name = args[1].split(":")
+        assert sha == "a"
+        return files[name]
+
+    r._git.command = Mock(side_effect=command)
+    assert not r._root_is_package("a")
+    files["Project.toml"] = '[deps]\nFoo = "abc"\n'
+    assert not r._root_is_package("a")
+    files["Project.toml"] = 'name = "Bar"\nuuid = "abc"\n'
+    assert r._root_is_package("a")
+    files["JuliaProject.toml"] = "[deps]\n"
+    assert not r._root_is_package("a")
+    files["JuliaProject.toml"] = "not toml"
+    assert not r._root_is_package("a")
 
 
 @patch("tagbot.action.repo.logger")
