@@ -60,6 +60,8 @@ try:
         )
         changelog_format = "custom"
 
+    release = get_input("release", "true").lower() not in ["false", "no"]
+
     repo = Repo(
         repo=os.getenv("GITHUB_REPOSITORY", ""),
         registry=get_input("registry"),
@@ -79,6 +81,7 @@ try:
         branch=get_input("branch"),
         subdir=get_input("subdir"),
         tag_prefix=get_input("tag_prefix"),
+        release=release,
     )
 
     if not repo.is_registered():
@@ -107,7 +110,7 @@ try:
     # Determine which version should be marked as "latest" release.
     # Only the version with the most recent commit should be marked as latest.
     # This prevents backfilled old releases from being incorrectly marked as latest.
-    latest_version = repo.version_with_latest_commit(versions)
+    latest_version = repo.version_with_latest_commit(versions) if release else None
     if latest_version:
         logger.info(
             f"Version {latest_version} has the most recent commit, "
@@ -122,7 +125,7 @@ try:
             if get_input("branches", "false") == "true":
                 repo.handle_release_branch(version)
             is_latest = version == latest_version
-            if not is_latest:
+            if release and not is_latest:
                 logger.info(f"Version {version} will not be marked as latest release")
             repo.create_release(version, sha, is_latest=is_latest)
             successes.append(version)

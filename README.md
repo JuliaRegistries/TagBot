@@ -272,6 +272,19 @@ with:
   draft: true
 ```
 
+### Tags Without Releases
+
+To create only the Git tag, without a GitHub release, set the `release` input to `false`:
+
+```yml
+with:
+  token: ${{ secrets.GITHUB_TOKEN }}
+  release: false
+```
+
+This suits subpackages that don't need their own release, such as those versioned in lockstep with the top-level package.
+TagBot skips versions that are already tagged, so re-enabling releases later does not create releases for those versions.
+
 ### GPG Signing
 
 If you want to create signed tags, you can supply your own GPG private key.

@@ -38,6 +38,7 @@ def _repo(
     branch=None,
     subdir=None,
     tag_prefix=None,
+    release=True,
 ):
     return Repo(
         repo=repo,
@@ -58,6 +59,7 @@ def _repo(
         branch=branch,
         subdir=subdir,
         tag_prefix=tag_prefix,
+        release=release,
     )
 
 
@@ -1477,6 +1479,33 @@ def test_root_is_package():
     assert not r._root_is_package("a")
     files["JuliaProject.toml"] = "not toml"
     assert not r._root_is_package("a")
+
+
+def test_create_release_without_release():
+    r = _repo(user="user", email="email", subdir="path/to/Foo.jl", release=False)
+    assert r._changelog is None
+    r._repo = Mock(default_branch="default")
+    r._repo.get_contents.return_value.decoded_content = b'name = "Foo"\n'
+    r._git.create_tag = Mock()
+    r.create_release("v1", "a")
+    r._git.create_tag.assert_called_once_with("Foo-v1", "a", "Foo-v1")
+    r._repo.get_releases.assert_not_called()
+    r._repo.create_git_release.assert_not_called()
+
+
+def test_manual_tag_issue_without_release():
+    r = _repo(release=False)
+    r._run_url = Mock(return_value="url")
+    body = r._manual_tag_body([("v1.0.0", "abcdef12", "error")])
+    assert "gh release" not in body
+    assert "GitHub UI" not in body
+    assert "git tag -a v1.0.0 abcdef12 -m 'v1.0.0' && git push origin v1.0.0" in body
+    assert "could not automatically create tags" in body
+
+
+def test_draft_requires_release():
+    with pytest.raises(Abort, match="draft"):
+        _repo(draft=True, release=False)
 
 
 @patch("tagbot.action.repo.logger")

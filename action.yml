@@ -55,6 +55,10 @@ inputs:
     description: Create draft releases
     required: false
     default: false
+  release:
+    description: Create a GitHub release for each tag (set to `false` to only create tags)
+    required: false
+    default: true
   user:
     description: Git username
     required: false
